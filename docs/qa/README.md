@@ -55,3 +55,13 @@ Not run: WebKit, real devices, VoiceOver/TalkBack, reduced-transparency emulatio
 | `npx playwright test --project=offline-sw --trace off` | 14 passed, 0 failed |
 
 Screenshots unchanged (32 PNGs, 5.7 MB). Still not run: WebKit, real devices and screen readers, reduced-transparency emulation, post-deploy smoke, @prod specs, Lighthouse, Supabase pre-launch tests (a)-(i), the CI workflow (D11).
+
+## D3 / D6 run (positive reasons on, denyConsoleUi true)
+
+| Run | Result |
+|---|---|
+| `npx playwright test --project=pixel --project=iphone-chromium --trace off` | 273 passed, 1 skipped, 0 failed (before the new 320 px case) |
+| New case: Great Today card at 320 px (4 reasons, check icons, no overflow, axe clean), both projects | 2 passed |
+| `npx playwright test --project=offline-sw --trace off` | 14 passed |
+
+No spec assumed an empty reasons list on a Great day, and none proposed a Console file. The first run rewrote every screenshot; the visible changes are Today Great, next days and day detail. New: `pixel-today-great-320.png` and `iphone-chromium-today-great-320.png`. At 320 px the Great card lists Low chance of rain, Mostly sunny, Comfortable (feels like 82 °F), Light wind (6 mph), then the UV line, with no overflow.

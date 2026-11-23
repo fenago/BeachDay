@@ -261,3 +261,22 @@ test.describe("preferences", () => {
     }
   });
 });
+
+test.describe("D3 positive reasons on a Great day (320 px)", () => {
+  test("Great Today card lists up to 4 reasons with the check icon, no overflow, axe clean, and a screenshot is taken", async ({ page, baseURL }, testInfo) => {
+    const { axe } = await import("../helpers/e2e.mjs");
+    await beachApp(page, { baseURL, fixture: "great" });
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto("/");
+    const items = page.getByTestId("reasons").getByRole("listitem");
+    await expect(items.first()).toBeVisible();
+    const n = await items.count();
+    expect(n, "1 to 4 reasons").toBeGreaterThanOrEqual(1);
+    expect(n).toBeLessThanOrEqual(4);
+    await expect(page.getByTestId("reasons").locator(".reason-list__item--positive").first()).toBeVisible();
+    await noHorizontalScroll(page);
+    const r = await axe(page);
+    expect(r.violations).toEqual([]);
+    await page.screenshot({ path: `docs/qa/screenshots/${testInfo.project.name}-today-great-320.png`, animations: "disabled" });
+  });
+});
