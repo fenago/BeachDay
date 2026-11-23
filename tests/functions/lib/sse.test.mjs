@@ -45,3 +45,16 @@ describe("sse", () => {
     expect(errorEvent("refusal", "x".repeat(900)).message).toHaveLength(500);
   });
 });
+
+describe("sse headers (R2-4)", () => {
+  it("security headers win over caller headers; CORS and cookies throw", () => {
+    const res = sseResponse(async (w) => w.done(), () => {}, { "Cache-Control": "public", "x-request-id": "r1" });
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("x-request-id")).toBe("r1");
+    for (const bad of [{ "Access-Control-Allow-Origin": "*" }, { "set-cookie": "a=b" }]) expect(() => sseResponse(async (w) => w.done(), () => {}, bad)).toThrow(/forbidden/);
+  });
+  it("error codes come from http.mts (one list)", async () => {
+    const { ERROR_CODES } = await import("../../../netlify/functions/lib/http.mts");
+    for (const code of Object.keys(ERROR_CODES)) expect(() => assertEvent(errorEvent(code))).not.toThrow();
+  });
+});

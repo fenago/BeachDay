@@ -164,7 +164,7 @@ export function createToolRunner(deps: ToolRunnerDeps) {
         : e instanceof ProposalRejected ? `proposal rejected: ${e.message}`
         : "the tool failed (GitHub or storage unavailable); try again later";
       if (!(e instanceof ToolInputError || e instanceof ReadRefused || e instanceof ProposalRejected)) {
-        console.error("tool_failed", { tool: name, error: (e as Error)?.name });
+        console.error(JSON.stringify({ msg: "tool_failed", tool: name, error: (e as Error)?.name }));
       }
       result = { type: "tool_result", tool_use_id: block.id, content: msg, is_error: true };
     }

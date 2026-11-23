@@ -1,7 +1,7 @@
 // Server-sent events for POST /api/chat, exactly the docs/04 §2.1 events: text, tool, proposal, handoff, error, done.
 // Every stream ends with exactly ONE `done` or `error`. A refusal is error{code:"refusal",retryable:false}, never done.
 // Raw Anthropic events, thinking blocks, signatures and upstream error bodies never reach the browser.
-import { sseHeaders } from "./http.mts";
+import { sseHeaders, ERROR_CODES as HTTP_ERROR_CODES } from "./http.mts";
 
 export type ToolName = "read_file" | "list_files" | "propose_change";
 export type DoneReason = "end_turn" | "max_tokens" | "handoff" | "tool_rounds_exhausted";
@@ -19,10 +19,7 @@ export type SseEvent =
 
 const TOOL_NAMES = new Set(["read_file", "list_files", "propose_change"]);
 const DONE_REASONS = new Set(["end_turn", "max_tokens", "handoff", "tool_rounds_exhausted"]);
-const ERROR_CODES = new Set([
-  "invalid_request", "unauthorized", "step_up_required", "forbidden", "not_found", "conflict", "stale",
-  "rate_limited", "budget_exhausted", "approve_cap", "refusal", "upstream", "timeout", "unavailable", "internal",
-]);
+const ERROR_CODES: ReadonlySet<string> = new Set(Object.keys(HTTP_ERROR_CODES)); // one list (docs/04 §2.1)
 export const MAX_TEXT_DELTA = 8192;
 
 /** User-safe default copy per code (Wren may override in the UI). Never upstream text. */
@@ -103,7 +100,21 @@ export interface SseWriter {
  * terminal event: if `run` returns without one, `done{end_turn}` is NOT assumed — an `internal` error is sent,
  * because a missing terminal event is a bug. A throw becomes `internal` (logged without details).
  */
-export function sseResponse(run: (w: SseWriter) => Promise<void>, log: (msg: string, data: object) => void = (m, d) => console.error(m, d)): Response {
+const FORBIDDEN_HEADER = /^(access-control-|set-cookie$)/i;
+
+/** Caller headers first, security headers LAST (they can't be overridden); CORS and cookies throw (R2-4). */
+export function sseResponseHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  for (const k of Object.keys(extra)) if (FORBIDDEN_HEADER.test(k)) throw new Error(`forbidden response header: ${k}`);
+  const lower = Object.fromEntries(Object.entries(extra).map(([k, v]) => [k.toLowerCase(), v]));
+  return { ...lower, ...sseHeaders(), "content-type": "text/event-stream; charset=utf-8" };
+}
+
+export function sseResponse(
+  run: (w: SseWriter) => Promise<void>,
+  log: (msg: string, data: object) => void = (m, d) => console.error(JSON.stringify({ msg: m, ...d })),
+  extraHeaders: Record<string, string> = {},
+): Response {
+  const headers = sseResponseHeaders(extraHeaders);
   const enc = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(ctrl) {
@@ -153,7 +164,7 @@ export function sseResponse(run: (w: SseWriter) => Promise<void>, log: (msg: str
       }
     },
   });
-  return new Response(stream, { status: 200, headers: { ...sseHeaders(), "content-type": "text/event-stream; charset=utf-8" } });
+  return new Response(stream, { status: 200, headers });
 }
 
 /** Parse an SSE body back into events (tests and the harness). */

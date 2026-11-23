@@ -17,7 +17,7 @@ const CASES = [
   ["netlify/functions/approve.mts", false, "functions"], ["netlify/functions/lib/allowlist.mts", false, "this file"],
   [".github/workflows/ci.yml", false, "workflows"], ["scripts/build-agents.mjs", false, "scripts"], ["package-lock.json", false, "lockfile"],
   ["public/.env", false, ".env"], ["docs/.env.production", false, ".env variant"], ["tests/fixtures/server.pem", false, "pem"],
-  ["docs/id_rsa.key", false, "key"], [".git/config", false, "git"], [".gitmodules", false, "submodules"],
+  ["docs/id_rsa.key", false, "key"], [".git/config", false, "git"], [".gitmodules", false, "submodules"], ["docs/.gitattributes", false, ".gitattributes (R2-S3)"], ["tests/.gitignore", false, ".gitignore"], ["docs/.github-notes.md", false, ".git* file name"], ["docs/git/notes.md", true, "git as a plain folder name"],
   [".claude/settings.json", false, "settings"], [".claude/settings.local.json", false, "local settings"],
   ["public/_headers", false, "_headers"], ["public/_Headers", false, "_headers case"], ["public/_redirects", false, "_redirects"],
   ["public/sw.js", false, "sw"], ["public/SW.js", false, "sw case"], ["public/sw/cache.js", false, "sw import"],

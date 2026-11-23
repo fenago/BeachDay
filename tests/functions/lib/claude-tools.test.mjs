@@ -30,9 +30,9 @@ beforeEach(() => {
 });
 
 const client = () => new Anthropic({ baseURL: ANTHROPIC_BASE_URL, apiKey: KEY, timeout: 5_000, maxRetries: 0 });
-function turn({ messages = [{ role: "user", content: "Add the NWS link to the footer." }], deadline = createDeadline(55_000, Date.now()), ...over } = {}) {
+function turn({ messages = [{ role: "user", content: "Add the NWS link to the footer." }], deadline = createDeadline(55_000, Date.now()), onToolEvent, ...over } = {}) {
   const state = newTurnState();
-  const runTool = createToolRunner({ reader: createGitHubRead({ token: GH_TOKEN }), proposals: store, agent: "pwa-mobile-engineer", state, emit: (e) => events.push(e) });
+  const runTool = createToolRunner({ reader: createGitHubRead({ token: GH_TOKEN }), proposals: store, agent: "pwa-mobile-engineer", state, emit: (e) => { events.push(e); onToolEvent?.(e); } });
   return runTurn({ client: client(), agent: AGENT, messages, runTool, emit: (e) => { assertEvent(e); events.push(e); }, effort: "low", deadline, log: (m, d) => log.push([m, d]), ...over }).then((r) => ({ ...r, state }));
 }
 const tu = (id, name, input) => ({ type: "tool_use", id, name, input });
@@ -78,6 +78,7 @@ describe("request shape (claude-api skill)", () => {
       expect(c.baseURL).toBe("https://api.anthropic.com");
       expect(c.timeout).toBe(50_000);
       expect(c.maxRetries).toBe(1);
+      expect(c.authToken).toBeNull();
       const j = createAnthropicClient("job", KEY);
       expect([j.timeout, j.maxRetries]).toEqual([840_000, 2]);
       expect(() => createAnthropicClient("chat", "")).toThrow(/not configured/);
@@ -146,12 +147,33 @@ describe("tool loop", () => {
     let t = 0;
     const deadline = createDeadline(55_000, 0, () => t);
     claude.script.push({ content: [tu("toolu_a", "read_file", { path: "docs/a.md" })], stop_reason: "tool_use" });
-    const p = turn({ deadline });
-    t = 41_000; // after round 1, only 14 s are left
-    const r = await p;
+    const r = await turn({ deadline, onToolEvent: (e) => { if (e.phase === "end") t = 41_000; } }); // after the read, 14 s left
     expect(r.outcome).toEqual({ kind: "handoff" });
     expect(r.messages.at(-1).role).toBe("user");
     expect(r.state.readShas).toEqual({ "docs/a.md": blobSha("A\n") });
+  });
+});
+
+describe("per-round tool cap and mid-round deadline (R2-2)", () => {
+  it("25 calls in one round -> 10 GitHub reads, 15 is_error results, all answered in one message", async () => {
+    claude.script.push({ content: Array.from({ length: 25 }, (_, i) => tu(`toolu_${i}`, "list_files", { dir: "" })), stop_reason: "tool_use" });
+    claude.script.push({ content: [{ type: "text", text: "ok" }], stop_reason: "end_turn" });
+    await turn();
+    expect(gh.state.calls.filter((c) => c.startsWith("GET /contents"))).toHaveLength(10);
+    const results = claude.requests[1].body.messages.at(-1).content;
+    expect(results).toHaveLength(25);
+    expect(results.filter((b) => b.is_error && /too many tool calls/.test(b.content))).toHaveLength(15);
+  });
+  it("deadline expiry mid-round: remaining calls get 'out of time' and make no request", async () => {
+    let t = 0;
+    const deadline = createDeadline(55_000, 0, () => t);
+    claude.script.push({ content: [tu("a", "read_file", { path: "docs/a.md" }), tu("b", "read_file", { path: "public/index.html" }), tu("c", "list_files", { dir: "" })], stop_reason: "tool_use" });
+    const r = await turn({ deadline, onToolEvent: (e) => { if (e.phase === "end") t = 50_000; } });
+    expect(gh.state.calls.filter((c) => c.startsWith("GET /contents"))).toHaveLength(1);
+    const res = r.messages.at(-1).content;
+    expect(res.map((b) => !!b.is_error)).toEqual([false, true, true]);
+    expect(res[1].content).toMatch(/out of time/);
+    expect(r.outcome).toEqual({ kind: "handoff" });
   });
 });
 

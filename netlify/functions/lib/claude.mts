@@ -120,7 +120,7 @@ export async function runTurn(d: RunTurnDeps): Promise<TurnResult> {
   const maxRounds = d.maxRounds ?? SETTINGS.perTurn.maxToolRounds;
   // Known limit (R2-S7): the token cap is checked between rounds, so a turn can overshoot by one round.
   const maxTokens = d.maxTokens ?? SETTINGS.perTurn.maxTokens;
-  const maxCalls = d.maxToolCallsPerRound ?? (SETTINGS.perTurn as any).maxToolCallsPerRound ?? DEFAULT_MAX_TOOL_CALLS_PER_ROUND;
+  const maxCalls = d.maxToolCallsPerRound ?? SETTINGS.perTurn.maxToolCallsPerRound ?? DEFAULT_MAX_TOOL_CALLS_PER_ROUND;
   const usage: Usage = { tokens: d.usage?.tokens ?? 0, rounds: d.usage?.rounds ?? 0 };
   const convo = [...d.messages];
   try {

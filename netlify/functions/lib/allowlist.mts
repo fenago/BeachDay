@@ -29,6 +29,7 @@ const DENY: ReadonlyArray<RegExp> = [
   /\.(pem|key)$/,
   /^\.git(\/|$)/,
   /(^|\/)\.gitmodules$/,
+  /(^|\/)\.git[^/]*$/,           // .gitattributes, .gitignore anywhere (R2-S3)
   /^\.claude\/settings/,
 ];
 
