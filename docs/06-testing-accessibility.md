@@ -16,7 +16,7 @@
 | Performance | **Lighthouse CI** | Performance ≥ 0.9, accessibility = 1.0 against the **production URL** after a deploy (there are no Deploy Previews, §6) | After each production deploy / weekly |
 | Real devices | iPhone (Safari) + Android (Chrome) | Install, standalone launch, offline, glass rendering, VoiceOver/TalkBack, password-manager fill | Before each release |
 
-**Retired with ADR-0006:** every test of the shared Console password, the signed session cookie and the CSRF token header (`/api/login`, `/api/logout`, `bd_session`, `CONSOLE_PASSWORD_HASH`, `SESSION_SECRET`). None of those exist any more. Their replacements are §3.1 to §3.4.
+**Retired with ADR-0006:** every test of the shared Console password, the signed session cookie and the CSRF token header. None of those exist any more. Their replacements are §3.1 to §3.4.
 
 ## 2. Unit tests (Vitest)
 

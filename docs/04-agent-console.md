@@ -99,7 +99,9 @@ Every transition is a Blobs compare-and-swap (`onlyIfMatch`). `committing` is th
 | `proposal` | `proposalId` (`p_…`), `summary`, `files: [{path, bytes}]` (≤20) |
 | `handoff` | `jobId` (`j_…`); followed by `done` with `stopReason: "handoff"` |
 | `error` | `code` from the error table below; `message` (user-safe, ≤500 chars); `retryable` (bool) |
-| `done` | `stopReason?` ∈ `end_turn`, `max_tokens`, `refusal`, `handoff`, `tool_rounds_exhausted` |
+| `done` | `stopReason?` ∈ `end_turn`, `max_tokens`, `handoff`, `tool_rounds_exhausted` (never `refusal`) |
+
+**Refusals: one rule.** A Claude refusal (`stop_reason: "refusal"`, before or mid-stream) ends the stream with **one** `error {code: "refusal", retryable: false}` and **no** `done`. The UI removes the partial bubble and shows the plain message; the refusal category is logged, never shown. `done.stopReason` has no `refusal` value, so there is only one way to report it. A background job that hits a refusal appends the same `error` event and ends `failed`.
 
 **Errors: one code list for JSON and SSE.** A JSON error body is `{"error": {"code", "message", "retryAt?"}}` (`retryAt` is ISO-8601 UTC, sent with every 429). `message` is user-safe and ≤500 chars. Never include stack traces, env values, tokens or upstream error bodies.
 
@@ -117,7 +119,7 @@ Every transition is a Blobs compare-and-swap (`onlyIfMatch`). `committing` is th
 | `rate_limited` | 429 | chat, jobs | Per-user daily counter (§9). Netlify's own rate-limit rule also answers 429, with its own body: the client treats any 429 without our JSON as `rate_limited` |
 | `budget_exhausted` | 429 | chat, jobs (and a chat `handoff` that can't start its job) | Site-wide compute budget `site:compute` has too little left (§9) |
 | `approve_cap` | 429 | approve | ADR-0008 cap reached; proposal stays `pending`; body also carries `approvals` (below) |
-| `refusal` | — | SSE only | Claude refused; discard the partial reply |
+| `refusal` | — | SSE and job events only | Claude refused; terminal `error` event (no `done`), discard the partial reply (rule above) |
 | `upstream` | 502 | chat, jobs, approve | Claude or GitHub failed. For approve, the proposal is `failed` (or still `committing`, §7) |
 | `timeout` | 504 | chat, approve | Our own time budget ran out before a result |
 | `unavailable` | 503 | all | Supabase unreachable (§4.1), not the production context (§4.6), or Approve switched off before launch |
