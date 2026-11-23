@@ -1,0 +1,27 @@
+# Beach Day — public/_headers (example; the real file is public/_headers).
+# Applies ONLY to static files Netlify serves. Function responses (/api/*)
+# must set their own headers in code.
+# Each header name is set by exactly one rule per path, so no CSP is ever
+# sent twice for the same response.
+
+/*
+  Content-Security-Policy: default-src 'self'; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=()
+  Strict-Transport-Security: max-age=31536000
+
+# The service worker must always be revalidated so updates reach phones.
+/sw.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Content-Type: application/manifest+json
+
+# Agent Console page: keep it out of search results and caches.
+/console
+  X-Robots-Tag: noindex
+  Cache-Control: no-store
+/console.html
+  X-Robots-Tag: noindex
+  Cache-Control: no-store

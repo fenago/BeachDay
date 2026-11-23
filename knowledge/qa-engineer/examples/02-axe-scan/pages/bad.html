@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Beach Day verdict card (with deliberate a11y bugs)</title>
+  <style>
+    body { font: 16px system-ui, sans-serif; margin: 16px; background: #fff; }
+    .verdict { color: #9cc3a8; }                  /* BUG: low contrast, ~1.9:1 on white */
+    .icons button { width: 16px; height: 16px; padding: 0; margin: 0; border: 0; } /* BUG: tiny targets */
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Miami Beach</h1>
+    <img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=">  <!-- BUG: verdict icon with no alt -->
+    <p class="verdict">Great beach day</p>
+    <div class="icons">
+      <button><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5"/></svg></button><button><svg width="12" height="12" aria-hidden="true"><rect width="12" height="12"/></svg></button>
+      <!-- BUG: icon-only buttons with no accessible name, 16x16 and touching -->
+    </div>
+  </main>
+</body>
+</html>

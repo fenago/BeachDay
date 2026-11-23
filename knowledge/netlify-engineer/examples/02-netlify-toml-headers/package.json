@@ -1,0 +1,11 @@
+{
+  "name": "beachday-example-netlify-config",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node validate.mjs"
+  },
+  "devDependencies": {
+    "smol-toml": "^1.9.1"
+  }
+}

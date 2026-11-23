@@ -1,0 +1,35 @@
+# Beach Day — netlify.toml (example; the real file lives at the repo root).
+# All paths are relative to the base directory (repo root).
+# Settings here override the same settings in the Netlify UI.
+
+[build]
+  # Generates netlify/functions/lib/agents.json from .claude/agents/*.md.
+  # The script must never print environment variables (Free plan has no
+  # env-var scopes, so builds can read every variable, secrets included).
+  command = "node scripts/build-agents.mjs"
+  publish = "public"
+
+  # Skip the build (and the 15-credit production deploy) when nothing that
+  # ships has changed. Exit 0 = skip, exit 1 = build.
+  # Watch everything the build reads: the site, the functions, this file,
+  # dependencies, the build script, and the agent files that agents.json
+  # is generated from. Docs-only commits are skipped.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- public netlify netlify.toml package.json package-lock.json scripts .claude/agents"
+
+[functions]
+  # Default is netlify/functions; set explicitly so it is obvious it lives
+  # OUTSIDE the publish directory (function source must never be published).
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  # agents.json is read at runtime with a dynamic path, so include it.
+  included_files = ["netlify/functions/lib/agents.json"]
+
+# Deploy Previews and branch deploys cost 0 credits. Nothing here changes
+# per context today; secrets are set per context in the UI/CLI, not here,
+# because variables declared in netlify.toml are NOT visible to functions.
+[context.deploy-preview]
+  command = "node scripts/build-agents.mjs"
+
+# Security headers live in public/_headers (one source of truth).
+# Rate limits for functions live in each function's `config.rateLimit`;
+# they cannot be declared in netlify.toml.

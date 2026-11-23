@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Beach Day — test page</title>
+  <style>
+    body { font: 17px/1.4 system-ui, sans-serif; margin: 0 16px; color: #111; background: #fff; }
+    #verdict { font-size: 1.6rem; font-weight: 700; }
+    a { color: #0645ad; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Miami Beach</h1>
+    <!-- role=status: the verdict is announced when it arrives -->
+    <p id="verdict" role="status" aria-live="polite">Loading forecast…</p>
+    <p id="window"></p>
+    <ul id="reasons"></ul>
+    <p>Beach Day is not a safety service — check
+      <a href="https://www.weather.gov/beach/mfl">NWS rip-current risk</a> and posted beach flags.</p>
+    <p><a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a></p>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

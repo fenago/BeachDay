@@ -1,0 +1,10 @@
+{
+  "name": "beachday-example-axe-scan",
+  "private": true,
+  "type": "module",
+  "scripts": { "scan": "node scan.mjs" },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@axe-core/playwright": "^4.14.0"
+  }
+}

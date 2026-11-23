@@ -1,0 +1,32 @@
+Deliberately broken HANDOFF blocks. The validator must flag every one of these.
+
+HANDOFF
+status: finished
+summary: Added the week view.
+files: public/js/ui/week-view.js
+tests: all tests passed
+needs: the designer
+risks/questions: none
+
+HANDOFF
+status: done
+summary: Updated tokens.
+tests: npx vitest run — 12 passed
+files: public/css/tokens.css
+needs: none
+risks/questions: none
+
+HANDOFF
+status: blocked
+summary: Could not finish.
+files: none
+tests: none run
+needs: none
+risks/questions: none
+
+HANDOFF
+status: done
+summary:
+files: docs/design/x.md
+tests: n/a
+needs: none

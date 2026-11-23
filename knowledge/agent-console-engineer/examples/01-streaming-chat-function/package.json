@@ -1,0 +1,7 @@
+{
+  "name": "example-streaming-chat-function",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test chat.test.mjs" },
+  "dependencies": { "@anthropic-ai/sdk": "1.12.0" }
+}

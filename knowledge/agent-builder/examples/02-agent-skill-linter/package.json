@@ -1,0 +1,12 @@
+{
+  "name": "beach-day-agent-skill-linter",
+  "private": true,
+  "type": "module",
+  "description": "Lints .claude/agents/*.md and .claude/skills/*/SKILL.md for the Beach Day repo",
+  "scripts": {
+    "lint": "node lint-agents.mjs --root ../../../.."
+  },
+  "dependencies": {
+    "yaml": "^2.8.0"
+  }
+}

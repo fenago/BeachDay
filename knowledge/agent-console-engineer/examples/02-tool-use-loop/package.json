@@ -1,0 +1,7 @@
+{
+  "name": "example-tool-use-loop",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test agent-loop.test.mjs" },
+  "dependencies": { "@anthropic-ai/sdk": "1.12.0" }
+}

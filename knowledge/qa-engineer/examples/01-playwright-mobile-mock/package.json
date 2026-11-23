@@ -1,0 +1,12 @@
+{
+  "name": "beachday-example-playwright-mobile-mock",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "playwright test --trace off",
+    "e2e:pixel": "playwright test --project=pixel --trace off"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

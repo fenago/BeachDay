@@ -1,0 +1,14 @@
+{
+  "name": "beachday-example-functions-jobs-blobs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/functions.test.mjs"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.10"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^6.1.1"
+  }
+}

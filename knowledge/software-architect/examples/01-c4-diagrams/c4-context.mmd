@@ -1,0 +1,30 @@
+---
+title: "Beach Day: System Context (C4 level 1), 2026-11-23"
+---
+flowchart TB
+    beachgoer["Beach-goer<br/>[Person]<br/>Checks if today or this week<br/>is a good beach day, on a phone"]
+    drlee["Dr. Lee<br/>[Person]<br/>Project lead; chats with agents<br/>and approves code changes"]
+
+    beachday["Beach Day<br/>[Software System]<br/>Installable PWA that scores beach days<br/>for South Florida beaches, plus an<br/>Agent Console for its AI team"]
+
+    openmeteo["Open-Meteo<br/>[External System]<br/>Forecast + Marine APIs<br/>keyless, CC BY 4.0"]
+    claude["Anthropic Claude API<br/>[External System]<br/>Messages API"]
+    github["GitHub<br/>[External System]<br/>Repo fenago/BeachDay"]
+    netlify["Netlify<br/>[External System]<br/>Build, CDN hosting, Functions, Blobs"]
+    nws["National Weather Service<br/>[External System]<br/>Beach and surf-zone forecasts"]
+
+    beachgoer -- "Views verdicts<br/>[HTTPS]" --> beachday
+    drlee -- "Chats, reviews diffs, clicks Approve<br/>[HTTPS, password gate]" --> beachday
+    beachday -- "Reads hourly weather and waves<br/>[HTTPS/JSON, from the browser]" --> openmeteo
+    beachday -- "Sends agent prompts and tools<br/>[HTTPS, from Functions only]" --> claude
+    beachday -- "Commits approved changes to main<br/>[REST Git Database API, fine-grained PAT]" --> github
+    github -- "Push to main triggers deploy<br/>[webhook]" --> netlify
+    netlify -- "Hosts and runs" --> beachday
+    beachgoer -. "Follows safety link-out<br/>(no data fetched, ADR-0002)" .-> nws
+
+    classDef person fill:#08427b,stroke:#052e56,color:#ffffff
+    classDef system fill:#1168bd,stroke:#0b4884,color:#ffffff
+    classDef external fill:#999999,stroke:#6b6b6b,color:#ffffff
+    class beachgoer,drlee person
+    class beachday system
+    class openmeteo,claude,github,netlify,nws external
