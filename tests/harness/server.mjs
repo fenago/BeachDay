@@ -232,6 +232,24 @@ export async function startHarness({ port = 0, host = "127.0.0.1", publicDir = j
   return {
     url: origin, port: server.address().port, supabase, blobs, github, anthropic, upstreams, state: s, env: Object.freeze({ ...env, ANTHROPIC_API_KEY: "(hidden)", GITHUB_TOKEN: "(hidden)" }),
     registerDeps(moduleName, fn) { s.depsAdapters.set(moduleName, fn); s.moduleCache.clear(); },
+    clearDepsAdapters() { s.depsAdapters.clear(); s.moduleCache.clear(); },
+    /** The handler file for an API route key ("GET /api/agents") exists and exports its factory (matrix: pending list). */
+    hasHandler(key) { const r = API_ROUTES.find((x) => x.key === key); return !!r && existsSync(join(functionsDir, `${r.module}.mts`)); },
+    /**
+     * Call a handler IN PROCESS and return its own Response (the HTTP route hides job-run's status behind 202).
+     * Same deps and context as the HTTP route. tests/helpers/matrix.mjs uses this.
+     */
+    async callHandler(key, request, { deployContext } = {}) {
+      const r = API_ROUTES.find((x) => x.key === key);
+      if (!r) throw new Error(`callHandler: unknown route ${key}`);
+      const loaded = await loadHandler(r);
+      if (loaded.missing) throw new Error(`callHandler: ${loaded.missing}`);
+      const params = matchRoute(new URL(request.url).pathname)?.params ?? {};
+      const context = fakeContext({ params, deployContext: deployContext ?? s.deployContext, siteUrl: origin, requestId: randomBytes(8).toString("hex"), ip: "203.0.113.7" });
+      return loaded.handler(request, context);
+    },
+    /** Same as POST /__harness/ctl harness.reset: fakes, counters, version, deploy context, settings. */
+    reset: () => ctlOps["harness.reset"](),
     async close() { supabase.clearFailures(); await new Promise((r) => { server.closeAllConnections?.(); server.close(r); }); upstreams.close(); },
   };
 }

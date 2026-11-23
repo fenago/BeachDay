@@ -593,3 +593,21 @@ textarea.input { min-block-size: 5rem; resize: vertical; }
   .hourly-row__label { grid-column: 1 / -1; text-align: start; }
   .password-row { grid-template-columns: 1fr; }
 }
+
+/* ===== Shell aliases: names used in docs/design/ux-build-spec.md section 1.1 ==== */
+/* The spec's header has the nav directly inside .site-header (no __inner), a
+   .site-nav__list and a footer made of .site-footer__list / __safety / __credit.
+   Both spellings work, so markup can follow either document. */
+.site-header > .site-nav, .site-header > .brand { margin-inline: 0; }
+.site-header:not(:has(.site-header__inner)) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: var(--space-3); }
+.site-nav__list { display: flex; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+.site-footer { padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right)); display: grid; gap: var(--space-3); justify-items: center; }
+.site-footer > * { inline-size: 100%; max-inline-size: var(--content-wide); }
+.site-footer__list { display: flex; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; gap: 0 var(--space-2); }
+.site-footer__list a { display: inline-flex; align-items: center; min-block-size: var(--target-min); padding-inline: var(--space-1); font-weight: 500; }
+.site-footer__safety, .site-footer__credit { font-size: var(--fs-footnote); line-height: 1.45; color: var(--text-2); }
+.site-footer__safety a, .site-footer__credit a { font-weight: 600; }
+.site-footer .site-footer__inner { padding-inline: 0; }
+.site-footer > nav { max-inline-size: var(--content-wide); }
+@media (forced-colors: active) { .brand, .site-nav a { color: LinkText; } }
+.site-footer .container { padding-inline: 0; }

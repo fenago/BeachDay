@@ -1,0 +1,112 @@
+/* Beach Day Agents page (Sable): /console. Load after components.css.
+   Screens: auth (S1-S5, S3b, S7, S12), agent list, 403/503/401 screens, chat,
+   proposal + diff, approve sheet (step-up, cap, outcome). All text sits on
+   solid surfaces; the only glass is the shared header and the open sheet. */
+
+.console { display: grid; gap: var(--space-4); align-content: start; min-inline-size: 0; }
+.console-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+.console-bar > :first-child { min-inline-size: 0; flex: 1 1 12rem; }
+.console-sub { font-size: var(--fs-callout); color: var(--text-2); }
+.console-bar__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+
+/* Account menu: signed-in line + Security + Sign Out, as plain buttons (no popup). */
+.account-menu { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+.account-menu__who { font-size: var(--fs-footnote); color: var(--text-2); overflow-wrap: anywhere; }
+
+/* ----- Auth screens (centered solid card) ---------------------------------- */
+.auth-card { display: grid; gap: var(--space-4); inline-size: 100%; max-inline-size: 26rem; margin-inline: auto; padding: var(--space-6) var(--space-5); background: var(--surface-solid); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-l); }
+.auth-card__head { display: grid; gap: var(--space-2); }
+.auth-card__title, .auth-card h1 { font-size: var(--fs-title-1); line-height: 1.2; }
+.auth-card__sub { font-size: var(--fs-callout); color: var(--text-2); }
+.auth-card__email { font-weight: 600; overflow-wrap: anywhere; }   /* "Check your email" shows the typed address */
+.auth-card form { display: grid; gap: var(--space-4); }
+.auth-card .btn--block { inline-size: 100%; }
+.auth-links { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-1) var(--space-3); }
+.auth-links .btn--text { min-inline-size: var(--target-min); }
+.auth-switch { text-align: center; font-size: var(--fs-callout); color: var(--text-2); }
+.provider-btn { gap: var(--space-3); }   /* "Continue with Google": secondary-style, same size as primary */
+.provider-btn .icon { inline-size: 1.25rem; block-size: 1.25rem; }
+.otp-row { display: grid; gap: var(--space-2); }
+.otp-row .input--code { max-inline-size: 12rem; justify-self: center; }
+.cooldown-note { font-size: var(--fs-subhead); color: var(--text-2); text-align: center; }
+.password-rules { font-size: var(--fs-footnote); color: var(--text-2); }
+
+/* ----- Full-screen states: 401 session ended, 403, 503, empty, checking ------ */
+.state-card { display: grid; justify-items: start; gap: var(--space-3); padding: var(--space-6) var(--space-5); background: var(--surface-solid); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-l); }
+.state-card > .icon { color: var(--accent); inline-size: 2.5rem; block-size: 2.5rem; }
+.state-card h1 { font-size: var(--fs-title-1); line-height: 1.2; }
+.state-card__body { font-size: var(--fs-callout); color: var(--text-2); max-inline-size: 32rem; }
+.state-card__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.state-card--denied { border: 1.5px solid var(--control-border); }
+.state-card--error { border: 1.5px solid var(--banner-error-icon); }
+.state-card[aria-busy="true"] .state-card__body::after { content: " \2026"; content: " \2026" / ""; }
+
+/* Agent list: checking skeleton uses .skeleton; cards come from components.css. */
+.agent-grid > .agent-card { min-inline-size: 0; }
+.agent-card__model { display: inline-flex; }
+.agent-card__skills { font-size: var(--fs-footnote); color: var(--text-2); overflow-wrap: anywhere; }
+.agent-card__skills strong { color: var(--text); }
+.knowledge-list__label { font-weight: 600; }
+.knowledge-heading { font-size: var(--fs-footnote); font-weight: 700; color: var(--text-2); letter-spacing: 0.02em; }
+
+/* ----- Chat view -------------------------------------------------------------- */
+.chat-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface-solid); border: 1px solid var(--border); border-radius: var(--radius-l); }
+.chat-head h1 { font-size: var(--fs-title-2); flex: 1 1 8rem; min-inline-size: 0; }
+.chat-head .back-link { background: transparent; }
+.chat-log { min-block-size: 8rem; padding-block-end: var(--space-3); }
+.chat-log:empty::before { content: attr(data-empty); color: var(--text-2); font-size: var(--fs-callout); }
+.chat-status { min-block-size: 1.5rem; font-size: var(--fs-subhead); color: var(--text-2); }
+.chat-status:empty { display: none; }
+.msg--tool .msg__body { font-family: var(--font-mono); font-size: var(--fs-subhead); background: transparent; border-style: dotted; border-color: var(--control-border); }
+.msg--agent .msg__body { border-color: var(--control-border); }
+.msg--error .msg__author { color: var(--error-text); }
+.chat-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* Composer: sticky safe-area-aware, textarea grows, Send stays 44 px. */
+.composer .btn { align-self: end; }
+.composer__hint { grid-column: 1 / -1; font-size: var(--fs-footnote); color: var(--text-2); }
+
+/* ----- Proposal card (extends components.css) --------------------------------- */
+.proposal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }
+.proposal-card__state { display: inline-flex; align-self: start; }
+.proposal-card__warnings, .warning-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.warning-list > li { display: flex; gap: var(--space-2); align-items: flex-start; padding: var(--space-2) var(--space-3); background: var(--banner-warn-bg); border: 1.5px solid var(--banner-warn-icon); border-radius: var(--radius-s); color: var(--text); font-size: var(--fs-subhead); }
+.warning-list .icon { color: var(--banner-warn-icon); margin-block-start: 0.1em; }
+.diff-block { display: grid; gap: var(--space-1); }
+.diff-block__path { font-family: var(--font-mono); font-size: var(--fs-subhead); font-weight: 600; overflow-wrap: anywhere; }
+.diff__line--ctx { background: transparent; }
+.diff__empty { padding: var(--space-3); color: var(--text-2); }
+
+/* ----- Approve sheet, step-up, cap, outcome ----------------------------------- */
+.approve-sheet .sheet__body { gap: var(--space-3); }
+.sheet__note { font-size: var(--fs-subhead); color: var(--text-2); }
+.sheet__section { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-s); }
+.sheet__section > h3 { font-size: var(--fs-headline); }
+.stepup { display: grid; gap: var(--space-3); }
+.stepup .or-divider { margin-block: var(--space-1); }
+.usage-line { font-size: var(--fs-subhead); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.cap-note { padding: var(--space-3) var(--space-4); background: var(--banner-warn-bg); border: 1.5px solid var(--banner-warn-icon); border-radius: var(--radius-m); color: var(--text); font-weight: 600; }
+.deploy-note { font-size: var(--fs-subhead); color: var(--text); }
+
+/* Outcome: Committed, Deploying, Live. Text + icon per step, a static dot never carries state alone. */
+.outcome { display: grid; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
+.outcome > li { display: flex; align-items: center; gap: var(--space-2); min-block-size: 2rem; font-weight: 600; }
+.outcome > li .icon { color: var(--text-2); }
+.outcome > li[data-state="done"] .icon { color: var(--banner-ok-icon); }
+.outcome > li[data-state="failed"] .icon { color: var(--banner-error-icon); }
+.outcome > li[data-state="pending"] { font-weight: 400; color: var(--text-2); }
+.outcome__sha { font-family: var(--font-mono); font-size: var(--fs-subhead); }
+.live-status { font-size: var(--fs-subhead); color: var(--text); }
+
+/* Security (TOTP) screen reuses .qr-tile, .key-line, .copy-row, .input--code. */
+.security-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.security-list > li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius-s); }
+
+@media (min-width: 40em) {
+  .auth-card { padding: var(--space-8); }
+  .chat-log { min-block-size: 14rem; }
+}
+@media (forced-colors: active) {
+  .state-card, .auth-card, .chat-head { border: 1px solid CanvasText; }
+  .cap-note, .warning-list > li { border: 1.5px solid CanvasText; }
+}
+@media print { .composer { display: none; } }
