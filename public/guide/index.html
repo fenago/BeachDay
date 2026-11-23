@@ -30,7 +30,8 @@
       <h1 tabindex="-1">Step-by-step guide</h1>
       <p class="t-callout">How Beach Day was built and put on the web, in order.</p>
     </div>
-    <p class="callout callout--warn">Steps 5 onward need your own Supabase, Google, GitHub, Anthropic and Netlify accounts. At the time of writing no live site is linked, so this guide does not point to one.</p>
+    <div class="panel stack"><h2>The full illustrated guide</h2><p>Every step of the technique, with the exact prompts to copy and screenshots of each screen: picking an API, research, roles, agents, knowledge, brains, talking to your agents, Supabase and Google sign-in, the build, Netlify, and changing the live app from the Agents page.</p><p><a class="btn btn--primary" href="/guide/full/">Open the full illustrated guide</a></p></div>
+    <p class="callout callout--warn">Steps 5 onward need your own Supabase, Google, GitHub, Anthropic and Netlify accounts.</p>
     <ol class="steps">
       <li><div class="steps__body panel prose"><h2>Write the design first</h2><p>Decisions live in <code>docs/</code>: use case and scoring, the installable app, Netlify, Agents, the Claude API and testing. Short decision records sit in <code>docs/adr/</code>. Start with <code>docs/README.md</code>.</p></div></li>
       <li><div class="steps__body panel prose"><h2>Set up the agent team</h2><p>Twelve specialist agents live in <code>.claude/agents/</code>, with shared skills in <code>.claude/skills/</code>. Each agent has its own knowledge folder in <code>knowledge/</code>. One agent, the orchestrator, plans the work and passes it between the others.</p></div></li>

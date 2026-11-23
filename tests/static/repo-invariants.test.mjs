@@ -22,7 +22,7 @@ describe("no secrets in public/ or the build output (docs/06 §3.8)", () => {
     expect(files.filter((f) => new RegExp(["sb", "secret", ""].join("_")).test(read(f))).map(rel)).toEqual([]);
   });
   it("secret VARIABLE names appear only in the guide and how-it-works prose, never in shipped scripts or config", () => {
-    const bad = files.filter((f) => /ANTHROPIC_API_KEY|GITHUB_TOKEN|GITHUB_READ_TOKEN|SESSION_SECRET|CONSOLE_PASSWORD_HASH/.test(read(f)) && !/public\/(guide|how-it-works|resources)\/index\.html$/.test(rel(f)));
+    const bad = files.filter((f) => /ANTHROPIC_API_KEY|GITHUB_TOKEN|GITHUB_READ_TOKEN|SESSION_SECRET|CONSOLE_PASSWORD_HASH/.test(read(f)) && !/public\/(guide(\/full)?|how-it-works|resources)\/index\.html$/.test(rel(f)));
     expect(bad.map(rel)).toEqual([]);
   });
   it("the only Supabase strings in the fixture config are the fixture host and a sb_publishable_ key", () => {
