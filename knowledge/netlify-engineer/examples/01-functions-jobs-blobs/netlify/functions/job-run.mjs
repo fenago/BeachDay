@@ -5,10 +5,14 @@
 //
 // Flow: the sync POST /api/jobs (jobs.mjs) runs the auth guard, writes
 // jobs/<id> = { status: "queued", tokenHash } with onlyIfNew, then POSTs
-// { jobId, token } here. The one-time token stops strangers starting jobs,
-// because a background function cannot send an error back to its caller.
+// { jobId, token } here with the caller's Authorization header forwarded.
+// A background function cannot send an error back to its caller (it always
+// answers 202), so this worker NEVER trusts its caller: it runs the same
+// guard (bearer token + role = super_admin, fail closed) AND checks the
+// one-time token. Any failure -> return silently, no Blobs read or write.
 import { createHash } from "node:crypto";
 import { store } from "./lib/blobs.mjs";
+import { guard } from "./lib/guard.mjs";
 
 const ID_RE = /^[a-z0-9-]{8,64}$/;
 const sha256 = (s) => createHash("sha256").update(s).digest("hex");
@@ -34,6 +38,8 @@ export async function doWork(job, emit) {
 }
 
 export default async (req, _context) => {
+  const auth = await guard(req); // FIRST: same check as every /api/* handler
+  if (auth.response) return;     // the 401/403/503 cannot be delivered (202 is sent); just stop
   let input;
   try {
     input = await req.json();
@@ -47,7 +53,7 @@ export default async (req, _context) => {
 
   // Claim the job exactly once: queued -> running, only with the right token.
   const claim = await update(jobs, jobId, (j) =>
-    j.status === "queued" && j.tokenHash === sha256(token)
+    j.status === "queued" && j.owner === auth.user.id && j.tokenHash === sha256(token)
       ? { ...j, status: "running", tokenHash: null, startedAt: new Date().toISOString() }
       : null,
   );

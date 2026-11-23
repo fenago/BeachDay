@@ -7,14 +7,14 @@ Three Functions v2 handlers for the Agent Console, written the way Beach Day sho
 |---|---|---|
 | `netlify/functions/lib/guard.mjs` | every `/api/*` | The auth check that is the **first line** of every handler: `Authorization: Bearer` header, a verifier that returns `{ sub, role }`, **401** (missing or invalid token), **403** (valid token, role is not `super_admin`), **503** (verifier missing or failing: fail closed, error text never echoed). The verifier is a **stand-in**. How a Supabase token is verified is decided by supabase-auth-engineer and reviewed by security-engineer. |
 | `netlify/functions/jobs.mjs` | `POST /api/jobs` | The **sync wrapper** in front of the background worker: guard first, then method, body size (64 KB) and shape, then `setJSON(..., { onlyIfNew: true })`, and a one-time token whose **hash** is stored. `config.path`, `method` and `rateLimit` (one of the 2 Free-plan rules, the other is `/api/chat`). Own security headers. |
-| `netlify/functions/job-run.mjs` | `POST /api/jobs-run` | `config.background: true`; returns nothing (Netlify sends `202`); writes all progress and results to Blobs; **idempotent** under Netlify's automatic retries (claim with compare-and-swap); the one-time token is the only gate, because a background function cannot reject its caller |
+| `netlify/functions/job-run.mjs` | `POST /api/jobs-run` | `config.background: true`; returns nothing (Netlify sends `202`); writes all progress and results to Blobs; **idempotent** under Netlify's automatic retries (claim with compare-and-swap). **It never trusts its caller** (a background function always answers 202 and cannot reject anyone): its first line runs the same `guard()` (forwarded bearer token + role `super_admin`, fail closed) and, if that refuses, it returns silently with no Blobs read or write. It then checks the one-time token hash and that the guard's user owns the job. |
 | `netlify/functions/job-status.mjs` | `GET /api/jobs/:id` | guard first, URLPattern named group -> `context.params.id` (no `excludedPath` needed: the worker lives at `/api/jobs-run`, a different path segment), strict id validation, `404` for unknown jobs, never returns internal fields |
 | `netlify/functions/lib/blobs.mjs` | none | one place that calls `getStore({ name, consistency: "strong" })`, with a test hook to inject a fake store |
 | `test/fake-blobs.mjs` | none | in-memory store with the documented `onlyIfNew` / `onlyIfMatch` -> `{ modified, etag }` semantics, and a fake `Context` |
 
 Why this is "what good looks like":
 - Custom headers from `_headers` are not applied to function responses ([headers docs](https://docs.netlify.com/manage/routing/headers/)), so every response carries `cache-control: no-store`, `nosniff`, a locked-down CSP and a JSON content type, including the 401, 403 and 503 answers.
-- **The check comes before any work.** Test 2 proves that a rejected request touches no Blobs store and starts no worker.
+- **The check comes before any work.** Test 2 proves that a rejected request touches no Blobs store and starts no worker. Test 10 proves the same for the background worker: even with the **right** one-time token, no bearer, a forged bearer, role `user`, a failing verifier and a missing verifier all leave the job `queued` with zero writes (Vera's finding M1).
 - Background functions are retried after 1 and 2 minutes on error ([background functions](https://docs.netlify.com/build/functions/background-functions/)). The job is claimed with `onlyIfMatch(etag)`, so a retry or a duplicate request does nothing.
 - Blobs defaults to eventual consistency (up to 60 s to propagate updates); job state uses `strong` ([Blobs](https://docs.netlify.com/build/data-and-storage/netlify-blobs/)).
 - No real secrets: tokens in the tests are obviously fake (`admin-token-EXAMPLE`). Nothing calls Netlify, Supabase, Claude or GitHub. The old password and cookie-session example (`login.mjs`) was **removed** on 2026-11-23 when the Console moved to Supabase Auth (Dr. Lee's decision 9); there is no `/api/login` any more.
@@ -30,7 +30,7 @@ npm test             # = node --test test/functions.test.mjs
 Node 22+. The handlers are plain ES modules called directly with a web `Request` and a fake context.
 
 ## Verified
-Ran on 2026-11-23 with Node v22.23.5, `@netlify/blobs@11.1.10`, from a scratch copy of this folder (node_modules outside the repo):
+Re-ran on 2026-11-23 (wave 3) with Node v22, `@netlify/blobs` from `npm install`, in a scratch copy of this folder:
 ```
 $ node --test test/functions.test.mjs
 ok 1 - config objects match the Beach Day routing plan
@@ -42,11 +42,14 @@ ok 6 - jobs: bad shape -> 400, oversize -> 413, GET -> 405 (all after the auth c
 ok 7 - background job: runs once, writes status to Blobs, status endpoint reads it
 ok 8 - background job: a Netlify retry (same body twice) is a no-op
 ok 9 - background job: wrong token never starts the job
-ok 10 - status: no token -> 401, role user -> 403, invalid id -> 400, unknown id -> 404
-# tests 10
-# pass 10
+ok 10 - background job: the worker runs the guard too (no/forged token, role user, verifier down, no verifier -> nothing runs, nothing is written)
+ok 11 - background job: an admin who does not own the job cannot start it
+ok 12 - jobs: the caller's Authorization header is forwarded to the worker trigger
+ok 13 - status: no token -> 401, role user -> 403, invalid id -> 400, unknown id -> 404
+# tests 13
+# pass 13
 # fail 0
 ```
-Mutation checks (the tests have teeth): removing the guard line from `job-status.mjs` fails tests 4 and 10; replacing the role comparison in `guard.mjs` with `false` fails tests 3 and 10; (earlier run) replacing `{ onlyIfMatch: cur.etag }` with `{}` in `job-run.mjs` fails the retry test.
+Mutation checks (the tests have teeth): replacing the guard line in `job-run.mjs` with a fixed admin user fails tests 10 and 11 (wave 3); removing the guard line from `job-status.mjs` fails tests 4 and 10; replacing the role comparison in `guard.mjs` with `false` fails tests 3 and 10; (earlier run) replacing `{ onlyIfMatch: cur.etag }` with `{}` in `job-run.mjs` fails the retry test.
 
 Not verified here: behaviour on a real Netlify deploy (the `202`, the retry timing, real `rateLimit` enforcement). Those are platform features; check the deploy log's post-processing section for the rate-limit rules after the first deploy.

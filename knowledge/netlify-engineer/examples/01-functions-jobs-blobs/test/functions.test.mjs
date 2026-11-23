@@ -29,8 +29,8 @@ beforeEach(() => {
   });
 });
 
-const post = (url, body) =>
-  new Request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+const post = (url, body, auth = ADMIN) =>
+  new Request(url, { method: "POST", headers: { "content-type": "application/json", ...asHeaders(auth) }, body: JSON.stringify(body) });
 const authed = (url, auth = ADMIN, init = {}) => new Request(url, { ...init, headers: { ...asHeaders(auth), ...(init.headers ?? {}) } });
 
 test("config objects match the Beach Day routing plan", () => {
@@ -98,7 +98,7 @@ test("jobs: bad shape -> 400, oversize -> 413, GET -> 405 (all after the auth ch
 async function queueJob(id, token) {
   const s = store("jobs");
   const tokenHash = createHash("sha256").update(token).digest("hex");
-  const r = await s.setJSON(id, { id, status: "queued", tokenHash, events: [] }, { onlyIfNew: true });
+  const r = await s.setJSON(id, { id, status: "queued", owner: "u-admin", tokenHash, events: [] }, { onlyIfNew: true });
   assert.equal(r.modified, true);
   return s;
 }
@@ -145,6 +145,41 @@ test("background job: wrong token never starts the job", async () => {
   const s = await queueJob(id, "tok-EXAMPLE");
   await jobRun(post("https://x.test/api/jobs-run", { jobId: id, token: "guess" }), fakeContext());
   assert.equal((await s.get(id, { type: "json" })).status, "queued");
+});
+
+test("background job: the worker runs the guard too (no/forged token, role user, verifier down, no verifier -> nothing runs, nothing is written)", async () => {
+  const id = "job-guardrun1";
+  const s = await queueJob(id, "tok-EXAMPLE");
+  const writes = [];
+  const realSetJSON = s.setJSON.bind(s);
+  s.setJSON = async (...a) => { writes.push(a[0]); return realSetJSON(...a); };
+  const body = { jobId: id, token: "tok-EXAMPLE" }; // the one-time token is RIGHT in every case below
+  for (const auth of [null, "Bearer forged-token-EXAMPLE", USER]) {
+    assert.equal(await jobRun(post("https://x.test/api/jobs-run", body, auth), fakeContext()), undefined);
+  }
+  setVerifier(async () => { throw new Error("upstream down"); });
+  await jobRun(post("https://x.test/api/jobs-run", body), fakeContext());
+  setVerifier(null);
+  await jobRun(post("https://x.test/api/jobs-run", body), fakeContext());
+  assert.deepEqual(writes, [], "no write at all when the guard refuses");
+  assert.equal((await s.get(id, { type: "json" })).status, "queued");
+  // control: with the right bearer the same body does run
+  setVerifier(async (t) => USERS[t]);
+  await jobRun(post("https://x.test/api/jobs-run", body), fakeContext());
+  assert.equal((await s.get(id, { type: "json" })).status, "done");
+});
+
+test("background job: an admin who does not own the job cannot start it", async () => {
+  const id = "job-notowner1";
+  const s = await queueJob(id, "tok-EXAMPLE");
+  setVerifier(async () => ({ sub: "u-other-admin", role: "super_admin" }));
+  await jobRun(post("https://x.test/api/jobs-run", { jobId: id, token: "tok-EXAMPLE" }), fakeContext());
+  assert.equal((await s.get(id, { type: "json" })).status, "queued");
+});
+
+test("jobs: the caller's Authorization header is forwarded to the worker trigger", async () => {
+  await jobs(authed("https://x.test/api/jobs", ADMIN, { method: "POST", body: '{"agent":"qa"}' }), fakeContext());
+  assert.equal(triggered[0].authorization, ADMIN);
 });
 
 test("status: no token -> 401, role user -> 403, invalid id -> 400, unknown id -> 404", async () => {

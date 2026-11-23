@@ -12,7 +12,9 @@ import { store } from "./lib/blobs.mjs";
 const MAX_BODY = 64 * 1024; // docs/04: 64 KB for everything except proposals
 
 let trigger = async () => { throw new Error("trigger not configured"); };
-export const setTrigger = (fn) => { trigger = fn; }; // real code: fetch("/api/jobs-run", ...)
+// Real code: fetch("/api/jobs-run", { method: "POST", headers: { authorization }, body: { jobId, token } }).
+// The caller's bearer token is forwarded so the worker can run the same guard again (it cannot trust its caller).
+export const setTrigger = (fn) => { trigger = fn; };
 
 export default async (req, _context) => {
   const auth = await guard(req); // FIRST, before reading the body
@@ -31,7 +33,7 @@ export default async (req, _context) => {
   const created = await store("jobs").setJSON(id, { id, status: "queued", owner: auth.user.id, agent: body.agent, tokenHash, events: [] }, { onlyIfNew: true });
   if (!created.modified) return json(500, { error: "try_again" });
 
-  await trigger({ jobId: id, token });
+  await trigger({ jobId: id, token, authorization: req.headers.get("authorization") });
   return json(202, { id });
 };
 
