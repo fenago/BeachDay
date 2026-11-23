@@ -194,6 +194,17 @@ test("compute budget: the window rolls (31 days, whole New York days, rounded ou
   assert.deepEqual(Object.keys(rec.days), ["2026-11-02"], "the October bucket was pruned by the write");
 });
 
+test("compute budget: an unreadable record or a store error fails closed (throws, so the handler answers 503), never allowed", async () => {
+  const now = new Date("2026-11-23T15:00:00Z");
+  for (const bad of [{ days: "oops" }, { days: [1] }, {}, { days: { "2026-11-23": "x" } }, { days: { today: 5 } }, null]) {
+    const store = createFakeStore();
+    await store.setJSON(COMPUTE_KEY, bad);
+    await assert.rejects(() => checkComputeBudget(store, MIN, now), /unreadable/, JSON.stringify(bad));
+  }
+  const broken = { getWithMetadata: async () => { throw new Error("blobs down"); } };
+  await assert.rejects(() => checkComputeBudget(broken, MIN, now));
+});
+
 test("compute budget: 30 parallel recordCompute calls lose nothing (CAS), and the record stays small", async () => {
   const store = createFakeStore();
   const now = new Date("2026-11-23T15:00:00Z");

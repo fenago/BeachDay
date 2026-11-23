@@ -85,7 +85,6 @@ test("guard: a RETURNED AuthRetryableFetchError (auth-js does not throw) -> 503,
   assert.ok(!(await down.text()).includes("secret-detail"));
   assert.equal((await run({ data: null, error: invalid })).status, 401);
   assert.equal((await run({ data: { claims: { sub: "u-admin" } }, error: null })).status, 202, "a good result still works");
-  assert.equal(stores.size === 0 || true, true);
 });
 
 test("jobs: super_admin -> 202, job stored as queued with only a token HASH, worker triggered once", async () => {

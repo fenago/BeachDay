@@ -369,6 +369,7 @@ Rules:
 - DENY wins over ALLOW.
 - At most 20 files, and at most 200 KB per file.
 - **Text only:** contents must decode as UTF-8 with no NUL bytes, whatever the path.
+- **Summary:** one line, 20–2000 characters, no control or line-break characters (incl. U+2028/2029) and no `Beach-Day-Proposal` text in any case. `propose_change` rejects anything else with `is_error: true` so the agent can rewrite it; the commit message builder (§7 step 5) sanitises again anyway.
 - Run a **secret scan** on new contents, at proposal time and again at Approve. The exact rules are owned by security-engineer and live in the `agent-console-security` skill ("Proposal integrity"), with a runnable copy in `knowledge/security-engineer/examples/03-secret-scan-and-review/`. In summary it flags: Anthropic keys (`sk-ant-…`), GitHub tokens (`github_pat_…`, `gh[pousr]_…`), Supabase secret keys (`sb_secret_…`), any **full three-part JWT** (which covers legacy `service_role`/`anon` keys and access tokens), private-key blocks, assignments to `ANTHROPIC_API_KEY`, `GITHUB_TOKEN` or `GITHUB_READ_TOKEN`, and high-entropy strings of 40+ characters next to key, token or secret (lower-case slash paths excluded).
   - It does **not** match the bare word `service_role`, so docs that explain the key stay proposable.
   - There is no `EXAMPLE` exemption. Test fixtures build fake secrets at runtime instead of committing literal strings (`secure-by-design`).
@@ -429,7 +430,11 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
 ```
 
 **Reconciler** (runs from `GET /api/proposals/:id` and from approve, for a record in `committing` whose `decidedAt` is more than 120 s old; it takes the approve lock and skips if the lock is held):
-1. Look for the proposal's commit on `main`: `GET /repos/.../commits?sha=main&since=<decidedAt − 5 min>&per_page=50`, and match the exact trailer line `Beach-Day-Proposal: p_…` in each message.
+1. Look for the proposal's commit on `main`: `GET /repos/.../commits?sha=main&since=<decidedAt − 5 min>&per_page=50`. A commit is **this proposal's commit only if all three hold** (an agent's summary must never be able to claim another proposal's slot):
+   - the message's **final** line is exactly `Beach-Day-Proposal: <this id>` (not anywhere in the body);
+   - the commit author name is exactly `Beach Day Agent (<proposal.agent>)`;
+   - for every file in the proposal, the blob SHA at that commit (`GET /repos/.../contents/{path}?ref=<commitSha>`, serially, ≤20 calls) equals the git blob SHA of the proposal's content (`sha1("blob " + byteLength + "\0" + bytes)`), and the commit has one parent.
+   A candidate that fails any check is ignored (logged), never matched.
 2. **Found** → record, then mark, exactly as step 7a–7b (the reconciled commit **counts**, ADR-0008). If an earlier 7a had already succeeded, this records it a second time: an overcount of one, which is the safe direction.
 3. **Re-read succeeded and not found** → CAS `failed` {error: "commit did not reach main"}. No slot is used.
 4. **GitHub unreachable** → leave it `committing` and try again on the next GET.

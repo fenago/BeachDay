@@ -129,6 +129,15 @@ const liveDays = (days, now) => {
   return Object.entries(days ?? {}).filter(([d]) => d >= first).sort(([a], [b]) => (a < b ? -1 : 1));
 };
 
+// Fail closed: a record that exists but is not { days: { "YYYY-MM-DD": number } } is an error
+// (the handler answers 503 `unavailable`), never an empty budget.
+export function assertComputeShape(data) {
+  const days = data?.days;
+  const ok = days && typeof days === "object" && !Array.isArray(days) &&
+    Object.entries(days).every(([d, ms]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && Number.isFinite(ms) && ms >= 0);
+  if (!ok) throw new Error("site:compute unreadable");
+}
+
 export function evaluateCompute(days, now, needMs, budget = COMPUTE_BUDGET) {
   const live = liveDays(days, now);
   const limitMs = budget.windowMinutes * 60_000;
@@ -145,7 +154,8 @@ export function evaluateCompute(days, now, needMs, budget = COMPUTE_BUDGET) {
 }
 
 export async function checkComputeBudget(store, needMs, now = new Date(), budget = COMPUTE_BUDGET) {
-  const cur = await store.getWithMetadata(COMPUTE_KEY, { type: "json" });
+  const cur = await store.getWithMetadata(COMPUTE_KEY, { type: "json" }); // a Blobs error propagates: the caller answers 503
+  if (cur !== null) assertComputeShape(cur.data); // unreadable record: throw, never "allowed"
   return evaluateCompute(cur?.data?.days, now, needMs, budget);
 }
 
@@ -154,6 +164,7 @@ export async function recordCompute(store, ms, now = new Date(), { maxAttempts =
   const today = localDay(now);
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const cur = await store.getWithMetadata(COMPUTE_KEY, { type: "json" });
+    if (cur !== null) assertComputeShape(cur.data);
     const days = Object.fromEntries(liveDays(cur?.data?.days, now));
     days[today] = Math.round((days[today] ?? 0) + ms);
     const r = cur === null
