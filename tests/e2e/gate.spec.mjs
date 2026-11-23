@@ -125,3 +125,13 @@ test("an Origin denial (403 bad_origin) is NOT the no-access screen", async ({ p
   await expect(page.getByTestId("no-access")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: STRINGS["console.noaccess.title"] })).toHaveCount(0);
 });
+
+test("a different person on the same browser: sign out of the no-access screen, sign in as a super_admin, and the list loads", async ({ page }) => {
+  await loginAs(page, PLAIN);
+  await expect(page.getByTestId("no-access")).toBeVisible();
+  await page.getByRole("button", { name: STRINGS["btn.signOut"], exact: true }).click();
+  await expect(page.getByText(STRINGS["auth.signout.done"])).toBeVisible();
+  await signIn(page, ADMIN);
+  await expect(page.getByTestId("agent-list"), `after the second sign-in the page shows: ${await page.locator("main").innerText().catch(() => "?")}`).toBeVisible();
+  await expect(page.getByTestId("no-access")).toHaveCount(0);
+});

@@ -160,7 +160,7 @@ test.describe("update flow", () => {
     await expect(toast).toBeVisible();
     await expect(toast).toContainText(t("ui.update.ready"));
     await page.getByTestId("update-refresh").click();
-    await expect.poll(async () => Object.keys(await caches_(page)).sort()).toEqual(["beachday-data-v1", `beachday-shell-${V2}`]);
+    await expect.poll(async () => Object.keys(await caches_(page).catch(() => ({}))).sort()).toEqual(["beachday-data-v1", `beachday-shell-${V2}`]);
     await expect(page.getByTestId("verdict-card")).toBeVisible();
     expect(await page.evaluate(() => sessionStorage.cc), "exactly one controllerchange").toBe("1");
     expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).active.scriptURL.endsWith("/sw.js"))).toBe(true);
