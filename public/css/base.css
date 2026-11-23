@@ -160,6 +160,9 @@ button { cursor: pointer; }
   .panel { border: 1px solid CanvasText; }
 }
 
+/* The hidden attribute always wins over component display rules (.panel, .console are display: grid). */
+[hidden] { display: none !important; }
+
 /* Increase contrast: darker secondary text, firm borders. */
 @media (prefers-contrast: more) {
   .muted { color: var(--text); }
