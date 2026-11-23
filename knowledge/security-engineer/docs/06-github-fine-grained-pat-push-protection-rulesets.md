@@ -21,6 +21,8 @@ A classic PAT, by contrast, "will grant access to all repositories within the or
 
 **Repository access:** choose "the minimal repository access that meets your needs", that is, **Only select repositories**.
 
+"Tokens always include read-only access to all public repositories on GitHub" (re-read on 2026-11-23 from the `github/docs` source, `content/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens.md`, because docs.github.com did not resolve from the sandbox). There is also a limit of 50 fine-grained tokens per user.
+
 **Path scoping:** the token **cannot be limited to paths or branches**. No such option appears on the page, and docs/04 §5 says the same. That makes our allow-list the enforcement point.
 
 ## Permissions for the endpoints we use ([permissions table](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens))
@@ -76,5 +78,7 @@ Whether Metadata: read is added automatically is not stated on the pages read: *
 **Error handling:**
 - A 404 from GitHub with a valid token usually means the token isn't scoped to the repo. Fix the token; don't retry.
 - Never retry 401s in a loop.
+
+**Read token (ADR-0007 open question; docs/04 §4.6).** Because every fine-grained token can read public repos, a token with public-only access and no permissions can serve `read_file` and `list_files` while `fenago/BeachDay` is public. Leaking it exposes nothing an anonymous visitor can't see, except its 5,000/hr budget. Then only the approve function loads the write token. The exact label of the "public repositories" option in the UI wasn't captured, so check it when creating the token. This needs an ADR, and it must be revisited if the repo goes private.
 
 **Upgrade path** (docs/04 §5): a GitHub App with 1-hour installation tokens. Trigger it when more people use the Console or a leak is suspected.

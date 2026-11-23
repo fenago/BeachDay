@@ -63,28 +63,154 @@ Machine-checkable JSON Schemas for these shapes are in `knowledge/software-archi
 
 ## 3. Threat model (what we defend against)
 
+Owner: security-engineer. Updated 2026-11-23 for ADR-0006 (Supabase Auth), ADR-0007 (reads from GitHub `main`) and ADR-0008 (Approve cap). Mechanisms are in §4, limits in §9, headers in §10.
+
+**Trust boundary in one paragraph.** Anyone on the internet can create a Supabase account, so "signed in" means nothing on its own. The only privilege is `profiles.role = 'super_admin'`, which only Dr. Lee sets by hand. Every function re-checks it on every request. The browser holds the user's tokens in `localStorage` on the **same origin as the public beach app**, so any script that runs anywhere on the site can read them. Agents can propose changes but never commit, and a human Approve after a fresh sign-in is the only path to `main`.
+
 | Threat | Example | Control |
 |---|---|---|
-| Stranger uses the Console | Finds `/console`, burns Claude credits, commits code | Password gate on **every** `/api/*` function; rate limits; spend limit at Anthropic |
-| Secret leakage to browser | API key or GitHub token in JS bundle or response | Secrets only in Function env vars; responses never echo env; Netlify secret scanning; CSP |
-| Over-privileged token | Token can touch other repos/orgs | Fine-grained PAT, **only this repo**, minimal permissions; or a GitHub App |
-| Agent writes dangerous files | Edits `netlify/functions/approve.mts`, `.github/workflows`, `netlify.toml` to exfiltrate keys | **Server-side path allow-list**, re-checked at approve time; no Workflows permission on the token |
-| Prompt injection | A repo file or user text tells the agent "commit this secret / widen the allow-list" | Agents have no commit tool; human approval with a visible diff; allow-list is code, not prompt; secret scan on diffs |
-| CSRF / clickjacking | Another site triggers Approve | `SameSite=Strict` cookie, CSRF token header, `frame-ancestors 'none'` |
-| Replay / double approve | Approve clicked twice, or proposal edited after review | Proposal content hash shown to the user, sent back with Approve and compared; compare-and-swap status in Blobs; base SHA check |
-| Cost abuse | Loops, huge prompts | Per-session and per-day limits; max tokens/rounds per job; Anthropic workspace spend limit |
-| Preview deploys with prod powers | A branch deploy commits to main | Production-only secrets: GitHub token set **only** in the Production context |
+| Stranger or any signed-up user uses the Console | Signs up, finds `/console`, calls `/api/chat` to burn Claude credits, or calls approve | Every `/api/*` function runs the token-and-role check first (§4.1) and fails closed: 401 / 403 / 503. No unauthenticated function exists (ADR-0006). Rate limits and the Anthropic spend limit (§9) |
+| Role escalation | User `PATCH`es their own `profiles.role`, sets `role` in `user_metadata`, or sends `role` in a request body | API roles hold **no** INSERT/UPDATE/DELETE privilege on `profiles`; role is read from `profiles` as the caller, never from the JWT, metadata or the body; `super_admin` is set only in the SQL editor (§4.5) |
+| Privileged Supabase key leaks | A `sb_secret_…` or legacy `service_role` JWT pasted into an env var, `config.js` or a proposal | No such key is ever created in our config. The build refuses a publishable key that doesn't start `sb_publishable_` (ADR-0006). The secret scan flags `sb_secret_…` and any full JWT (§6, `agent-console-security`) |
+| Token theft through XSS | Injected script on **any** page of the origin (beach app or Console) reads the Supabase session from `localStorage` | Strict CSP with `script-src 'self'`, no inline script, no CDN (§10). `textContent` only. 10-minute access tokens (§4.3). Approve needs a fresh sign-in, which a stolen token can't produce (§4.2). Approved `public/**/*.js` and `*.html` changes are reviewed as privileged code; the proposal card warns. **Open for Dr. Lee:** deny `public/console.html` and `public/js/console/**` to agents |
+| Stolen or signed-out token replayed | A token copied from a device, or a user who signed out but whose token is still valid | Access tokens live 10 minutes (§4.3). Tokens are never logged or stored server-side. Approve also calls `getUser(token)` (§4.2) |
+| Walk-up Approve | Someone uses an unlocked laptop with a live Console tab | Step-up before Approve: a password or Google sign-in no more than 10 minutes old, plus `aal2` if the user has a TOTP factor (§4.2) |
+| Account takeover through the auth flows | Open redirect leaks the auth code; reset form reveals which emails exist; weak password; attacker signs up first with Dr. Lee's address | PKCE; exact redirect allow-list; email confirmation on; reset copy never says whether an address exists; minimum length 12; promote only a confirmed user id; TOTP recommended for `super_admin` (§4.5) |
+| Secret leakage to the browser | API key or GitHub token in a bundle, response or `config.js` | Secrets only in function env vars; `config.js` is written from three named non-secret variables only; responses never echo env; Netlify secret scanning; CSP |
+| Over-privileged token | The token can touch other repos, or the write token is exposed by the chat code | Fine-grained PAT, this repo only, Contents R/W, no Workflows (ADR-0005), read only by approve. Recommended: a separate public-read-only token for the read tools (§4.6, needs an ADR) |
+| Agent writes dangerous files | Proposes `netlify/functions/approve.mts`, `.github/workflows/*`, `netlify.toml`, `public/_headers`, `public/vendor/**` | Server-side allow-list and deny-list, re-checked at Approve (§6); no Workflows permission |
+| Agent-written code runs with secrets | A proposed test runs during the Netlify build, where Free gives every step every secret | No `vitest` in the Netlify build; `scripts/**` denied; tests run in GitHub Actions with a read-only token and no secrets (§4.7) |
+| Prompt injection | A repo file or chat text says "commit this secret" or "widen the allow-list" | Agents have no commit tool; human Approve with a visible diff; policy in code, re-checked at Approve; secrets never in prompts; read tools refuse `.env*`, `*.pem`, `*.key` (ADR-0007) |
+| CSRF, login CSRF and clickjacking | Another site triggers Approve, or frames the Console | Bearer token in a header, not a cookie, so the browser never attaches it on its own; no CORS headers; `Sec-Fetch-Site` / `Origin` check on POST as defence in depth; no state change from a URL; PKCE for OAuth; `frame-ancestors 'none'` (§4.4, §10) |
+| Replay or double Approve | Approve clicked twice, or a proposal edited after review | Content hash shown and compared; CAS status; one approve in flight; base-SHA check (§7) |
+| Cost abuse | Loops, huge prompts, too many jobs | Netlify rate rules, per-user counters, per-job caps, a site-wide compute budget, the Approve cap and the Anthropic spend limit (§9) |
+| Preview deploys with production powers | A branch deploy reads `GITHUB_TOKEN` and commits | Secrets set for the Production context; Deploy Previews and branch deploys turned off; functions refuse GitHub and Claude calls unless `context.deploy.context === "production"` (§4.6) |
+| Supabase down or project paused | Auth or PostgREST unreachable | Fail closed (503). The beach app has no auth code and keeps working |
 
-## 4. Password gate
+**Residual risks (accepted, revisit if the user base grows):**
+- An XSS anywhere on the origin, including an approved malicious `public/**/*.js`, can use the tokens for chat and proposals, and can approve within 10 minutes of a real step-up. CSP and diff review are the controls. Moving the Console to its own origin would remove this; it needs an ADR.
+- For a Google-only user without TOTP, a step-up proves a live Google session in that browser, not a typed password. Whether `prompt=login` forces a fresh Google login is **UNVERIFIED**. TOTP closes the gap.
+- Open sign-up lets anyone create accounts. They get 403, but they cost Supabase MAU and one role lookup per request.
 
-Netlify's built-in site password / Basic-Auth needs the **Pro** plan and **does not protect functions** anyway ([password protection](https://docs.netlify.com/manage/security/secure-access-to-sites/password-protection/), [Basic-Auth](https://docs.netlify.com/manage/security/secure-access-to-sites/basic-authentication-with-custom-http-headers/)). So the gate lives in our functions:
+## 4. Supabase Auth and roles
 
-* Store only `CONSOLE_PASSWORD_HASH` (scrypt via Node `crypto.scrypt`, or argon2) as a secret env var. Compare with `crypto.timingSafeEqual`.
-* On success set `bd_session` = HMAC-signed `{sid, exp}` (key `SESSION_SECRET`), flags `HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=28800` (8 h). Use `context.cookies.set`.
-* Every `/api/*` function starts with `requireSession(req, context)`; unauthenticated → `401`.
-* **Login throttling:** 5 failed attempts per IP per 15 min (Blobs counter) plus Netlify `config.rateLimit` on `/api/login`.
-* **Re-auth for Approve** (optional but recommended): ask for the password again (or a short PIN) within the last 10 min before committing — satisfies "step-up" for the riskiest action. WCAG 3.3.8: allow paste and password managers.
-* Alternative if multiple people need access: **Netlify Identity** (free on credit-based plans, invite-only, roles, server-side verification via `@netlify/identity`) — [Identity](https://docs.netlify.com/manage/security/secure-access-to-sites/identity/overview/). Start with a single password; move to Identity if a second user is added.
+Decision: ADR-0006. Reference code: `knowledge/supabase-auth-engineer/examples/01-token-and-role-check/` (the check) and `knowledge/security-engineer/examples/01-bearer-step-up-and-origin/` (step-up and Origin). Skills: `supabase-auth`, `supabase-rls-profiles`, `agent-console-security`.
+
+### 4.1 The check on every function
+
+Every `/api/*` handler runs this first, before reading the body, counting limits, or touching Blobs, GitHub or Claude:
+
+1. `Authorization: Bearer <access token>` is present and has three dot-separated parts. Otherwise **401**, with `www-authenticate: Bearer`.
+2. `supabase.auth.getClaims(token)` verifies the signature and `exp` against the project's JWKS. The token is passed explicitly. Never `getSession()` on a server, and never `allowExpired`. An invalid token gets **401**.
+3. The function checks the claims itself, because `getClaims` doesn't: `iss === <SUPABASE_URL>/auth/v1`, `aud === "authenticated"`, `is_anonymous !== true`, and `sub` is a string. Otherwise **401**.
+4. It reads the role with one PostgREST call made as the caller: `GET <SUPABASE_URL>/rest/v1/profiles?select=role&id=eq.<sub>`, with `apikey: <publishable key>` and the caller's Bearer token. A PostgREST 401 means **401**. Anything other than exactly one row with `role === "super_admin"` means **403**.
+5. A network error, timeout, 5xx, cold-JWKS fetch failure or any unexpected exception means **503 `unavailable`**. Never allow, never echo the error.
+6. The function logs the user id (`sub`), route, status and `requestId`. It never logs the token or the `Authorization` header.
+
+Rules that go with it:
+- The role is **not cached**, so a demotion takes effect on the next request. The JWKS may be cached (auth-js does this per instance).
+- Only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are used. The secret key and the legacy `service_role` key are used nowhere.
+- **`/api/jobs-run`** (background) can't return a status. It runs the same check on the forwarded token **and** consumes the job nonce with a CAS. If either fails, it writes nothing and exits. Store only the SHA-256 of the nonce in the job record.
+- The Console client refreshes its session if the access token expires within 120 s before calling `/api/chat` or `/api/jobs`, so a chat hand-off doesn't reach `/api/jobs-run` with an expired token.
+
+### 4.2 Step-up before Approve (required)
+
+`reauthenticate()` is **not** a step-up: it sends a nonce for password changes only and does nothing for Google-only users (knowledge/supabase-auth-engineer/docs/03). Instead, `POST /api/proposals/:id/approve` runs these checks after §4.1, and all of them must hold:
+
+1. `getUser(token)` succeeds, returns the same id as `sub`, and the user is not banned. A network failure means **503**. An error or an empty user means **401 `unauthorized`**.
+2. The token's `amr` claim has an entry with method `password` or `oauth` whose `timestamp` is **no more than 600 s old** (and no more than 60 s in the future).
+3. `user.last_sign_in_at` is no more than 600 s old. This is a server-side corroboration of rule 2.
+4. If the user has any verified MFA factor, `aal === "aal2"`.
+
+If any check fails, the response is **401 `{"error":{"code":"step_up_required"}}`**, and the proposal stays `pending`.
+
+Why it is built this way:
+- Supabase documents `amr` as the way to require that a user "recently signed in with a password" (auth-mfa guide, read from the `supabase/supabase` docs source on 2026-11-23). `token_refresh`, `recovery`, `otp`, `magiclink` and the other methods don't count.
+- **TOTP is additive, never a substitute.** A thief with a stolen aal1 session could enrol their own factor, so a fresh `totp` entry alone never passes (tested in example 01).
+- Supabase TOTP MFA "is free to use and is enabled on all Supabase projects by default" (auth-mfa/totp guide). **Recommended to Dr. Lee:** enrol TOTP on the `super_admin` account. A Google step-up then also needs a code, which closes the residual risk in §3.
+
+Browser flow (Wren owns the copy):
+- **Password users** re-enter their password in a dialog (`signInWithPassword`), plus a TOTP code if they have a factor. The Console then retries Approve with the new token.
+- **Google users** go through `signInWithOAuth` again, with `redirectTo` set to the Console. After the redirect the Console shows the same proposal and its hash, and the user must **click Approve again**. Nothing is ever approved automatically from a URL.
+- Allow paste and password managers (WCAG 3.3.8).
+
+**Pre-launch tests on the real project. Approve stays disabled until they pass** (supabase.com was blocked from the sandbox, so these are **UNVERIFIED**):
+- (a) the `password`/`oauth` `amr` timestamp keeps the sign-in time across a token refresh;
+- (b) a new sign-in in the same browser gives a new, current timestamp;
+- (c) `last_sign_in_at` changes on password and Google sign-in, and not on refresh;
+- (d) `getUser` after `signOut({scope:'local'})`. If it still succeeds, a signed-out token works until `exp`. That is accepted with 10-minute tokens, but record it;
+- (e) a TOTP verify yields `aal2`.
+
+If (a) fails, security-engineer re-specifies rule 2 before launch.
+
+### 4.3 Tokens and sessions in the browser
+
+- **Storage: `localStorage`** (the supabase-js default). It stays, deliberately:
+  - `sessionStorage` would not stop XSS, which runs in the same tab;
+  - it would break PKCE confirmation and reset links that open in a new tab;
+  - HttpOnly cookies need server rendering, which ADR-0006 doesn't have.
+
+  The consequence is the XSS row in §3, and the defence is the CSP.
+- **Access-token (JWT) expiry: 600 s (10 minutes).** Dr. Lee sets it in Dashboard → Auth → Sessions. Supabase recommends not going below 5 minutes, and says the default of 1 hour suits most apps. 10 minutes bounds how long a stolen or signed-out token works. Our longest request that checks a token takes 60 s; `/api/jobs-run` checks only at its start.
+- **Session time-box and inactivity timeout** are "only available on Pro Plans and up" (sessions guide). On Free, sessions last until sign-out, and the step-up is what protects Approve. If the project is ever on Pro, set a time-box of 12 h and an inactivity timeout of 2 h.
+- **Client settings:**
+  - `flowType: 'pkce'`;
+  - `autoRefreshToken: true` in the Console;
+  - after the PKCE exchange, remove `code` from the URL with `history.replaceState`;
+  - log-out is `signOut({ scope: 'local' })`, and the Console offers "Sign out everywhere" as `scope: 'global'`.
+- The public beach app never loads auth code. The service worker never caches `<SUPABASE_URL>/**` or `/api/**`.
+
+### 4.4 CSRF and Origin with Bearer tokens
+
+The browser never attaches an `Authorization` header by itself, and we send **no** `Access-Control-Allow-*` headers. So a page on another origin can't make an authorised request, and the old CSRF token and cookie are gone (ADR-0006). We keep three cheap layers:
+- **Origin check.** On every POST, reject with **403** when `Sec-Fetch-Site` is present and not `same-origin`, or when `Origin` is present and not the site URL (including `null`). When both are absent, the call is server to server and passes, because no browser credential can ride along (example 01).
+- **No state change from a URL.** No query string, hash or redirect ever triggers Approve, Reject, a chat turn or a job.
+- **PKCE** for OAuth, plus email links, protects against login CSRF and code interception. `frame-ancestors 'none'` protects against clickjacking.
+
+### 4.5 Supabase project settings and roles (Dr. Lee, by hand)
+
+| Setting | Value |
+|---|---|
+| Email confirmation | **On** |
+| Password minimum length | **12**. No character-class rules (our choice); allow paste and password managers |
+| Leaked-password protection | Pro plan and above only. On Free it isn't available: the length rule, Google sign-in and TOTP compensate |
+| Anonymous sign-ins | **Off** (the check rejects `is_anonymous` anyway) |
+| Site URL | `https://<production host>/console` |
+| Redirect URLs | Exact entries only: `https://<production host>/console` and the reset URL Wren chooses. No `*` or `**`, no Netlify preview pattern, no `localhost` (use a separate dev project) |
+| Google provider | Client secret lives in Supabase only, never in the repo or Netlify. Authorised origin is the production origin |
+| JWT expiry | 600 s (§4.3) |
+| Signing keys | Asymmetric (so `getClaims` verifies locally); confirm in the Dashboard (**UNVERIFIED** for this project) |
+| MFA (TOTP) | On (default). Recommended: Dr. Lee enrols a factor |
+
+**Roles and RLS** (`supabase-rls-profiles`, example 02):
+- `profiles` has RLS on with one select policy for the user's own row.
+- `anon` and `authenticated` hold no INSERT, UPDATE or DELETE privilege on it.
+- The sign-up trigger inserts only `id` and never reads `raw_user_meta_data`.
+
+**Promotion.** Dr. Lee promotes himself once, in the SQL editor, and only a user id whose email is confirmed. Promote only after signing in the way he will normally sign in, because Google and email accounts may be separate users (**UNVERIFIED**).
+
+### 4.6 Secrets and environments on the Free plan
+
+Env-var **scopes** (Builds/Functions/Runtime) are Pro+. On Free every build step sees every variable, and per-context values are **UNVERIFIED** (docs/03 §6). So "Production-only secrets" is enforced in four layers:
+1. Set `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` with `--context production --secret`. Then check `netlify env:list --context deploy-preview`.
+2. **Turn off Deploy Previews and branch deploys.** This is required, not a fallback: ADR-0003 commits to `main` and QA runs on the main deploy, so they're unused. Keep "Build without sensitive variables" for fork builds.
+3. **In code:** functions that call GitHub or Claude return **503 `unavailable`** unless `context.deploy.context === "production"`, before reading the secret.
+4. **Build:** nothing agent-writable runs during the build, and build scripts never print env (§4.7).
+
+**Read token (ADR-0007 open question). Recommendation: yes, add one.**
+- GitHub states that fine-grained tokens "always include read-only access to all public repositories" (managing-your-personal-access-tokens, read from the `github/docs` source on 2026-11-23). A token with **Public repositories** access and **no permissions** can therefore serve `read_file`/`list_files` while the repo is public.
+- If it leaks, it grants nothing an anonymous visitor lacks, apart from its rate budget.
+- `chat` and `jobs-run` then load `GITHUB_READ_TOKEN`, and only `approve` loads the write `GITHUB_TOKEN`.
+- It adds a secret and changes the trust boundary, so software-architect drafts an ADR (Proposed) for Dr. Lee. Until he accepts it, ADR-0007 stands: same token, read-only module.
+- If the repo goes private, this has to be revisited.
+
+### 4.7 Tests, CI and the build
+
+- **No `vitest` (or any test runner) in the Netlify build** (docs/03 §9.4). On Free the build sees every secret, and `tests/**` is agent-writable.
+- **We do not deny `tests/**`** to agents: agents writing tests is how the gates stay green.
+- **Tests run in GitHub Actions** with `permissions: contents: read`, no repository secrets, no `pull_request_target`, and actions pinned by SHA. `.github/**` is denied to agents, so the workflow stays human-owned.
+- QA reads the result on the main deploy, with rollback ready (ADR-0003). It is a signal after the commit, not a gate before it; the gate is the human diff review.
+- **Humans running tests locally** treat an agent-written test as untrusted code. Run it in a shell without real secrets in the environment.
 
 ## 5. GitHub token: least privilege
 
@@ -206,23 +332,66 @@ Patterns:
 
 ## 9. Rate limits & cost controls
 
-| Layer | Limit (starting values) |
-|---|---|
-| Netlify `config.rateLimit` (code-based, all plans; 2 rules on Free) | `/api/login` 10/min per IP; `/api/chat` 20/min per IP. `windowSize` max 180 s. Over limit → `429`. [rate limiting](https://docs.netlify.com/manage/security/secure-access-to-sites/rate-limiting/) |
-| App counters in Blobs (CAS) | 100 chat turns/day, 20 jobs/day per session (security-engineer is reworking these per user id) |
-| **Approve cap (ADR-0008)** | **Site-wide, all users:** at most **14** committed approvals in any rolling 31 days and **5** per America/New_York day. Checked inside the approve lock; over → `429 approve_cap`, proposal stays `pending` |
-| Per request | `max_tokens` cap; ≤15 tool rounds; input size cap (e.g. 32 KB user message) |
-| Anthropic | Dedicated workspace with a low monthly **spend limit** (hard stop) |
-| GitHub | Serial requests; ≤1 approve in flight (CAS lock in Blobs) |
-| Netlify credits | ~20 production deploys/month on Free — batch changes; ignore docs-only builds |
+Owner: security-engineer, with netlify-engineer for the platform rules. Every limit is checked **after** the token-and-role check (§4.1) and **before** any Claude, GitHub or long-running work. Over a limit → `429` with `{"error":{"code":"rate_limited"|"approve_cap"|"budget_exhausted","message","retryAt"}}`.
+
+| Layer | Limit | Where / how |
+|---|---|---|
+| Netlify `config.rateLimit` (code-based; **2 rules on Free**) | `/api/chat` 20 per 60 s; `/api/jobs` 10 per 60 s; both `aggregateBy: ["ip","domain"]` | In each function's `config` ([rate limiting](https://docs.netlify.com/manage/security/secure-access-to-sites/rate-limiting/)). These are the two routes that start Claude spend and long compute. `/api/login` no longer exists. Approve doesn't need one: it is capped below, and it is serialised by the approve lock. Check the deploy log: a bad rule doesn't fail the deploy |
+| Per user per day (Blobs, CAS, key `<action>/<user id>/<YYYY-MM-DD>`, America/New_York day) | **200 chat turns**, **20 jobs** | Counted when the turn or job **starts**, and never refunded, so a failing retry loop still uses up the budget |
+| Per chat turn / per job | ≤ **15 tool rounds**; ≤ **1,000,000 tokens** (sum of `input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens` and `output_tokens` over all rounds); `max_tokens` capped per call; user message ≤ 32 KB; job wall clock ≤ 14 min | Checked before each Claude call. On exceeding, stop with `done.stopReason: "tool_rounds_exhausted"` or `"max_tokens"` and keep partial state |
+| **Site-wide compute budget** (Blobs, key `site:compute`, CAS, rolling 31 days) | **180 function-minutes** of `/api/chat` + `/api/jobs-run` wall time, about 30 credits at 1024 MB | **New, needs Dr. Lee's confirmation of the number.** Without it, the per-user limits can't bound Netlify credits: one 15-min job is about 2.5 credits, so 20 jobs a day would be about 50 credits a day (knowledge/netlify-engineer/docs/07; billed duration **UNVERIFIED**). Before a chat turn, require ≥ 60 s left; before a job, require ≥ 5 min left and set the job's wall-clock limit to min(14 min, remaining). Record actual elapsed time when the turn or job ends, and at each job progress write. Over → `429 budget_exhausted` |
+| **Approve cap (ADR-0008)** | **Site-wide, all users:** at most **14** committed approvals in any rolling 31 days and **5** per America/New_York day | Blobs `ratelimit` key `site:approvals`, checked inside the approve lock. Over → `429 approve_cap`, and the proposal stays `pending` |
+| Anthropic | Dedicated workspace with a low monthly **spend limit** (hard stop) | Anthropic console (Dr. Lee) |
+| GitHub | Serial requests; ≤ 1 approve in flight (CAS lock in Blobs) | §7 |
+| Netlify credits | 300/month on Free; 15 per production deploy | Approve cap = 210 credits; compute budget about 30; the rest is for human pushes and bandwidth (docs/03 §10) |
+
+**Approve slots and failures (decided).** A slot is consumed only when a proposal reaches `committed` (ADR-0008), so `failed`, `stale`, `rejected` and `approve_cap` never use one, and there is nothing to refund. Two edge cases must still count:
+- **Reconciliation.** When a record stuck in `committing` is reconciled to `committed` because `main` carries its trailer (§2.1), append its timestamp to `site:approvals` at reconciliation.
+- **Unknown outcome on the ref update.** If step 6 (`PATCH …/refs/heads/main`) times out or errors, re-read `refs/heads/main` before deciding. If it now equals `commitSha`, the outcome is `committed`, and it counts. Only otherwise is it `failed`.
+
+The aim is that the cap never undercounts a commit that actually deployed.
 
 ## 10. Headers & browser-side rules
 
-* Functions must set their own headers (Netlify `_headers` doesn't apply to function responses): `Cache-Control: no-store`, `Content-Type`, `X-Content-Type-Options: nosniff`.
-* Static CSP for the Console: `connect-src 'self'` (the Console talks only to `/api/*`), `script-src 'self'` (no inline), `frame-ancestors 'none'`.
-* Render agent output as **text**, or Markdown through a sanitizer — never `innerHTML` raw model output. Render diffs as text.
-* The service worker must **never cache** `/api/*`.
-* Never log request bodies containing the password; log `context.requestId`, agent, proposal ID, commit SHA.
+Owner: security-engineer. `public/_headers` is the only place static headers are set (docs/03 §3.2) and is denied to agents.
+
+**Function responses** (`_headers` doesn't apply to them; every function sets its own, on every status including 401, 403, 429 and 503):
+- `cache-control: no-store`
+- an explicit `content-type`
+- `x-content-type-options: nosniff`
+- for JSON: `content-security-policy: default-src 'none'; frame-ancestors 'none'`
+- `www-authenticate: Bearer` on 401
+
+Never send any `Access-Control-Allow-*` header, and never a `Set-Cookie`.
+
+**Static CSP: one site-wide policy.** The final value, once the Supabase project exists:
+
+```
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://<project-ref>.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+```
+
+Decisions behind it:
+- **The Supabase host is site-wide, exact, and never a wildcard.** A Console-only `connect-src` would need a second CSP rule for `/console`. How Netlify combines two rules that set the same header on one path is **UNVERIFIED** (docs/03 §3.2), and two policies on one response would both apply, so the narrower one would break sign-in. The cost of the wider rule is small: the beach app has no auth code, and the host is our own project, not `*.supabase.co`.
+- **The build checks that the host in `_headers` equals the host of `SUPABASE_URL`.** A mismatch fails the build.
+- **`script-src 'self'` holds.** The vendored `public/vendor/supabase-auth-js-<ver>.mjs` contains no `eval` or `new Function` (software-architect example 04). `public/generated/config.js` is a same-origin module. No inline script, no CDN, no `'unsafe-eval'`, no `'unsafe-inline'`.
+- **Google needs no CSP entry.** `signInWithOAuth` is a top-level navigation to `<project>/auth/v1/authorize`, then to Google and back. Neither `connect-src` nor `form-action` governs a script-initiated navigation (CSP specification; not a Netlify fact). Never implement sign-in as an HTML `<form action>` that posts to Supabase or Google: `form-action 'self'` would block it, and that is intended.
+- **`img-src 'self' data:`.** Don't render Google avatar URLs; show initials instead. That also keeps the Markdown image-exfiltration path closed.
+- Any proposal-style change to the CSP is a human change reviewed by security-engineer. Adding a host or `'unsafe-*'` needs a written reason.
+
+**Other static headers** (docs/03 §3.2):
+- `X-Content-Type-Options: nosniff`
+- `Referrer-Policy: strict-origin-when-cross-origin`, which keeps the PKCE `code` out of cross-origin referrers
+- `Permissions-Policy: geolocation=(self), camera=(), microphone=()`
+- `Strict-Transport-Security`
+- `noindex` and `no-store` on `/console`
+
+Recommended addition: `Cross-Origin-Opener-Policy: same-origin`. It is safe because sign-in uses redirects, not pop-ups.
+
+**Browser rules:**
+- Render agent output as **text**, or as Markdown through a sanitizer with no raw HTML and no remote images. Never use `innerHTML` with model output, file contents, diffs or Supabase error messages.
+- The service worker never caches `/api/**`, `<SUPABASE_URL>/**` or `/version.json`.
+- No URL parameter ever triggers a state change (§4.4).
+- **Logging:** log `requestId`, route, status, duration, user id (`sub`), agent, proposal ID and commit SHA. Never log request bodies, the `Authorization` header, tokens, `apikey` values or env.
 
 ## 11. Agent list & personality
 
@@ -230,12 +399,20 @@ Patterns:
 
 ## 12. Build checklist for `agent-console-engineer` + `security-engineer`
 
-- [ ] All `/api/*` call `requireSession`; tests prove 401 without cookie.
-- [ ] No secret appears in any response, log, or bundle (test greps build output).
-- [ ] Allow-list unit tests: `..`, absolute, backslash, denied dirs, case tricks (`Netlify.toml`), symlink mode.
-- [ ] Approve re-validates allow-list, size, secret scan, content hash, status CAS.
-- [ ] Always `base_tree`; `force:false`; stale-base handling.
-- [ ] GitHub token only in Production context; previews cannot commit.
-- [ ] Chat stays < 60 s; handoff to background works; background idempotent.
-- [ ] Rate limits return 429 with a friendly UI message.
-- [ ] CSP, `SameSite=Strict`, CSRF header verified in e2e.
+Security items (security-engineer owns them; qa-engineer writes the tests):
+- [ ] Every `/api/*` function runs the token-and-role check first (§4.1). On **every** function, tests prove: no token → 401; garbage, expired, bad-signature, wrong-`iss` or anonymous token → 401; role `user` or no row → 403; Supabase or JWKS down → 503; and nothing touches Blobs, GitHub or Claude in any of those cases. For `/api/jobs-run`: no work and no writes.
+- [ ] Approve: `getUser` + step-up (§4.2). Tests: primary sign-in 601 s old → 401 `step_up_required`; only `token_refresh` fresh → 401; fresh `totp` with stale sign-in → 401; verified factor with `aal1` → 401; fresh sign-in → passes.
+- [ ] **Pre-launch on the real project** (§4.2 a–e), plus: Netlify secret scanning does not flag `sb_publishable_…` in `config.js`. Approve stays disabled until these pass.
+- [ ] `POST` routes reject a cross-site `Sec-Fetch-Site` or a foreign `Origin` with 403. No `/api/*` response carries `Access-Control-Allow-*` or `Set-Cookie`.
+- [ ] No secret appears in any response, log or bundle. A test greps `public/` and the build output for `sk-ant-`, `github_pat_`, `ghp_`, `sb_secret_` and full JWTs.
+- [ ] Allow-list unit tests cover the canonical list (§6), including `public/_headers`, `public/sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `public/version.json` and `.claude/settings*`, plus `..`, absolute, backslash, case tricks (`Netlify.toml`, `public/_Headers`) and symlink mode.
+- [ ] The secret scan uses the rules in `agent-console-security`, with positives and negatives. The bare word `service_role` in docs must not fire.
+- [ ] Approve re-validates the allow-list, size, secret scan and content hash, and uses a CAS status update.
+- [ ] Always `base_tree`; `force:false`; stale-base handling; an unknown ref-update outcome is re-read before `failed` (§9).
+- [ ] GitHub and Anthropic secrets are Production-context only; Deploy Previews and branch deploys are off; functions return 503 outside `production` (§4.6).
+- [ ] Limits return 429 with a friendly UI message: per-user counters, the compute budget, the Approve cap (5th/6th in a day, 14th/15th in 31 days).
+- [ ] The CSP equals §10 exactly (e2e reads the header), and the build fails if the Supabase host in `_headers` differs from `SUPABASE_URL`.
+- [ ] No test runner in the Netlify build command; the GitHub Actions workflow has `permissions: contents: read` and no secrets (§4.7).
+
+Other items:
+- [ ] Chat stays < 60 s; the hand-off to the background function works; the background function is idempotent.

@@ -22,15 +22,16 @@ Retrieved: 2026-11-23 (from the official OWASP/CheatSheetSeries GitHub source)
 
 **Login CSRF.** Login forms need protection too: an attacker could log the victim into the attacker's session.
 
-### Our CSRF design
+### Our CSRF design (since ADR-0006: Bearer tokens, no cookies)
+The OWASP token patterns above protect **ambient** credentials (cookies) that the browser attaches by itself. Our Supabase access token travels in an `Authorization` header that only our own script can set, so classic CSRF doesn't apply. The old `X-BD-CSRF` token and `bd_session` cookie are gone.
+
 | Layer | Beach Day |
 |---|---|
-| Cookie | `SameSite=Strict`, `HttpOnly`, `Secure` |
-| Token | `X-BD-CSRF: HMAC(csrfKey, "sid:"+sid)`, returned by `/api/login` and kept in memory (examples/01) |
-| Fetch Metadata | reject POST/PUT/PATCH/DELETE when `Sec-Fetch-Site` is present and not `same-origin` |
-| Origin fallback | `Origin` must equal the site URL. If both `Sec-Fetch-Site` and `Origin` are missing on a state-changing request, reject |
-| CORS | send no `Access-Control-Allow-*` headers at all from `/api/*` |
-| Login | `/api/login` checks `Sec-Fetch-Site`/`Origin` (no session yet to bind a token to) |
+| Credential | `Authorization: Bearer <Supabase access token>`, set by the Console's script; never a cookie |
+| CORS | send **no** `Access-Control-Allow-*` headers from `/api/*`, so a cross-origin script can't send the header (preflight fails) |
+| Fetch Metadata + Origin | defence in depth on POST: reject when `Sec-Fetch-Site` is present and not `same-origin`, or `Origin` is present and not the site URL. Both absent → server-to-server, allowed (examples/01) |
+| State from URLs | none: no query string or hash triggers Approve, Reject, chat or a job |
+| Login CSRF | PKCE on OAuth and email links; sign-in happens against Supabase, not our functions |
 
 ## Content Security Policy ([CSP](https://cheatsheetseries.owasp.org/cheatsheets/Content_Security_Policy_Cheat_Sheet.html))
 - Deliver it as the `Content-Security-Policy` header. A `<meta>` tag can't do `frame-ancestors`, `sandbox` or reporting.
@@ -59,20 +60,22 @@ Retrieved: 2026-11-23 (from the official OWASP/CheatSheetSeries GitHub source)
 | `Server` / `X-Powered-By` | remove or make generic |
 
 ## Beach Day notes
-**Static CSP** (`secure-by-design`):
+**Static CSP** (docs/04 §10, `secure-by-design`), one site-wide policy:
 ```
-default-src 'self';
-connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com;
-img-src 'self' data:; style-src 'self'; script-src 'self';
+default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;
+connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://<project-ref>.supabase.co;
+manifest-src 'self'; worker-src 'self'; object-src 'none';
 frame-ancestors 'none'; base-uri 'self'; form-action 'self'
 ```
-- That matches OWASP's tightened non-strict policy, plus Open-Meteo, because the browser calls it directly (ADR-0001).
-- No inline scripts means no nonces are needed on a static site.
-- The Console needs only `connect-src 'self'`. A stricter per-path CSP for `/console` in `_headers` is a reasonable hardening step.
+- That matches OWASP's tightened non-strict policy, plus Open-Meteo and our exact Supabase project host, because the browser calls them directly (ADR-0006).
+- **Why site-wide and not Console-only:** a second CSP for `/console` would need two `_headers` rules setting the same header, and Netlify's merge behaviour for that is UNVERIFIED (docs/03 §3.2). Two CSPs on one response are both enforced, so the narrower one would block sign-in.
+- **No inline scripts** means no nonces are needed on a static site. The vendored auth bundle has no `eval`, so `script-src 'self'` holds.
+- **Google sign-in needs no entry.** It is a top-level navigation, which neither `connect-src` nor `form-action` governs when script starts it. Never build sign-in as a `<form action>` to Supabase or Google.
+- **The whole origin is one trust zone.** The Console's tokens sit in `localStorage`, so XSS on the beach app reaches them too. That is why this policy is strict everywhere.
 
 **Other header decisions:**
 - **`Permissions-Policy`:** Beach Day may use geolocation for "nearest beach", so the policy is `geolocation=(self)`, not `()`. That is a deliberate difference from the OWASP example.
-- **COEP `require-corp`:** not recommended for us. It can break cross-origin fetches and images, and we don't need cross-origin isolation. COOP `same-origin` is safe to add.
-- **Function responses:** `_headers` does not apply to them. Every function sets `Cache-Control: no-store`, `Content-Type` and `X-Content-Type-Options: nosniff` in code. Test it on error paths too.
-- **Service worker:** must never put `/api/*` in the Cache API, because `no-store` doesn't stop it.
-- **`public/_headers`** is on the allow-list but flagged **sensitive**. A proposal that loosens CSP, for example by adding `'unsafe-inline'` or a new `connect-src` host, needs explicit security-engineer review even after a human approves it in the Console.
+- **COEP `require-corp`:** not recommended for us. It can break cross-origin fetches and images, and we don't need cross-origin isolation. COOP `same-origin` is safe to add: sign-in uses redirects, not pop-ups.
+- **Function responses:** `_headers` does not apply to them. Every function sets `Cache-Control: no-store`, `Content-Type`, `X-Content-Type-Options: nosniff` and, for JSON, `content-security-policy: default-src 'none'; frame-ancestors 'none'` in code. Test it on error paths too, including 401, 403 and 503.
+- **Service worker:** must never put `/api/*` or Supabase responses in the Cache API, because `no-store` doesn't stop it.
+- **`public/_headers`** is on the agents' **deny** list (Dr. Lee's decision 7). Only a human changes it, and any loosening, such as `'unsafe-inline'` or a new `connect-src` host, needs security-engineer review.

@@ -45,14 +45,15 @@ The agent supplies a path string, and our function sends it to GitHub as a tree 
    - `:` (drive letters, NTFS `::$DATA`)
    - spaces and all non-ASCII (homoglyphs, fullwidth `／`, combining marks)
 3. **Segments:** no leading `/`, no empty segment, no `.` or `..`, and no segment ending in `.`.
-4. **DENY, case-insensitive, and deny wins:**
+4. **DENY, case-insensitive, and deny wins** (canonical list: docs/04 §6):
+   - `public/_headers`, `public/_redirects`, `public/sw.js`, `public/sw/**`
+   - `public/vendor/**`, `public/generated/**`, `public/version.json`
    - `netlify/**`, `netlify.toml`, `.github/**`
    - `package*.json`, `scripts/**`
    - `**/.env*`, `**/*.pem`, `**/*.key`
    - `.git/**`, `.gitmodules`, `.claude/settings*`
 5. **ALLOW, exact case:**
-   - `public/**/*.{html,css,js,json,webmanifest,svg,png,txt}`
-   - `public/_headers`
+   - `public/**/*.{html,css,js,json,webmanifest,svg,txt,md}` (no `png`: text only)
    - `tests/**`, `docs/**`
    - `.claude/agents/*.md`, `.claude/skills/**/*.md`
 6. **Proposal level:**
@@ -89,4 +90,5 @@ Our tests include `public/index.html.php` and the NUL and `%` cases.
 - `lib/allowlist` is the **only** path control. Fine-grained PATs can't be scoped to paths (ADR-0005). GitHub push rulesets that restrict file paths exist, but their plan availability was not confirmed this pass (doc 06).
 - Run the same `checkPath`/`checkProposal` at `propose_change` **and** at Approve. The approve function must not trust anything stored in Blobs.
 - Do not let the browser send `tool_result`, `thinking` or `tool_use` blocks in `/api/chat`. Those exist only in the server-side conversation state. Otherwise a user could forge "tool output" (thought/observation injection).
-- **Open decision:** `png` is on the allow-list, but proposals are text-only, so PNGs can't actually pass. Drop it or design a binary path (examples/02 README).
+- **Resolved:** `png` is off the allow-list (docs/04 §6); binary files are human commits.
+- **Still open for Dr. Lee:** deny `public/console.html` and `public/js/console/**` too. They hold the Console's own code, next to the tokens.

@@ -18,10 +18,13 @@ const POSITIVES = {
   "github-fine-grained-pat": "token: " + "github" + "_pat_" + rand(2, 60, AZ09 + "_"),
   "github-token": "GH=" + "gh" + "p_" + rand(3, 36, AZ09),
   "private-key": "-----BEGIN " + "RSA PRIVATE" + " KEY-----",
+  "supabase-secret-key": "key: " + "sb_" + "secret_" + rand(9, 32, AZ09),
+  "jwt": "apikey = " + "ey" + "J" + rand(10, 30, AZ09) + "." + "ey" + "J" + rand(11, 60, AZ09) + "." + rand(12, 43, AZ09 + "_-"),
   "aws-access-key-id": "aws_id = " + "AK" + "IA" + rand(4, 16, "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"),
   "slack-token": "SLACK=" + "xo" + "xb-" + rand(5, 24, AZ09),
   "netlify-env-assignment": "ANTHROPIC" + "_API_KEY=" + rand(6, 24, AZ09),
   "high-entropy-near-keyword": "const secret = \"" + rand(7, 48, AZ09 + "+/") + "\";",
+  // mixed-case base64 with slashes is still caught even though it contains "/"
 };
 
 const NEGATIVES = {
@@ -34,6 +37,10 @@ const NEGATIVES = {
   "normal code": "export const config = { path: \"/api/chat\" };",
   "base64 image, no keyword": "data:image/png;base64," + rand(8, 120, AZ09 + "+/"),
   "public key header": "-----BEGIN PUBLIC KEY-----",
+  "service_role mentioned in docs": "Never use the service_role key; it bypasses RLS.",
+  "publishable placeholder": "SUPABASE_PUBLISHABLE_KEY=sb_publishable_EXAMPLE",
+  "repo path near 'token'": "See knowledge/supabase-auth-engineer/examples/01-token-and-role-check for the token check.",
+  "truncated JWT in prose": "Legacy keys look like eyJhbGciOi... and are not used.",
 };
 
 test("every rule fires on its positive fixture, preview is redacted", () => {
@@ -48,7 +55,7 @@ test("every rule fires on its positive fixture, preview is redacted", () => {
 test("negatives (placeholders, hashes, names) do not fire", () => {
   for (const [name, text] of Object.entries(NEGATIVES)) {
     const f = scanText(text, "fixture");
-    console.log(`quiet  ${name.padEnd(26)} -> ${f.length} findings${name.includes("sha") ? ` (entropy ${shannon(text.match(/[0-9a-f]{40,}/)[0]).toFixed(2)})` : ""}`);
+    console.log(`quiet  ${name.padEnd(26)} -> ${f.length} findings${/^(git sha|sha-256)/.test(name) ? ` (entropy ${shannon(text.match(/[0-9a-f]{40,}/)[0]).toFixed(2)})` : ""}`);
     assert.equal(f.length, 0, `${name}: ${JSON.stringify(f)}`);
   }
 });

@@ -9,7 +9,8 @@ const CASES = [
   ["public/index.html", true, "page"],
   ["public/js/console/chat.js", true, "nested js"],
   ["public/manifest.webmanifest", true, "manifest"],
-  ["public/_headers", true, "allowed but sensitive (CSP)"],
+  ["public/console.html", true, "Console page (deny recommended; open for Dr. Lee)"],
+  ["docs/notes/readme.md", true, "markdown in docs"],
   ["tests/unit/score.test.js", true, "tests"],
   ["docs/adr/0006-example.md", true, "docs"],
   [".claude/agents/qa-engineer.md", true, "agent file (sensitive)"],
@@ -47,9 +48,21 @@ const CASES = [
   [".git/config", false, "git internals"],
   [".gitmodules", false, "submodules"],
   [".claude/settings.json", false, "Claude Code settings"],
+  // canonical public/ denies (docs/04 §6, ADR-0006)
+  ["public/_headers", false, "CSP and security headers"],
+  ["public/_Headers", false, "case variant of _headers"],
+  ["public/_redirects", false, "redirects"],
+  ["public/sw.js", false, "service worker"],
+  ["public/SW.js", false, "case variant of sw.js"],
+  ["public/sw/cache.js", false, "file sw.js imports"],
+  ["public/vendor/supabase-auth-js-2.119.2.mjs", false, "vendored auth client"],
+  ["public/generated/config.js", false, "build output config"],
+  ["public/version.json", false, "build output version"],
+  [".claude/settings.local.json", false, "local Claude Code settings"],
   // not on the allow list
   ["README.md", false, "root file not listed"],
   ["public/app.exe", false, "extension not listed"],
+  ["public/icons/icon-512.png", false, "binary type (png) not proposable"],
   ["public/index.html.php", false, "double extension"],
   [".claude/agents/sub/x.md", false, "agents must be flat"],
   // NUL, control chars, encoding, unicode
@@ -76,10 +89,15 @@ test("path allow-list attack table", () => {
   console.log(`${CASES.length} cases`);
 });
 
-test("sensitive flag on CSP and agent files", () => {
-  assert.equal(checkPath("public/_headers").sensitive, true);
+test("warnings on allowed but sensitive paths", () => {
   assert.equal(checkPath(".claude/agents/qa-engineer.md").sensitive, true);
-  assert.equal(checkPath("public/index.html").sensitive, false);
+  assert.deepEqual(checkPath("public/js/console/approve.js").warnings, [
+    "runs in the site origin, next to the Console's tokens",
+    "Console code (deny recommended, open for Dr. Lee)",
+  ]);
+  assert.deepEqual(checkPath("tests/unit/a.test.js").warnings, ["runs as code in CI"]);
+  assert.equal(checkPath("public/css/app.css").sensitive, false);
+  assert.equal(checkPath("docs/README.md").sensitive, false);
 });
 
 test("proposal-level checks: count, size, mode, duplicates, binary", () => {
@@ -89,6 +107,6 @@ test("proposal-level checks: count, size, mode, duplicates, binary", () => {
   assert.match(checkProposal([{ path: "docs/big.md", content: "x".repeat(200 * 1024 + 1) }]).errors[0], /larger/);
   assert.match(checkProposal([{ path: "docs/l.md", content: "x", mode: "120000" }]).errors[0], /mode 120000/);
   assert.match(checkProposal([{ path: "docs/A.md", content: "" }, { path: "docs/a.md", content: "" }]).errors[0], /duplicate/);
-  assert.match(checkProposal([{ path: "public/x.png", content: "\u0000PNG" }]).errors[0], /NUL/);
+  assert.match(checkProposal([{ path: "public/x.svg", content: "\u0000PNG" }]).errors[0], /NUL/);
   assert.match(checkProposal([{ path: "netlify.toml", content: "" }]).errors[0], /deny list/);
 });

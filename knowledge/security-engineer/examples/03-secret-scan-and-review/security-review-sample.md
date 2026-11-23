@@ -39,22 +39,20 @@ Four changes are required before merge (H1, H2, M1, M2). L1 and L2 can follow in
   - Keep a single "approve in flight" lock key.
   - Test: two concurrent approves give one 200 and one 409, and exactly one `PATCH /git/refs/heads/main` (use the mock GitHub from `knowledge/agent-console-engineer/examples/03`).
 
-### M1: No step-up re-auth on Approve (Medium)
-- **Where:** `approve.mts` calls `requireSession` only.
-- **Exploit scenario:** someone gets brief access to an unlocked laptop with a live 8 h session. They approve a pending proposal, which goes to production. OWASP Session Management calls for "Reauthentication After Risk Events". Approve is our riskiest action.
+### M1: No step-up before Approve (Medium)
+- **Where:** `approve.mts` runs the token-and-role guard only.
+- **Exploit scenario:** someone gets brief access to an unlocked laptop where Dr. Lee is signed in to the Console. Supabase sessions refresh silently, so the tab stays usable for days. They approve a pending proposal, and it goes to production. Or an XSS steals the tokens from `localStorage` and approves from elsewhere. OWASP Session Management calls for "Reauthentication After Risk Events", and Approve is our riskiest action.
 - **Fix:**
-  - Require `recentlyAuthenticated(claims) ≤ 10 min`. Otherwise return 401 with `{reauth: true}`, and the UI asks for the password again.
-  - Allow paste and password managers (WCAG 3.3.8).
-  - Test it with fake timers.
+  - Call `getUser(token)`, then `checkStepUp` (`knowledge/security-engineer/examples/01`): a `password` or `oauth` `amr` entry no more than 10 min old, `last_sign_in_at` no more than 10 min old, and `aal2` if the user has a verified factor. Otherwise return 401 `step_up_required`, and the UI asks the user to sign in again.
+  - Never accept a fresh `totp` entry on its own: a thief could enrol a factor.
+  - Test it with a fixed clock.
 
-### M2: CSRF defence relies on SameSite only (Medium)
-- **Where:** `approve.mts` has no `X-BD-CSRF` or `Origin` check.
-- **Exploit scenario:** `SameSite=Strict` blocks the classic cross-site POST. But OWASP lists SameSite as defence in depth only, and a same-*site* origin (another app on a sibling subdomain of a custom domain) is not cross-site.
+### M2: No Origin / Fetch Metadata check on POST (Medium)
+- **Where:** `approve.mts` reads neither `Sec-Fetch-Site` nor `Origin`.
+- **Exploit scenario:** today this is not exploitable. The Bearer token isn't sent automatically, and we send no CORS headers, so another site can't make an authorised cross-origin POST. But a later change that adds `Access-Control-Allow-Origin` for "debugging", or one that moves the token into a cookie, would silently reopen CSRF. A two-line check keeps that door shut.
 - **Fix:**
-  - Verify the `X-BD-CSRF` HMAC token bound to `sid` (`verifyCsrf`).
-  - Reject when `Sec-Fetch-Site` is present and not `same-origin`.
-  - Fall back to an exact `Origin` match with the site URL (`process.env.URL`).
-  - Test: a bad token gets 403, `Origin: https://evil.example` gets 403, and a missing header gets 403.
+  - `checkOrigin(req, process.env.URL)` (example 01): reject `Sec-Fetch-Site` when present and not `same-origin`, and reject `Origin` when present and not the site URL. → 403.
+  - Assert in a test that no `/api/*` response has any `Access-Control-Allow-*` header.
 
 ### L1: GitHub error bodies are returned to the browser (Low)
 - **Where:** the `lib/github.mts` error path does `return json(502, {error: e.data})`.
@@ -74,21 +72,23 @@ Four changes are required before merge (H1, H2, M1, M2). L1 and L2 can follow in
   - `GITHUB_TOKEN` is read inside the handler and never logged.
   - No `console.log(req)`.
   - The response never includes env values.
-  - The token is a Production-context secret (ADR-0005). Deploy Previews get 500 `not_configured`, which is correct.
+  - The token is a Production-context secret (ADR-0005), and the function also refuses with 503 `unavailable` when `context.deploy.context` is not `production`, before touching GitHub (docs/04 §4.6).
 - **Git:**
   - `POST /git/trees` always sends `base_tree`.
   - Entries are `mode: "100644", type: "blob"` only.
   - `PATCH` sends `force: false`, with one retry on 409/422 and then `stale`.
 - **GitHub requests:** all five headers are set (`Authorization: Bearer`, `Accept`, `X-GitHub-Api-Version: 2022-11-28`, `User-Agent`, `Content-Type`), and the requests are serial.
 - **Response headers:** `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, and `Content-Type: application/json` on every return path, including errors.
-- **Rate limits:** the Blobs counter for 10 approvals per session per day is checked before any GitHub call.
+- **Rate limits:** the site-wide Approve cap (ADR-0008: 14 per rolling 31 days, 5 per day) is checked inside the approve lock, before any GitHub call.
 
 ## Tests required before merge
 | Test | Expect |
 |---|---|
-| No cookie | 401 |
-| Bad CSRF / foreign Origin | 403 |
-| Session older than 10 min since password | 401 `{reauth:true}` |
+| No Bearer token / bad signature / expired | 401 |
+| Valid token, role `user` | 403 |
+| Supabase unreachable | 503 |
+| `Sec-Fetch-Site: cross-site` or foreign `Origin` | 403 |
+| Last primary sign-in 11 min ago | 401 `step_up_required` |
 | Stored proposal touching `netlify.toml` | 403, no GitHub call |
 | Stored proposal containing a generated `github_pat_…` fixture | 422, no GitHub call |
 | Hash mismatch | 409 |
@@ -101,11 +101,11 @@ HANDOFF
 status: needs-review
 summary: Reviewed approve.mts + lib/github.mts v1. Verdict APPROVE WITH CHANGES.
   Must fix before merge: H1 (re-validate allow-list/secret scan/content hash at approve),
-  H2 (CAS status + in-flight lock), M1 (10-min step-up), M2 (CSRF token + Sec-Fetch-Site/Origin).
+  H2 (CAS status + in-flight lock), M1 (getUser + 10-min step-up), M2 (Sec-Fetch-Site/Origin check).
 files: none changed by security-engineer (review only)
 tests: none run on the real diff (sample); listed required tests above
 needs: agent-console-engineer — apply H1, H2, M1, M2 and add the tests; qa-engineer — own the test table;
   netlify-engineer — confirm GITHUB_TOKEN is Production-context only and previews return not_configured
-risks/questions: Stateless cookies cannot be revoked before exp; if Dr. Lee wants "log out everywhere",
-  add a sid deny-list in Blobs (escalate as a product decision).
+risks/questions: Supabase access tokens cannot be revoked before exp (10 min); whether getUser rejects a
+  signed-out session is UNVERIFIED and is a pre-launch test on the real project.
 ```

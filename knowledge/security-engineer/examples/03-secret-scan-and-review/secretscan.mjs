@@ -7,15 +7,22 @@ export const RULES = [
   { id: "github-fine-grained-pat", re: /github_pat_[A-Za-z0-9_]{20,}/g },
   { id: "github-token", re: /gh[pousr]_[A-Za-z0-9]{30,}/g },
   { id: "private-key", re: /-----BEGIN [A-Z ]*PRIVATE KEY-----/g },
+  { id: "supabase-secret-key", re: /sb_secret_[A-Za-z0-9_-]{20,}/g },
+  // Any full three-part JWT: legacy service_role / anon keys and user access tokens all start "eyJ".
+  // A bare mention of the word service_role is NOT flagged: our own docs explain it.
+  { id: "jwt", re: /\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g },
   { id: "aws-access-key-id", re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g },
   { id: "slack-token", re: /\bxox[abposr]-[A-Za-z0-9-]{10,}/g },
-  { id: "netlify-env-assignment", re: /\b(?:ANTHROPIC_API_KEY|GITHUB_TOKEN|SESSION_SECRET|CONSOLE_PASSWORD_HASH)\s*[:=]\s*["']?[^\s"'`]{8,}/g },
+  { id: "netlify-env-assignment", re: /\b(?:ANTHROPIC_API_KEY|GITHUB_TOKEN|GITHUB_READ_TOKEN)\s*[:=]\s*["']?[^\s"'`]{8,}/g },
 ];
 
 // Generic rule: a long high-entropy token on a line that also mentions key/token/secret/password.
 const CONTEXT = /\b(?:api[_-]?key|key|token|secret|passw(?:or)?d|bearer|auth)\b/i;
 const CANDIDATE = /[A-Za-z0-9+/_=-]{40,}/g;
 const ENTROPY_MIN = 4.2; // bits/char. Hex (max 4.0) such as git SHAs stays below this on purpose.
+// Repo paths like knowledge/supabase-auth-engineer/examples/01-token-and-role-check score above 4.2.
+// Skip lower-case, slash-separated path-like strings; base64 secrets are mixed-case.
+const PATH_LIKE = /^\/?[a-z0-9._-]+(?:\/[a-z0-9._-]+)+\/?$/;
 
 export function shannon(s) {
   const freq = new Map();
@@ -36,7 +43,7 @@ export function scanText(text, path = "<input>") {
     }
     if (CONTEXT.test(line)) {
       for (const m of line.matchAll(CANDIDATE)) {
-        if (shannon(m[0]) >= ENTROPY_MIN && !findings.some((f) => f.line === i + 1 && f.path === path)) {
+        if (!PATH_LIKE.test(m[0]) && shannon(m[0]) >= ENTROPY_MIN && !findings.some((f) => f.line === i + 1 && f.path === path)) {
           findings.push({ path, line: i + 1, rule: "high-entropy-near-keyword", preview: redact(m[0]) });
         }
       }
