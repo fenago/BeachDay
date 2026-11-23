@@ -30,6 +30,11 @@ const mutations = [
   ["a branch ref", (t) => t.replaceAll("<PIN-SHA>", "a".repeat(40)).replace("actions/setup-node@" + "a".repeat(40), "actions/setup-node@main"), "not pinned"],
   ["checkout keeps credentials", (t) => t.replace("          persist-credentials: false\n", ""), "persist-credentials"],
   ["expression inside run", (t) => t.replace("run: npm ci", 'run: echo "${{ github.head_ref }}"'), "inside run"],
+  ["a schedule trigger (allow-list)", (t) => t.replace("  workflow_dispatch:\n", "  workflow_dispatch:\n  schedule:\n    - cron: '0 6 * * 1'\n"), "not on the allow-list"],
+  ["issue_comment trigger (allow-list)", (t) => t.replace("  workflow_dispatch:\n", "  workflow_dispatch:\n  issue_comment:\n"), "not on the allow-list"],
+  ["push to every branch", (t) => t.replace("    branches: [main]\n", ""), "limited to branches"],
+  ["github.token passed on", (t) => t.replace("node scripts/smoke.mjs", "node scripts/smoke.mjs --t ${{ github.token }}"), "github.token"],
+  ["unpinned npx download", (t) => t.replace("npx --no-install lhci autorun", "npx lhci autorun"), "npx may download"],
   ["no timeout", (t) => t.replace("    timeout-minutes: 10\n", ""), "timeout-minutes"],
 ];
 for (const [name, mutate, expected] of mutations) {

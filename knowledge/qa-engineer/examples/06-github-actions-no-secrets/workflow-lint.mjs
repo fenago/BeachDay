@@ -23,10 +23,14 @@ export function lintWorkflow(text, { strict = true } = {}) {
     if (!job["timeout-minutes"]) p.push(`job ${name}: set timeout-minutes (a hung job costs minutes)`);
   }
 
-  // 2. privileged triggers are never used
-  for (const t of ["pull_request_target", "workflow_run", "issue_comment", "repository_dispatch"]) if (triggers.includes(t)) p.push(`trigger ${t} runs with write access or secrets`);
+  // 2. triggers are an ALLOW-list: push to main, pull_request, workflow_dispatch. Anything else (schedule, pull_request_target,
+  //    workflow_run, issue_comment, ...) is refused until a human and security-engineer add it here on purpose.
+  for (const t of triggers) if (!["push", "pull_request", "workflow_dispatch"].includes(t)) p.push(`trigger ${t} is not on the allow-list (push to main, pull_request, workflow_dispatch)`);
+  const pushBranches = on && typeof on === "object" ? on.push?.branches : undefined;
+  if (triggers.includes("push") && !(Array.isArray(pushBranches) && pushBranches.length === 1 && pushBranches[0] === "main")) p.push("push trigger must be limited to branches: [main]");
 
   // 3. no secrets anywhere (repository variables, `vars.`, are allowed: they are plain text)
+  if (/\bgithub\.token\b/.test(text)) p.push("workflow references github.token (the job token must not be passed on)");
   if (/\bsecrets\./.test(text) || /secrets\s*:\s*inherit/.test(text)) p.push("workflow references secrets");
   if (SECRET_NAMES.test(text.replace(/^\s*#.*$/gm, ""))) p.push("workflow names a Beach Day secret variable");
 
@@ -40,6 +44,7 @@ export function lintWorkflow(text, { strict = true } = {}) {
         if (!SHA.test(ref) && !(placeholder && !strict)) p.push(`${at}: ${action} is not pinned to a full commit SHA`);
         if (/^actions\/checkout$/.test(action) && s.with?.["persist-credentials"] !== false) p.push(`${at}: checkout must set persist-credentials: false (keeps the token out of .git/config, where a test could read it)`);
       }
+      if (s.run && /\bnpx\b/.test(s.run) && s.run.split("\n").some((ln) => /\bnpx\b/.test(ln) && !/npx\s+(--no-install|--no)\b/.test(ln))) p.push(`${at}: npx may download an unpinned package; use npx --no-install with a devDependency`);
       if (s.run && /\$\{\{/.test(s.run)) p.push(`${at}: no \${{ }} inside run (pass values through env and quote "$VAR": script-injection guard)`);
     }
   }
