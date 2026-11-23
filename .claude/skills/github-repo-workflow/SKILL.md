@@ -22,7 +22,7 @@ User-Agent: beach-day-console
 ## Atomic commit to `main`
 Make each call **serially**.
 1. `GET /repos/fenago/BeachDay/git/ref/heads/main` → `headSha`.
-2. If `headSha !== proposal.baseCommitSha`:
+2. If `headSha !== proposal.baseSha`:
    - Compare the current blob SHA of each proposed path with the one the agent read.
    - If any differ, mark the proposal `stale` and stop.
 3. `GET /repos/fenago/BeachDay/git/commits/{headSha}` → `tree.sha`.

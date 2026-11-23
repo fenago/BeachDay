@@ -12,6 +12,7 @@ Reference notes from official docs, plus worked examples that ran against local 
 | [docs/04-claude-errors-limits-refusals.md](docs/04-claude-errors-limits-refusals.md) | HTTP error table, error body, SDK retries, rate-limit tiers and headers, spend cap (429) vs your spend limit (400), refusal categories and server-side fallback | Error handling, cost controls, refusal UX |
 | [docs/05-github-rest-auth-versions-limits.md](docs/05-github-rest-auth-versions-limits.md) | Bearer auth, required headers (User-Agent!), API versions `2022-11-28`/`2026-03-10`, primary and secondary rate limits, fine-grained PAT permissions per endpoint | Writing `lib/github`, or debugging 401/403/404/429 from GitHub |
 | [docs/06-github-git-database-and-contents.md](docs/06-github-git-database-and-contents.md) | refs/commits/trees/blobs and Contents API fields, limits and status codes; why `base_tree` and `force:false`; the Approve sequence | Building or reviewing the approve function and `read_file` |
+| [docs/07-browser-session-and-refresh.md](docs/07-browser-session-and-refresh.md) | auth-js `localStorage` session, `autoRefreshToken: true`, `ensureFresh(120)` before chat and jobs, 401 vs `step_up_required` handling | Writing the browser side of `/api/chat` or handling 401s |
 
 ## examples/
 | Example | Demonstrates | Verified |

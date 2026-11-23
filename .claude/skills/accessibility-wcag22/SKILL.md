@@ -27,8 +27,8 @@ description: WCAG 2.2 AA requirements applied to Beach Day — color-independent
 - **A second method exists:** "Continue with Google" (and "Confirm with Google" for step-up) is a real `<button>`, redirect-based (no popup), keyboard-operable, with visible text.
 - **Show Password** is a button with `aria-pressed` (no hover-only reveal).
 - **Errors:** next to the field, linked by `aria-describedby`, `aria-invalid="true"` only on a field that is itself wrong. A failed sign-in doesn't say which field was wrong, so it sets neither field invalid. Form-level failure is `role="alert"`; waiting and success ("Check your email", "Sent again to …") is `role="status"`.
-- **Focus:** after each route change focus goes to the new `h1`. After a wrong password, focus returns to the password field with the text selected. After the Google round trip, focus lands on the Approve and Deploy button.
-- **Timeouts:** the step-up confirmation has a time window ({minutes}); when it ends, say so in a status message ("Time ran out. Confirm it's you again.") and keep the sheet open. Don't auto-dismiss it.
+- **Focus:** after each route change focus goes to the new `h1`. After a wrong password, focus returns to the password field with the text selected. After the Google round trip (a redirect that approves nothing), focus lands on the Approve and Deploy button.
+- **Timeouts:** the step-up confirmation has a time window ({minutes} = 10); when it ends, say so in a status message ("Time ran out. Confirm it's you again.") and keep the sheet open. Don't auto-dismiss it.
 - **Resend cooldowns** announce at the start and end only, not each second.
 - Redundant entry (3.3.7): the resend and "Use Another Email" paths keep the typed email.
 - Spec and checks: `knowledge/ux-designer-apple-hig/examples/04-console-auth/` and the axe run in `examples/03-console-approval/`.
@@ -39,7 +39,7 @@ description: WCAG 2.2 AA requirements applied to Beach Day — color-independent
 - Use `role="alert"` only for errors.
 - After the user sends a message, focus stays in the composer.
 - Each proposal card has a heading, a file list and Approve/Reject buttons with explicit names ("Approve proposal: Update UV wording").
-- The approve-cap message ("14 of 14 approvals used in the last 31 days. Next slot frees Dec 4.") is a blocking failure, so `role="alert"`; the "no access" and "session ended" states are screens (focus the `h1`).
+- The approve-cap message ("14 of 14 approvals used in the last 31 days. Next slot frees Dec 4.") is a blocking failure, so `role="alert"`; the "no access" (Agents only) and "session ended" states are screens (focus the `h1`). A `401 step_up_required` reopens the Confirm sheet, not "session ended".
 
 ## Motion & transparency
 Honor `prefers-reduced-motion` and `prefers-reduced-transparency`. In reduced-transparency mode, glass becomes solid.

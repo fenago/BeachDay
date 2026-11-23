@@ -15,7 +15,7 @@ const res = await proposals.setJSON(id, next, { onlyIfMatch: got.etag }); // CAS
 ## Stores
 | Store | Key | Value |
 |---|---|---|
-| `proposals` | `p_<ulid>` | `{agent, summary, files:[{path, content, baseBlobSha}], baseCommitSha, contentHash, status, createdAt, decidedAt, commitSha?, error?}` |
+| `proposals` | `p_<ulid>` | `{agent, summary, files:[{path, content, readBlobSha}], baseSha, contentHash, status, createdAt, decidedAt, commitSha?, error?}` |
 | `jobs` | `j_<ulid>` | `{status: queued/running/done/failed/paused, events:[...], messages (conversation state), proposalId?, startedAt, updatedAt}` |
 | `ratelimit` | `<action>/<user id>/<yyyy-mm-dd>`, `site:approvals` and `site:compute` | per-user `{count}`; the site-wide Approve record is `{ times: ["<ISO-8601 UTC>", ...] }`, pruned to the last 31 days on every write (ADR-0008); the site-wide compute record is `{ days: { "<NY yyyy-mm-dd>": <ms> } }`, at most 32 buckets, pruned on every write. All updated with CAS. |
 | `audit` | `<iso-timestamp>_<id>` | `{action, actor (Supabase user id), proposalId, commitSha, requestId}` |
@@ -36,7 +36,7 @@ Proposal status: `pending` → `committing` → `committed` | `failed` | `stale`
 **Compute budget, site-wide (docs/04 §9): 180 function-minutes of `/api/chat` + `/api/jobs-run` wall time per rolling 31 days, about 30 credits at 1024 MB. The number is pending Dr. Lee.** One record: store `ratelimit`, key `site:compute`, value `{ "days": { "<New York yyyy-mm-dd>": <milliseconds> } }`.
 - Constants in one place: `COMPUTE_BUDGET = { windowMinutes: 180, chatNeedMs: 60_000, jobNeedMs: 300_000 }`.
 - **Check** (read-only, `checkComputeBudget(store, needMs)`) before a chat turn (at least 60 s left) or a job (at least 5 min left); a job's wall clock is min(14 min, remaining). **Record** (`recordCompute(store, ms)`, CAS add to today's bucket) when the turn or job ends, and at each job progress write (only the new milliseconds).
-- Day buckets keep the record to 32 keys; the window rounds outwards to whole New York days (slightly conservative). Over: `429 { error: { code: "budget_exhausted", retryAt } }`. Tested in example 03.
+- Day buckets keep the record to 32 keys; the window rounds outwards to whole New York days (slightly conservative). `evaluateCompute` already returns `retryAt` (the day the oldest buckets that free enough budget expire, 32 days after that day starts), so no per-entry `{at, seconds}` list is needed. Over: `429 { error: { code: "budget_exhausted", retryAt } }`. Tested in example 03.
 
 ## Rules
 - **Use `getStore`,** which is site-wide and persists across deploys. Don't use `getDeployStore` for app state.
