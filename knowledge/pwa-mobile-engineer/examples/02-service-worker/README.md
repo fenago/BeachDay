@@ -40,3 +40,5 @@ ALL CHECKS PASSED (Open-Meteo mock hits: 7)
 ```
 The offline step stops the static server **and** calls `context.setOffline(true)` **and** aborts Open-Meteo, so nothing but the SW caches can answer.
 Not verified: WebKit/iOS behaviour (Playwright's WebKit does not stand in for iOS Safari service workers); test on a real iPhone.
+
+Colour update (wave 2): `theme_color`, `background_color` and the page `theme-color` meta are now `#0b3b5c`. Re-run of `node sw-test.mjs` on 2026-11-23: ALL CHECKS PASSED (Open-Meteo mock hits: 7).

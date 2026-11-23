@@ -18,7 +18,7 @@ description: Beach Day web app manifest, icons and service worker — caching st
   - `/icons/icon-192.png`, `/icons/icon-512.png`, `/icons/icon-maskable-512.png`
   - `/icons/apple-touch-icon-180.png`
   - `/screenshots/today-narrow-1080x2340.png`, declared `1080x2340`
-- **Colours:** `theme_color` and `background_color` are decided by the UI designer (Sable); do not hard-code a value from this skill.
+- **Colours:** `theme_color` = `background_color` = `#0b3b5c` (Sable; see `liquid-glass-visual-design`, "Brand color for the PWA"). The maskable and apple-touch icons need a **full-bleed `#0b3b5c` background** so Android's splash (icon centred on `background_color`) shows no box edge. The page's `<meta name="theme-color">` matches.
 - **Maskable icons:** keep key art inside the centre circle (radius 40% of the width). The outer 10% may be cropped.
 - **Link it from every page:** `<link rel="manifest" href="/manifest.webmanifest">`. Also add `<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png">`.
 - **Headers** (in `_headers`):

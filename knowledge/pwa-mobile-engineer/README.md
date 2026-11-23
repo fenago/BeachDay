@@ -21,7 +21,7 @@ Date: 2026-11-23. Notes come from MDN, web.dev, developer.chrome.com and webkit.
 ## Key facts (one line each)
 - Chromium install: name/short_name, 192+512 icons, start_url, installable display, no prefer_related_applications, HTTPS.
 - Chrome's automatic prompt wanted a real (non-empty) fetch handler as of Dec 2023 (**UNVERIFIED** now; sources unreachable 2026-11-23); menu install does not. We ship a real handler.
-- Chrome needs only 192 + 512 icons; the separate maskable icon, `id`, `scope`, screenshot are Beach Day's own rules. No `shortcuts` (no `/console` shortcut). Final colours come from Sable.
+- Chrome needs only 192 + 512 icons; the separate maskable icon, `id`, `scope`, screenshot are Beach Day's own rules. No `shortcuts` (no `/console` shortcut). `theme_color` = `background_color` = `#0b3b5c` (Sable); maskable and apple-touch icons are full-bleed `#0b3b5c`.
 - `start_url` is `/?source=pwa`, so `sw.js` matches the shell with `ignoreSearch: true`. iOS hint snooze is 14 days.
 - `sw.js` is deny-listed and its version is stamped at build (docs/03).
 - Maskable key art inside a centred circle of radius 40% of the width.

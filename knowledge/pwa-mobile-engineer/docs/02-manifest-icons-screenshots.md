@@ -21,7 +21,7 @@ Retrieved: 2026-11-23
 | `start_url` | `"/?source=pwa"` | Required; must be inside `scope` |
 | `scope` | `"/"` | Navigations outside open in the browser |
 | `display` | `"standalone"` | Installable value; iOS supports only standalone |
-| `theme_color`, `background_color` | placeholder `#0e7490` here; **final value decided by Sable** (docs/02 uses `#0b3b5c`, the two disagree until wave 2) | Title bar / splash |
+| `theme_color`, `background_color` | `#0b3b5c` for both (Sable). Contrast: white 11.70:1, amber sun `#f2a93b` 5.86:1. Maskable and apple-touch icons must be full-bleed `#0b3b5c` so Android's splash (icon centred on `background_color`) shows no box edge; iOS ignores `background_color` | Title bar / splash |
 | `icons` | `icon-192.png` any, `icon-512.png` any, `icon-maskable-512.png` maskable (all `/icons/`) | Chromium needs only 192 + 512; the separate maskable file is **our** rule |
 | `screenshots` | 1 × narrow `/screenshots/today-narrow-1080x2340.png`, `1080x2340`, with `label` | Android rich install UI, stores |
 | `shortcuts` | **none** | Decision (Dr. Lee): no `/console` shortcut in the public manifest |

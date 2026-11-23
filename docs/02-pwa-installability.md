@@ -37,7 +37,7 @@ Sources: [Making PWAs installable](https://developer.mozilla.org/en-US/docs/Web/
 ```
 
 * **No `shortcuts` member.** Dr. Lee decided there is no `/console` shortcut in the public manifest, so the Console is not advertised from the home-screen long-press menu. (iOS ignores `shortcuts` anyway.)
-* **Colours:** `background_color` and `theme_color` above are placeholders. The UI designer (Sable) decides the final value; it is applied in a follow-up edit.
+* **Colours:** `theme_color` and `background_color` are both `#0b3b5c` (Sable's decision; rationale in the `liquid-glass-visual-design` skill, "Brand color for the PWA"). White on it is 11.70:1 and the amber sun `#f2a93b` is 5.86:1. Android's splash centres the icon on `background_color`, so the `maskable` and `apple-touch-icon-180` PNGs must have a **full-bleed `#0b3b5c` background** (no visible box edge). iOS ignores `background_color`.
 * **File names** match the validated example in `knowledge/pwa-mobile-engineer/examples/01-manifest-validator/`: `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon-180.png` (all in `/icons/`) and `/screenshots/today-narrow-1080x2340.png`.
 * **What is whose rule:** Chrome itself needs only a 192 px and a 512 px icon. The separate `maskable` 512 file, `id`, `scope`, `description` and the labelled screenshot are **Beach Day rules**, not install requirements.
 * **`start_url` has a query string** (`/?source=pwa`) so installed launches are distinguishable. The precache holds `/`, so `sw.js` must match shell requests with `{ ignoreSearch: true }`; otherwise the installed app misses the cache offline. QA covers this in the offline spec.
