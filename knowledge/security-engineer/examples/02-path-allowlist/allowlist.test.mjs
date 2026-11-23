@@ -108,5 +108,6 @@ test("proposal-level checks: count, size, mode, duplicates, binary", () => {
   assert.match(checkProposal([{ path: "docs/l.md", content: "x", mode: "120000" }]).errors[0], /mode 120000/);
   assert.match(checkProposal([{ path: "docs/A.md", content: "" }, { path: "docs/a.md", content: "" }]).errors[0], /duplicate/);
   assert.match(checkProposal([{ path: "public/x.svg", content: "\u0000PNG" }]).errors[0], /NUL/);
+  assert.match(checkProposal([{ path: "docs/s.md", content: "ok \uD800" }]).errors[0], /lone surrogate/);
   assert.match(checkProposal([{ path: "netlify.toml", content: "" }]).errors[0], /deny list/);
 });

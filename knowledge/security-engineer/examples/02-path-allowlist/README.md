@@ -36,14 +36,21 @@ It is what good looks like because the checks are layered and each layer is simp
 There are **no decode or normalise steps.** The validator checks the exact string that will go to GitHub. OWASP warns that inconsistent decoding can invalidate earlier checks (CWE-20).
 
 `checkProposal` adds the proposal-level rules:
-- 1–20 files, ≤ 200 KB each, text only (no NUL);
+- 1–20 files, ≤ 200 KB each, text only (no NUL, and no lone surrogate: `isWellFormed()`, added wave 4, because GitHub would store U+FFFD and the hash, the diff and the blob SHA would no longer match `main`);
 - mode `100644` only, so no symlink `120000` and no submodule `160000`;
 - no case-insensitive duplicate paths, which would collide on macOS and Windows checkouts.
+
+### `commitmsg.mjs` (added wave 4): the commit message and the reconciler match (docs/04 §6, §7)
+- **`checkSummary(s)`** runs in `propose_change` and **rejects rather than repairs** (`is_error: true`). The summary is 20–2000 code points, well-formed, with no `\p{Cc}` (this covers `\n`, `\r`, tab, NUL and NEL), no `\p{Zl}`/`\p{Zp}` (U+2028/2029), no `\p{Cf}` (bidi overrides and isolates, zero-width characters), and no `Beach-Day-Proposal` text in any case. `\p{Cf}` goes beyond Rowan's §6 text: it stops a summary that reads differently in the proposal card from its bytes.
+- **`buildCommitMessage(summary, id)`** runs on the server only and sanitises again: format and line-break characters become spaces, and the trailer word is removed **until the text stops changing** (one pass over `Beach-DayBeach-Day-Proposal-Proposal` leaves the word behind). The line is cut to 200 **code points** (a UTF-16 cut can split an emoji into a lone surrogate), and the result is `<one line>\n\nBeach-Day-Proposal: <id>`. A bad id throws.
+- **`gitBlobSha(content)`** is `sha1("blob " + byteLength + "\0" + bytes)` and is checked against `git hash-object`.
+- **`isProposalCommit(c, proposal)`**: the final line is exactly the trailer (one trailing newline tolerated); the author name is exactly `Beach Day Agent (<agent>)`; there is one parent; and every file's blob SHA at that commit equals `gitBlobSha(content)`.
+- **`reconcileVerdict(commits, proposal, perPage)`**: if a **full** page has no match, the answer is `unknown` (stay `committing`), not `not_found`. Otherwise more than 50 commits in the window could hide the real commit. The reconciler would then mark it `failed` and leave the slot uncounted, which undercounts the Approve cap.
 
 ## How to run
 ```bash
 mkdir -p /tmp/sec02 && cp *.mjs /tmp/sec02 && cd /tmp/sec02
-node --test allowlist.test.mjs     # no dependencies
+node --test allowlist.test.mjs commitmsg.test.mjs     # no dependencies (git on PATH for the blob-SHA test)
 ```
 
 ## Verified
@@ -80,6 +87,8 @@ ok 3 - proposal-level checks: count, size, mode, duplicates, binary
 # pass 3
 # fail 0
 ```
+
+Wave 4 (2026-11-23, Node v22.23.5, scratch copy): `node --test` → **9/9 pass** (the 3 tests above plus 6 in `commitmsg.test.mjs`; test 3 gained the lone-surrogate row). Mutation checks, each caught by exactly one test: one-pass trailer removal (test 5), UTF-16 cut (test 6), trailer matched anywhere instead of the last line (test 8), no full-page rule (test 9), `\p{Cf}` allowed (test 4).
 
 ## Notes for the security review
 - **`.png` resolved.** It is no longer on the allow-list (docs/04 §6 `TEXT_EXT`). Icons and screenshots are human commits.

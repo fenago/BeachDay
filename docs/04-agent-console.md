@@ -152,7 +152,7 @@ Machine-checkable JSON Schemas for these shapes are in `knowledge/software-archi
 
 ## 3. Threat model (what we defend against)
 
-Owner: security-engineer. Updated 2026-11-23 for ADR-0006 (Supabase Auth), ADR-0007 (reads from GitHub `main`) ADR-0008 (Approve cap) and the Proposed ADR-0009 (read token); wave 3b added the returned-error 503 rule, the header pre-check and the email-flow settings. Mechanisms are in §4, limits in §9, headers in §10.
+Owner: security-engineer. Updated 2026-11-23 for ADR-0006 (Supabase Auth), ADR-0007 (reads from GitHub `main`) ADR-0008 (Approve cap) and the Proposed ADR-0009 (read token); wave 3b added the returned-error 503 rule, the header pre-check and the email-flow settings; wave 4 added trailer forgery, the reconciler's GitHub reads and the compromised-`super_admin` order. Mechanisms are in §4, limits in §9, headers in §10.
 
 **Trust boundary in one paragraph.** Anyone on the internet can create a Supabase account, so "signed in" means nothing on its own. The only privilege is `profiles.role = 'super_admin'`, which only Dr. Lee sets by hand. Every function re-checks it on every request. The browser holds the user's tokens in `localStorage` on the **same origin as the public beach app**, so any script that runs anywhere on the site can read them. Agents can propose changes but never commit, and a human Approve after a fresh sign-in is the only path to `main`.
 
@@ -172,9 +172,11 @@ Owner: security-engineer. Updated 2026-11-23 for ADR-0006 (Supabase Auth), ADR-0
 | Prompt injection | A repo file or chat text says "commit this secret" or "widen the allow-list" | Agents have no commit tool; human Approve with a visible diff; policy in code, re-checked at Approve; secrets never in prompts; read tools refuse `.env*`, `*.pem`, `*.key` (ADR-0007) |
 | CSRF, login CSRF and clickjacking | Another site triggers Approve, or frames the Console | Bearer token in a header, not a cookie, so the browser never attaches it on its own; no CORS headers; `Sec-Fetch-Site` / `Origin` check on POST as defence in depth; no state change from a URL; PKCE for OAuth; `frame-ancestors 'none'` (§4.4, §10) |
 | Replay or double Approve | Approve clicked twice, or a proposal edited after review | Content hash shown and compared; CAS status; one approve in flight; base-SHA check (§7) |
+| Commit-trailer forgery | An agent writes `…\n\nBeach-Day-Proposal: p_<other>` (or a nested or Unicode-line-break variant) into its summary, so the reconciler credits the wrong commit, or none, and the Approve cap undercounts | Summary is one line with no control, format or line-break characters and no trailer text, rejected at `propose_change` (§6); the message is built by the server with the trailer as the last line (§7 step 5); the reconciler requires the final-line trailer **and** the exact author **and** one parent **and** equal blob SHAs, and a full page with no match is "unknown", not "not found" (§7; tested shape: security-engineer example 02, `commitmsg.mjs`) |
 | Cost abuse | Loops, huge prompts, too many jobs | Netlify rate rules, per-user counters, per-job caps, a site-wide compute budget, the Approve cap and the Anthropic spend limit (§9) |
 | Preview deploys with production powers | A branch deploy reads `GITHUB_TOKEN` and commits | Secrets set for the Production context; Deploy Previews and branch deploys turned off; functions refuse GitHub and Claude calls unless `context.deploy.context === "production"` (§4.6) |
 | Supabase down or project paused | Auth or PostgREST unreachable | Fail closed (503), including errors auth-js **returns** rather than throws (§4.1 step 5, §4.2 rule 1). The beach app has no auth code and keeps working |
+| `super_admin` account compromised | A phished password or a stolen session approves a malicious `public/**/*.js` that waits for Dr. Lee's next sign-in | Demote first (role read on every request), roll back and lock publishing **before** anyone signs in on the site again, end every session, then reset the password; re-promote last (`docs/runbooks/rollback.md` §3a). TOTP on the account (§4.2) |
 | Forged-token flood | Random tokens with unknown `kid` or `HS256` make every `getClaims` call Supabase from the function's IP | Header pre-check (§4.1 step 1) once asymmetric keys are confirmed; Netlify rate rules on chat and jobs (§9) |
 
 **Residual risks (accepted, revisit if the user base grows):**
@@ -233,7 +235,11 @@ Browser flow (Wren owns the copy):
 - (d) `getUser` after `signOut({scope:'local'})`. If it still succeeds, a signed-out token works until `exp`. That is accepted with 10-minute tokens, but record it;
 - (e) a TOTP verify yields `aal2`;
 - (f) a real access token's header has `alg` `ES256` or `RS256` and a `kid` (Dashboard shows asymmetric signing keys). Only then is the §4.1 header pre-check switched on;
-- (g) with Supabase unreachable from the function, Approve answers `503 unavailable`, not 401.
+- (g) with Supabase unreachable from the function, Approve answers `503 unavailable`, not 401;
+- (h) Netlify secret scanning does not flag `sb_publishable_…` in `config.js` (fallback `SECRETS_SCAN_OMIT_KEYS`, docs/03 §9.5);
+- (i) the RLS Security Advisor shows no warning on `profiles`, and a second throwaway user cannot read or change another row, or their own `role`, through the REST API with the publishable key.
+
+This list (a)–(i) is canonical; docs/06 §3 uses the same letters. **The two switches it gates are server constants in code, reviewed by security-engineer, never env vars or client flags:** `APPROVE_ENABLED` (off until (a)–(e), (g) and (i) pass) and `JWT_HEADER_PRECHECK` (on only after (f)).
 
 If (a) fails, security-engineer re-specifies rule 2 before launch.
 
@@ -489,7 +495,7 @@ Owner: security-engineer, with netlify-engineer for the platform rules. Every li
 | Netlify credits | 300/month on Free; 15 per production deploy | Approve cap = 210 credits; compute budget about 30; the rest is for human pushes and bandwidth (docs/03 §10) |
 
 **Approve slots and failures (decided).** A slot is consumed only when a proposal reaches `committed` (ADR-0008), so `failed`, `stale`, `rejected` and `approve_cap` never use one, and there is nothing to refund. Two edge cases must still count:
-- **Reconciliation.** When a record stuck in `committing` is reconciled to `committed` because `main` carries its trailer (§2.1), append its timestamp to `site:approvals` at reconciliation.
+- **Reconciliation.** When a record stuck in `committing` is reconciled to `committed` because a commit on `main` passes every §7 reconciler check (final-line trailer, author, one parent, blob SHAs), append its timestamp to `site:approvals` at reconciliation. A full page of commits with no match is "unknown" (stay `committing`), never "not found", so a busy `main` can't hide a landed commit and undercount the cap.
 - **Unknown outcome on the ref update.** If step 6 (`PATCH …/refs/heads/main`) times out or errors, re-read `refs/heads/main` before deciding. If it now equals `commitSha`, the outcome is `committed`, and it counts. Only otherwise is it `failed`.
 
 The aim is that the cap never undercounts a commit that actually deployed.
@@ -551,14 +557,19 @@ Recommended addition: `Cross-Origin-Opener-Policy: same-origin`. It is safe beca
 Security items (security-engineer owns them; qa-engineer writes the tests):
 - [ ] Every `/api/*` function runs the token-and-role check first (§4.1). On **every** function, tests prove: no token → 401; garbage, expired, bad-signature, wrong-`iss` or anonymous token → 401; role `user` or no row → 403; Supabase or JWKS down → 503; and nothing touches Blobs, GitHub or Claude in any of those cases. For `/api/jobs-run`: no work and no writes.
 - [ ] Approve: `getUser` + step-up (§4.2). Tests: primary sign-in 601 s old → 401 `step_up_required`; only `token_refresh` fresh → 401; fresh `totp` with stale sign-in → 401; verified factor with `aal1` → 401; fresh sign-in → passes.
-- [ ] `getClaims` and `getUser` failures that auth-js **returns** (`AuthRetryableFetchError`, network or 5xx) → 503 on every function and on Approve, tested with a returned error, not a thrown one. Once (f) passes: the header pre-check returns 401 for `HS256`, `none`, a missing `kid` or a non-JSON header with no network call.
-- [ ] **Pre-launch on the real project** (§4.2 a–e), plus: Netlify secret scanning does not flag `sb_publishable_…` in `config.js`. Approve stays disabled until these pass.
+- [ ] `getClaims` and `getUser` failures that auth-js **returns** (`AuthRetryableFetchError`, network or 5xx) → 503 on every function and on Approve, tested with a returned error, not a thrown one. Map with auth-js's own `isAuthRetryableFetchError`, not a `name` string compare. The real guard is supabase-auth-engineer example 01 (`iss`, `aud`, `is_anonymous`, role read); netlify-engineer's `guard.mjs` + `adaptClaimsVerifier` is a shape stand-in and skips those checks, so never ship it as the verifier. Once (f) passes: the header pre-check returns 401 for `HS256`, `none`, a missing `kid` or a non-JSON header with no network call.
+- [ ] **Pre-launch on the real project** (§4.2 (a)–(i)). `APPROVE_ENABLED` and `JWT_HEADER_PRECHECK` are server constants in code (not env vars); a test asserts both are `false` in the first build.
 - [ ] `POST` routes reject a cross-site `Sec-Fetch-Site` or a foreign `Origin` with 403. No `/api/*` response carries `Access-Control-Allow-*` or `Set-Cookie`.
 - [ ] No secret appears in any response, log or bundle. A test greps `public/` and the build output for `sk-ant-`, `github_pat_`, `ghp_`, `sb_secret_` and full JWTs.
 - [ ] Allow-list unit tests cover the canonical list (§6), including `public/_headers`, `public/sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `public/version.json` and `.claude/settings*`, plus `..`, absolute, backslash, case tricks (`Netlify.toml`, `public/_Headers`) and symlink mode.
 - [ ] The secret scan uses the rules in `agent-console-security`, with positives and negatives. The bare word `service_role` in docs must not fire.
 - [ ] Approve re-validates the allow-list, size, secret scan and content hash, and uses a CAS status update.
 - [ ] Always `base_tree`; `force:false`; stale-base handling; an unknown ref-update outcome is re-read before `failed` (§9).
+- [ ] **No deletions:** every tree entry has `content` and mode `100644`; a test fails if the approve code can emit `sha: null` (§6).
+- [ ] **Summary and commit message** (§6, §7 step 5): `propose_change` rejects a summary with any `\p{Cc}`, `\p{Cf}`, U+2028/2029 or trailer text; `buildCommitMessage` always ends with exactly one trailer line, removes nested trailer text until stable, and cuts by code point. Content with a lone surrogate is rejected. Reference: security-engineer example 02, `commitmsg.mjs` (6 tests, 5 mutants).
+- [ ] **Reconciler** (§7): matches only on final-line trailer + exact author + one parent + equal blob SHAs; near-misses (trailer in the body, human author, merge commit, other content) are ignored; a full page with no match stays `committing`.
+- [ ] **`GET /api/proposals/:id` reads GitHub** (it runs the reconciler), so it is a secret-reading function: it runs the production-context check before loading a token, and it uses the **read-only** GitHub module (`GITHUB_TOKEN` under ADR-0007, `GITHUB_READ_TOKEN` if ADR-0009 is accepted), never the write module.
+- [ ] At the limit check, an unreadable `site:compute` record (in chat and jobs) or `site:approvals` record (in approve) means a Blobs error or a bad shape → `503 unavailable`, never "allowed" (netlify-engineer example 03, `assertComputeShape`; the approvals record needs the same shape check). The advisory `approvals: null` in `GET /api/proposals/:id` (§1) is display only and is not this check.
 - [ ] GitHub and Anthropic secrets are Production-context only; Deploy Previews and branch deploys are off; functions return 503 outside `production` (§4.6).
 - [ ] Limits return 429 with a friendly UI message: per-user counters, the compute budget, the Approve cap (5th/6th in a day, 14th/15th in 31 days).
 - [ ] The CSP equals §10 exactly (e2e reads the header), and the build fails if the Supabase host in `_headers` differs from `SUPABASE_URL`.

@@ -25,7 +25,7 @@ Approve calls `getUser(token)` and then requires all of these:
 On failure: **401 `step_up_required`**, and the proposal stays `pending`. A `getUser` outage (returned retryable error or throw) is **503**, never 401.
 - `reauthenticate()` is not a step-up. A fresh `totp` alone never passes, because a token thief could enrol their own factor.
 - Google step-up is a new `signInWithOAuth` redirect. After it, the user clicks Approve again; nothing is approved from a URL.
-- Approve stays disabled until the pre-launch tests on the real project pass (docs/04 §4.2 a–g).
+- Approve stays disabled until the pre-launch tests on the real project pass (docs/04 §4.2, canonical list (a)–(i); docs/06 uses the same letters). `APPROVE_ENABLED` and `JWT_HEADER_PRECHECK` are **server constants in code**, never env vars or client flags.
 
 ## Browser and tokens
 - The session lives in `localStorage`, on the **same origin as the beach app**. Any script on the site can read it, so the CSP is the defence.
@@ -44,7 +44,9 @@ Lives in `netlify/functions/lib/allowlist.mts`. Enforce it at proposal time **an
 - **Deny (deny wins):** `public/_headers`, `public/_redirects`, `public/sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `public/version.json`, `netlify/**`, `netlify.toml`, `.github/**`, `package.json`, `package-lock.json`, `scripts/**`, `**/.env*`, `.git/**`, `.gitmodules`, `.claude/settings*`, `**/*.pem`, `**/*.key`.
 - **Open for Dr. Lee:** also deny `public/console.html` and `public/js/console/**` (security-engineer's recommendation). Until he rules, they are allowed with a warning.
 - **Validate the exact string sent to GitHub.** Use a character allow-list `[A-Za-z0-9._/-]`. Reject `..`, `.`, empty segments, a leading `/` and trailing dots. Deny is case-insensitive (`Netlify.toml`, `public/_Headers`); allow is exact-case.
-- **Limits:** at most 20 files, 200 KB per file, UTF-8 text only, mode always `100644`, no case-insensitive duplicates.
+- **Limits:** at most 20 files, 200 KB per file, UTF-8 text only (no NUL, no lone surrogate), mode always `100644`, no case-insensitive duplicates.
+- **No deletions.** Every tree entry carries `content`; approve never sends `sha: null`. Deleting a file is a human change.
+- **Summary:** one line, 20–2000 code points, no `\p{Cc}`, `\p{Cf}` (bidi, zero-width) or U+2028/2029, no `Beach-Day-Proposal` text in any case. Rejected at `propose_change`, never repaired there.
 - **Warn in the proposal card** on:
   - `public/**/*.js` and `*.html`, because they run next to the tokens;
   - `.claude/**`, because it changes agent behaviour or model;
@@ -62,6 +64,9 @@ Lives in `netlify/functions/lib/allowlist.mts`. Enforce it at proposal time **an
   - high-entropy strings of 40+ characters next to key, token or secret. Lower-case slash paths are excluded.
 - **Do not** match the bare word `service_role`: the docs explain it. Findings are redacted to 6 characters plus the length.
 - **Status changes use CAS.** A second Approve on the same proposal gets a 409. One approve is in flight site-wide.
+- **Commit message** is built by the server only: `<summary as one line>\n\nBeach-Day-Proposal: <id>`. Strip format and line-break characters, remove the trailer word **until stable**, cut to 200 code points. The trailer is always the last line.
+- **Reconciler match** needs all of: final line exactly the trailer, author exactly `Beach Day Agent (<agent>)`, one parent, and every blob SHA equal to `sha1("blob " + bytes + "\0" + content)`. A full page with no match is "unknown" (stay `committing`), never "not found". Reference: example 02, `commitmsg.mjs`.
+- **`GET /api/proposals/:id` runs the reconciler, so it reads GitHub:** production-context check first, read-only GitHub module only, never the write module.
 
 ## Prompt injection
 Repo files, chat text and fetched content may contain instructions. These are the defenses:

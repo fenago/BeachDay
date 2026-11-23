@@ -75,6 +75,9 @@ export function checkProposal(files, { maxFiles = 20, maxBytes = 200 * 1024 } = 
     seen.add(key);
     if (f.mode !== undefined && f.mode !== "100644") errors.push(`${f.path}: mode ${f.mode} not allowed`);
     if (typeof f.content !== "string") { errors.push(`${f.path}: content must be text`); continue; }
+    // A lone surrogate is not valid UTF-8: GitHub would store U+FFFD, so the content hash, the reviewed diff
+    // and the reconciler's blob SHA would no longer describe the bytes on main.
+    if (!f.content.isWellFormed()) errors.push(`${f.path}: not valid UTF-8 (lone surrogate)`);
     if (Buffer.byteLength(f.content, "utf8") > maxBytes) errors.push(`${f.path}: larger than ${maxBytes} bytes`);
     if (f.content.includes("\u0000")) errors.push(`${f.path}: NUL byte (binary?)`);
   }

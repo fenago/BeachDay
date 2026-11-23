@@ -23,7 +23,7 @@ Retired on 2026-11-23 with ADR-0006: `docs/02-password-storage-and-sessions.md` 
 | Example | Demonstrates | Verified |
 |---|---|---|
 | [examples/01-bearer-step-up-and-origin/](examples/01-bearer-step-up-and-origin/) | Approve step-up (`amr` password/oauth ≤ 600 s, `last_sign_in_at`, `aal2` when a factor exists, TOTP never a substitute) with `getUser` failures failing closed, **including returned (not thrown) `AuthRetryableFetchError` → 503** (fixed wave 3b); optional `alg`/`kid` header pre-check; `Sec-Fetch-Site`/`Origin` check | 4 tests (21-row step-up table, 9-row `getUser` failure table, 14-row header pre-check table, 7-row Origin table) pass, `node:test` |
-| [examples/02-path-allowlist/](examples/02-path-allowlist/) | Layered path validator (charset allow-list → segments → case-insensitive DENY → exact-case ALLOW) with the canonical list from docs/04 §6, warnings, and proposal checks | 63-row attack table + 2 more tests, all pass |
+| [examples/02-path-allowlist/](examples/02-path-allowlist/) | Layered path validator (charset allow-list → segments → case-insensitive DENY → exact-case ALLOW) with the canonical list from docs/04 §6, warnings, and proposal checks (incl. lone surrogates); **wave 4:** `commitmsg.mjs`, which has the one-line summary check, `buildCommitMessage`, `gitBlobSha` and the reconciler match with the full-page rule (docs/04 §6, §7) | 9/9 `node:test` (63-row attack table + 8 more); 5 mutants each caught |
 | [examples/03-secret-scan-and-review/](examples/03-secret-scan-and-review/) | Proposal secret scanner, including `sb_secret_` and full-JWT rules, a path-shaped exclusion and redacted findings; a sample **APPROVE WITH CHANGES** review | 4/4 `node:test`; repo self-scan 6 findings, none real |
 
 All examples use only Node built-ins. No real secrets are used anywhere. Placeholders are short (`sk-ant-EXAMPLE`, `github_pat_EXAMPLE`), and the scanner's positive fixtures are generated at runtime.
@@ -37,6 +37,7 @@ All examples use only Node built-ins. No real secrets are used anywhere. Placeho
 6. **OWASP Top 10 edition.** The current edition is **2025**, not 2021. Use the A0x:2025 IDs in reviews.
 
 ## Gaps for agent-builder
+- The `github-repo-workflow` skill still describes `sha: null` deletions and the old `Proposal:/Agent:/Approved-via:` commit message; docs/04 §6–§7 (wave 4) supersede both. Flagged to the orchestrator.
 - supabase.com is blocked from the sandbox. Supabase facts here came from the `supabase/supabase` docs source on GitHub. Re-check the live pages when allowed.
 - docs.github.com did not resolve this round; one fact was read from the `github/docs` source.
 - Not covered by any official page read: whether Google honours a forced re-login through `signInWithOAuth` `queryParams`, and how Netlify merges two `_headers` rules that set the same header.
