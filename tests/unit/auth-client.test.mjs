@@ -245,6 +245,30 @@ describe("tokens before /api/* calls (docs/04 §4.1: refresh when < 120 s left)"
     await expect(s.auth.getAccessToken()).rejects.toBeInstanceOf(AuthUnavailableError);
     expect(Date.now() - t0).toBeLessThan(2000);
   });
+  it("60 s left (inside auth-js's own refresh margin) and refresh 502 -> AuthUnavailableError in < 2 s", async () => {
+    const s = setup({ refreshTimeoutMs: 300, routes: { "POST /auth/v1/token?refresh_token": () => new Response("bad gateway", { status: 502 }) } });
+    await withSession(s, 60);
+    const t0 = Date.now();
+    await expect(s.auth.getAccessToken()).rejects.toBeInstanceOf(AuthUnavailableError);
+    expect(Date.now() - t0).toBeLessThan(2000);
+  });
+  it("an expired access token and refresh 502 -> AuthUnavailableError in < 2 s, not null (S7)", async () => {
+    const s = setup({ refreshTimeoutMs: 300, routes: { "POST /auth/v1/token?refresh_token": () => new Response("bad gateway", { status: 502 }) } });
+    await withSession(s, 3600);
+    // Expire the stored session in place, as if the tab slept past exp.
+    const k = [...s.storage.m.keys()].find((x) => x.endsWith("-auth-token"));
+    const stored = JSON.parse(s.storage.getItem(k));
+    stored.expires_at = nowS() - 30;
+    s.storage.setItem(k, JSON.stringify(stored));
+    const t0 = Date.now();
+    await expect(s.auth.getAccessToken()).rejects.toBeInstanceOf(AuthUnavailableError);
+    expect(Date.now() - t0).toBeLessThan(2000);
+  });
+  it("the test-only client handle is not enumerable", () => {
+    const { auth } = setup();
+    expect(Object.keys(auth)).not.toContain("_client");
+    expect(auth._client).toBeTruthy();
+  });
   it("a refresh that answers 502 once and then succeeds still yields a token (auth-js retries inside the window)", async () => {
     let n = 0;
     const s = setup({ routes: { "POST /auth/v1/token?refresh_token": () => (n++ === 0 ? new Response("bad gateway", { status: 502 }) : Response.json(sessionBody())) } });

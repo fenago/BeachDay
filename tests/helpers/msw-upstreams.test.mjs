@@ -27,7 +27,8 @@ describe("fake Anthropic", () => {
     anthropic.script(turns.text(["Hello ", "Miami."]));
     const res = await ask({});
     const ev = parseSse(await res.text());
-    expect(ev.map((e) => e.event)).toEqual(["message_start", "content_block_start", "content_block_delta", "content_block_delta", "content_block_stop", "message_delta", "message_stop"]);
+    expect(ev.map((e) => e.event)).toEqual(["message_start", "content_block_start", "content_block_delta", "content_block_stop", "content_block_start", "content_block_delta", "content_block_delta", "content_block_stop", "message_delta", "message_stop"]);
+    expect(ev[1].data.content_block.type).toBe("thinking"); // adaptive thinking block first
     expect(ev.at(-3).data.delta ?? ev.at(-3).data).toBeTruthy();
     expect(ev.find((e) => e.event === "message_delta").data.delta.stop_reason).toBe("end_turn");
     expect(anthropic.requests).toHaveLength(1);
@@ -37,8 +38,8 @@ describe("fake Anthropic", () => {
     const ev = parseSse(await (await ask({})).text());
     const json = ev.filter((e) => e.event === "content_block_delta").map((e) => e.data.delta.partial_json).join("");
     expect(JSON.parse(json)).toEqual({ path: "docs/README.md" });
-    expect(ev.find((e) => e.event === "content_block_start").data.content_block).toMatchObject({ type: "tool_use", id: "toolu_1", name: "read_file" });
-    expect(ev.find((e) => e.event === "message_delta").data.delta.stop_reason).toBe("tool_use");
+    expect(ev.filter((e) => e.event === "content_block_start")[1].data.content_block).toMatchObject({ type: "tool_use", id: "toolu_1", name: "read_file" });
+    expect(ev.find((e) => e.event === "message_delta").data.delta).toMatchObject({ stop_reason: "tool_use", stop_details: null });
   });
   it("refusal: a partial text, then stop_reason refusal with stop_details", async () => {
     anthropic.script(turns.refusal());
@@ -51,11 +52,42 @@ describe("fake Anthropic", () => {
     expect(ev.at(-1)).toMatchObject({ event: "error", data: { error: { type: "overloaded_error" } } });
     expect(ev.some((e) => e.event === "message_stop")).toBe(false);
   });
-  it("HTTP error turns answer before any stream (429/529/500)", async () => {
-    anthropic.script(turns.httpError(429, "rate_limit_error"));
+  it("HTTP error turns fail `times` attempts with a retry-after header, then the queue moves on", async () => {
+    anthropic.script(turns.httpError(429, "rate_limit_error", { times: 2, retryAfter: "7" }), turns.text("after"));
     const res = await ask({});
     expect(res.status).toBe(429);
+    expect(res.headers.get("retry-after")).toBe("7");
     expect((await res.json()).error.type).toBe("rate_limit_error");
+    expect((await ask({})).status).toBe(429);
+    expect((await ask({})).status).toBe(200);
+    expect(anthropic.unscripted).toBe(0);
+  });
+  it("an unscripted request is counted so a test can assert it scripted everything", async () => {
+    await (await ask({})).text();
+    expect(anthropic.unscripted).toBe(1);
+  });
+  it("accepts Authorization: Bearer (what the real SDK sends) as well as x-api-key", async () => {
+    const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${KEY}`, "anthropic-version": "2023-06-01" }, body: JSON.stringify({ model: "claude-sonnet-5-5", max_tokens: 10, stream: false, messages: [{ role: "user", content: "hi" }] }) });
+    expect(r.status).toBe(200);
+  });
+  it("runs Remy-A's request-shape rules too: prefill, forced tool_choice, thinking.type enabled, open strict tool schema", async () => {
+    const bad = [
+      { messages: [{ role: "user", content: "x" }, { role: "assistant", content: "pre" }] },
+      { tool_choice: { type: "any" } },
+      { thinking: { type: "enabled", budget_tokens: 1000 } },
+      { tools: [{ name: "t", strict: true, input_schema: { type: "object", properties: {} } }] },
+    ];
+    for (const b of bad) expect((await ask(b)).status).toBe(400);
+  });
+  it("works end to end through the REAL SDK client (createAnthropicClient + buildParams): Bearer auth, adaptive thinking, streaming", async () => {
+    const claude = await import("../../netlify/functions/lib/claude.mts");
+    const client = claude.createAnthropicClient("chat", KEY);
+    anthropic.script(turns.text(["From ", "the SDK."]));
+    const params = claude.buildParams({ model: "claude-sonnet-5-5", systemPrompt: "You are a test." }, [{ role: "user", content: "hi" }], "low");
+    const msg = await client.messages.stream(params).finalMessage();
+    expect(msg.content.find((b) => b.type === "text").text).toBe("From the SDK.");
+    expect(msg.stop_reason).toBe("end_turn");
+    expect(anthropic.requests.at(-1).error).toBeNull();
   });
   it("rejects what the real API rejects: no key, no version, model outside the allow-list, sampling params, orphan tool_use", async () => {
     expect((await ask({}, { key: null })).status).toBe(400);
@@ -112,6 +144,22 @@ describe("fake GitHub", () => {
     const forced = await commitOne({ patchBody: undefined, text: "f\n" }).then(async () => { const h = (await (await gh("/git/ref/heads/main")).json()).object.sha; return gh("/git/refs/heads/main", { method: "PATCH", body: { sha: h, force: true } }); });
     expect(forced.status).toBe(422);
     expect(github.state.violations.join("|")).toMatch(/base_tree.*deletion.*100755.*parent.*force/s);
+  });
+  it("header strictness: no User-Agent 403, wrong Accept 415, missing API version 400", async () => {
+    const raw = (h) => fetch("https://api.github.com/repos/fenago/BeachDay/git/ref/heads/main", { headers: { authorization: `Bearer ${WT}`, ...h } });
+    expect((await raw({ accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28", "user-agent": "" })).status).toBe(403);
+    expect((await raw({ accept: "application/json", "x-github-api-version": "2022-11-28", "user-agent": "t" })).status).toBe(415);
+    expect((await raw({ accept: "application/vnd.github+json", "user-agent": "t" })).status).toBe(400);
+  });
+  it("a tree entry with only a sha is 422, a missing force is 400, and a >1 MB file comes back encoding none", async () => {
+    const head = (await (await gh("/git/ref/heads/main")).json()).object.sha;
+    const base = (await (await gh(`/git/commits/${head}`)).json()).tree.sha;
+    expect((await gh("/git/trees", { method: "POST", body: { base_tree: base, tree: [{ path: "a.md", mode: "100644", type: "blob", sha: "0".repeat(40) }] } })).status).toBe(422);
+    expect((await gh("/git/refs/heads/main", { method: "PATCH", body: { sha: head } })).status).toBe(400);
+    github.state.pushConcurrent("docs/big.md", "x".repeat(1_000_001));
+    const big = await (await gh("/contents/docs/big.md")).json();
+    expect([big.encoding, big.content]).toEqual(["none", ""]);
+    expect(github.state.violations.join("|")).toMatch(/without content.*force=undefined/s);
   });
   it("401 for a bad token; a read-only token can read but not write (403)", async () => {
     expect((await gh("/git/ref/heads/main", { token: "nope" })).status).toBe(401);

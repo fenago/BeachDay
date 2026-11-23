@@ -34,7 +34,9 @@ describe("real handler plumbing", () => {
     const j = await res.json();
     expect(res.status).toBe(200);
     expect(j).toMatchObject({ method: "GET", url: `${h.url}/api/agents`, context: "production", origin: h.url, secFetchSite: "same-origin", hasEnvKey: true, approveEnabled: true, supabaseUrl: "https://bdlocaltest.supabase.co" });
-    expect(j.requestId).toMatch(/^req-/);
+    expect(j.requestId).toMatch(/^[0-9a-f]{16}$/);
+    expect(j.stores).toEqual(["audit", "jobs", "proposals", "ratelimit"]);
+    expect(j.startJobIsFn).toBe(true);
     expect(h.blobs.peek("probe", "seen")).toEqual({ n: 1 });
   });
   it("context.params carries :id", async () => {

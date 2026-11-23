@@ -6,7 +6,7 @@ import { FIXTURE_SUPABASE_URL, FIXTURE_PUBLISHABLE_KEY } from "./secrets.mjs";
 const O = FIXTURE_SUPABASE_URL;
 const PW = "correct horse battery staple";
 let fake;
-beforeEach(async () => { fake = await createFakeSupabase({ siteUrl: "http://127.0.0.1:4173", allowedRedirectOrigins: ["http://127.0.0.1:4173"] }); });
+beforeEach(async () => { fake = await createFakeSupabase({ siteUrl: "http://127.0.0.1:4173/console", allowedRedirectUrls: ["http://127.0.0.1:4173/console"] }); });
 
 const call = (method, path, { body, token, headers = {} } = {}) =>
   fake.handle(new Request(`${O}${path}`, { method, headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}), ...headers }, body: body === undefined ? undefined : JSON.stringify(body) }));
@@ -30,10 +30,10 @@ describe("tokens and JWKS", () => {
     expect(c.exp - c.iat).toBe(600);
     expect(s.expires_in).toBe(600);
   });
-  it("rotateKey makes old tokens unverifiable (kid no longer in the JWKS)", async () => {
+  it("revokeKey makes old tokens unverifiable (kid no longer in the JWKS)", async () => {
     fake.addUser({ email: "a@example.test", role: "super_admin" });
     const t = await fake.mint("a@example.test");
-    await fake.rotateKey();
+    await fake.revokeKey();
     const jwks = await (await call("GET", "/auth/v1/.well-known/jwks.json")).json();
     expect(jwks.keys[0].kid).not.toBe(header(t).kid);
     expect((await rest(t, payload(t).sub)).status).toBe(401);
@@ -88,6 +88,19 @@ describe("sign-up with Confirm email on", () => {
     expect((await call("POST", "/auth/v1/verify", { body: { type: "signup", token_hash: tokenHash } })).status).toBe(403);
     expect((await signIn("n@example.test")).status).toBe(200);
   });
+  it('/verify type "email" (what auth.js sends) matches a stored signup OR recovery token; a wrong type is refused', async () => {
+    await call("POST", "/auth/v1/signup", { body: { email: "n@example.test", password: PW } });
+    const { tokenHash } = fake.lastEmail("n@example.test", "signup");
+    expect((await call("POST", "/auth/v1/verify", { body: { type: "magiclink", token_hash: tokenHash } })).status).toBe(403);
+    const ok = await call("POST", "/auth/v1/verify", { body: { type: "email", token_hash: tokenHash } });
+    expect(ok.status).toBe(200);
+    expect(payload((await ok.json()).access_token).amr[0].method).toBe("otp");
+    expect((await signIn("n@example.test")).status).toBe(200);
+    await call("POST", "/auth/v1/recover", { body: { email: "n@example.test" } });
+    const rec = fake.lastEmail("n@example.test", "recovery").tokenHash;
+    expect((await call("POST", "/auth/v1/verify", { body: { type: "email", token_hash: rec } })).status).toBe(200);
+    expect((await call("POST", "/auth/v1/verify", { body: { type: "email", token_hash: rec } })).status).toBe(403);
+  });
   it("recover answers 200 {} for unknown and known addresses alike; only a known confirmed one gets an email", async () => {
     fake.addUser({ email: "k@example.test" });
     const a = await call("POST", "/auth/v1/recover", { body: { email: "k@example.test" } });
@@ -102,29 +115,51 @@ describe("PKCE and Google", () => {
   const verifier = "v".repeat(60);
   const challenge = createHash("sha256").update(verifier).digest("base64url");
   const authorize = (extra = "") => call("GET", `/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent("http://127.0.0.1:4173/console")}&code_challenge=${challenge}&code_challenge_method=s256${extra}`);
-  it("authorize redirects back with ?code (no '#'), the code exchanges once with the verifier, session amr is oauth", async () => {
+  const codeOf = async () => new URL((await authorize()).headers.get("location")).searchParams.get("code");
+  const exchange = (auth_code, code_verifier) => call("POST", "/auth/v1/token?grant_type=pkce", { body: { auth_code, code_verifier } });
+  it("authorize redirects back with ?code (no '#'), the code exchanges once with the right verifier, session amr is oauth", async () => {
     const r = await authorize();
     expect(r.status).toBe(302);
     const loc = new URL(r.headers.get("location"));
     expect(loc.origin + loc.pathname).toBe("http://127.0.0.1:4173/console");
     expect(loc.hash).toBe("");
     const code = loc.searchParams.get("code");
-    expect((await call("POST", "/auth/v1/token?grant_type=pkce", { body: { auth_code: code, code_verifier: "x".repeat(60) } })).status).toBe(400); // wrong verifier burns the code
-    const r2 = await authorize();
-    const code2 = new URL(r2.headers.get("location")).searchParams.get("code");
-    const s = await (await call("POST", "/auth/v1/token?grant_type=pkce", { body: { auth_code: code2, code_verifier: verifier } })).json();
+    const s = await (await exchange(code, verifier)).json();
     expect(payload(s.access_token).amr[0].method).toBe("oauth");
-    expect((await call("POST", "/auth/v1/token?grant_type=pkce", { body: { auth_code: code2, code_verifier: verifier } })).status).toBe(400);
+    const again = await exchange(code, verifier);
+    expect([again.status, (await again.json()).error_code]).toEqual([404, "flow_state_not_found"]);
   });
-  it("a redirect_to outside the allow-list falls back to the Site URL", async () => {
-    const r = await call("GET", `/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent("https://evil.example/x")}&code_challenge=${challenge}`);
-    expect(new URL(r.headers.get("location")).origin).toBe("http://127.0.0.1:4173");
+  it("NO path: /authorize without a code_challenge (or a short one, or method plain) is 400 validation_failed, never an implicit session", async () => {
+    for (const q of ["", "&code_challenge=short&code_challenge_method=s256", `&code_challenge=${challenge}&code_challenge_method=plain`]) {
+      const r = await call("GET", `/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent("http://127.0.0.1:4173/console")}${q}`);
+      expect([r.status, (await r.json()).error_code]).toEqual([400, "validation_failed"]);
+    }
+  });
+  it("NO path: empty code or verifier 400; unknown code 404; wrong verifier 400 and the code is NOT consumed; expired after 300 s 422", async () => {
+    const r1 = await exchange("", ""); expect([r1.status, (await r1.json()).error_code]).toEqual([400, "validation_failed"]);
+    const r2 = await exchange("nope", verifier); expect([r2.status, (await r2.json()).error_code]).toEqual([404, "flow_state_not_found"]);
+    const code = await codeOf();
+    const r3 = await exchange(code, "x".repeat(60)); expect([r3.status, (await r3.json()).error_code]).toEqual([400, "bad_code_verifier"]);
+    expect((await exchange(code, verifier)).status).toBe(200);
+    const old = await codeOf();
+    fake.advance(301_000);
+    const r4 = await exchange(old, verifier); expect([r4.status, (await r4.json()).error_code]).toEqual([422, "flow_state_expired"]);
+  });
+  it("redirect allow-list is an EXACT URL match: same origin but another path, a query or a hash falls back to the Site URL", async () => {
+    for (const bad of ["https://evil.example/x", "http://127.0.0.1:4173/not-console", "http://127.0.0.1:4173/console?x=1", "http://127.0.0.1:4173/console#x"]) {
+      const r = await call("GET", `/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(bad)}&code_challenge=${challenge}&code_challenge_method=s256`);
+      const loc = new URL(r.headers.get("location"));
+      expect([loc.origin + loc.pathname, loc.searchParams.get("x")]).toEqual(["http://127.0.0.1:4173/console", null]);
+    }
+    fake.allowRedirectUrl("http://127.0.0.1:4173/console?return=approve");
+    const ok = await call("GET", `/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent("http://127.0.0.1:4173/console?return=approve")}&code_challenge=${challenge}&code_challenge_method=s256`);
+    expect(new URL(ok.headers.get("location")).searchParams.get("return")).toBe("approve");
   });
   it("same verified email links to the existing account (automatic linking), role unchanged", async () => {
     fake.addUser({ email: "dr@example.test", role: "super_admin" });
     fake.setGoogle({ email: "dr@example.test" });
-    const code = new URL((await authorize()).headers.get("location")).searchParams.get("code");
-    const s = await (await call("POST", "/auth/v1/token?grant_type=pkce", { body: { auth_code: code, code_verifier: verifier } })).json();
+    const code = await codeOf();
+    const s = await (await exchange(code, verifier)).json();
     expect(s.user.id).toBe(fake.getUser("dr@example.test").id);
     expect(s.user.app_metadata.providers).toEqual(["email", "google"]);
     expect(await (await rest(s.access_token, s.user.id)).json()).toEqual([{ role: "super_admin" }]);
@@ -138,14 +173,24 @@ describe("PKCE and Google", () => {
 });
 
 describe("refresh, /user, logout", () => {
-  it("refresh rotates, keeps the sign-in amr and ADDS token_refresh; a used refresh token fails", async () => {
+  it("refresh rotates and keeps the sign-in amr unchanged (no token_refresh row, like real GoTrue); reusing a refresh token revokes the session", async () => {
     fake.addUser({ email: "a@example.test" });
     const s1 = await (await signIn("a@example.test")).json();
     const r = await call("POST", "/auth/v1/token?grant_type=refresh_token", { body: { refresh_token: s1.refresh_token } });
     const s2 = await r.json();
-    expect(payload(s2.access_token).amr.map((a) => a.method)).toEqual(["password", "token_refresh"]);
+    expect(payload(s2.access_token).amr.map((a) => a.method)).toEqual(["password"]);
     expect(s2.refresh_token).not.toBe(s1.refresh_token);
     expect((await call("POST", "/auth/v1/token?grant_type=refresh_token", { body: { refresh_token: s1.refresh_token } })).status).toBe(400);
+    expect((await call("POST", "/auth/v1/token?grant_type=refresh_token", { body: { refresh_token: s2.refresh_token } })).status).toBe(400); // reuse killed the session
+    expect((await call("GET", "/auth/v1/user", { token: s2.access_token })).status).toBe(403);
+  });
+  it("a bad or expired JWT on /user and /factors is 403 bad_jwt; a missing header is 401 no_authorization", async () => {
+    fake.addUser({ email: "a@example.test" });
+    const exp = await fake.mintExpired("a@example.test");
+    const r = await call("GET", "/auth/v1/user", { token: exp });
+    expect([r.status, (await r.json()).error_code]).toEqual([403, "bad_jwt"]);
+    expect((await call("POST", "/auth/v1/factors", { token: "x.y.z", body: {} })).status).toBe(403);
+    expect((await call("GET", "/auth/v1/user")).status).toBe(401);
   });
   it("GET /user returns last_sign_in_at and factors (what Approve's step-up reads)", async () => {
     fake.addUser({ email: "a@example.test" });
@@ -184,9 +229,22 @@ describe("TOTP", () => {
     const ok = await call("POST", `/auth/v1/factors/${enrol.id}/verify`, { token: s.access_token, body: { challenge_id: ch.id, code: totpCode(enrol.totp.secret) } });
     const s2 = await ok.json();
     expect(payload(s2.access_token)).toMatchObject({ aal: "aal2" });
-    expect(payload(s2.access_token).amr.map((a) => a.method)).toEqual(["password", "totp"]);
+    expect(payload(s2.access_token).amr.map((a) => a.method)).toEqual(["totp", "password"]); // newest first
     const u = await (await call("GET", "/auth/v1/user", { token: s2.access_token })).json();
     expect(u.factors[0]).toMatchObject({ factor_type: "totp", status: "verified" });
+  });
+  it("NO path: with a verified factor, enrolling another from an aal1 session is 403 insufficient_aal; unenrolling the verified one is 422; from aal2 both work", async () => {
+    fake.addUser({ email: "a@example.test" });
+    const { id } = fake.enrollVerifiedTotp("a@example.test");
+    const s = await (await signIn("a@example.test")).json();
+    const en = await call("POST", "/auth/v1/factors", { token: s.access_token, body: { factor_type: "totp" } });
+    expect([en.status, (await en.json()).error_code]).toEqual([403, "insufficient_aal"]);
+    const del = await call("DELETE", `/auth/v1/factors/${id}`, { token: s.access_token });
+    expect([del.status, (await del.json()).error_code]).toEqual([422, "insufficient_aal"]);
+    const ch = await (await call("POST", `/auth/v1/factors/${id}/challenge`, { token: s.access_token, body: {} })).json();
+    const s2 = await (await call("POST", `/auth/v1/factors/${id}/verify`, { token: s.access_token, body: { challenge_id: ch.id, code: fake.currentTotp("a@example.test") } })).json();
+    expect(payload(s2.access_token).aal).toBe("aal2");
+    expect((await call("DELETE", `/auth/v1/factors/${id}`, { token: s2.access_token })).status).toBe(200);
   });
   it("a fresh sign-in of a user WITH a verified factor is aal1 until the TOTP step", async () => {
     fake.addUser({ email: "a@example.test" });
@@ -248,6 +306,12 @@ describe("PostgREST profiles (RLS)", () => {
 });
 
 describe("minting odd tokens, failure modes, counters", () => {
+  it("mintExpired is signed correctly but expired for every verifier (the fake's clock is not what auth-js uses)", async () => {
+    fake.addUser({ email: "a@example.test", role: "super_admin" });
+    const t = await fake.mintExpired("a@example.test");
+    expect(payload(t).exp).toBeLessThan(Math.floor(Date.now() / 1000));
+    expect((await rest(t, fake.getUser("a@example.test").id)).status).toBe(401);
+  });
   it("mint can produce a missing kid, non-JSON header and unsigned-garbage tokens", async () => {
     fake.addUser({ email: "a@example.test" });
     const noKid = await fake.mint("a@example.test", {}, { kid: null });

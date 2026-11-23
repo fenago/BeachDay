@@ -118,6 +118,21 @@ export function createAuth({
     const { data, error } = await client.getSession();
     return error ? null : data?.session ?? null;
   }
+  // For getAccessToken only: an outage is AuthUnavailableError (503 wording), not "signed out" (S7).
+  async function strictSession() {
+    const { data, error } = await client.getSession();
+    if (error) { if (isAuthRetryableFetchError(error)) throw new AuthUnavailableError(); return null; }
+    return data?.session ?? null;
+  }
+  async function freshToken(minValiditySeconds) {
+    const session = await strictSession();
+    if (!session) return null;
+    const left = (session.expires_at ?? 0) - Math.floor(now() / 1000);
+    if (left >= minValiditySeconds) return session.access_token;
+    const res = await client.refreshSession();
+    if (res.error) { if (isAuthRetryableFetchError(res.error)) throw new AuthUnavailableError(); return null; }
+    return res.data?.session?.access_token ?? null;
+  }
 
   async function goToGoogle(returnRoute) {
     saveReturnRoute(returnRoute);
@@ -147,7 +162,7 @@ export function createAuth({
     return error ? failFrom(error) : { ok: true };
   }
 
-  return {
+  const api = {
     redirectTo,
 
     // ---- S2 / S3: sign up and resend ----
@@ -263,20 +278,18 @@ export function createAuth({
      * refreshTimeoutMs): treat like a 503.
      */
     async getAccessToken({ minValiditySeconds = 120 } = {}) {
-      const session = await currentSession();
-      if (!session) return null;
-      const left = (session.expires_at ?? 0) - Math.floor(now() / 1000);
-      if (left >= minValiditySeconds) return session.access_token;
-      let res;
+      // The whole call races the timeout: getSession() refreshes on its own inside auth-js's ~90 s margin,
+      // and auth-js retries a retryable refresh for up to ~30 s (R1, Vera).
       let timer;
       try {
-        res = await Promise.race([
-          client.refreshSession(),
+        return await Promise.race([
+          freshToken(minValiditySeconds),
           new Promise((_, reject) => { timer = setTimeout(() => reject(new AuthUnavailableError()), refreshTimeoutMs); }),
         ]);
-      } catch { throw new AuthUnavailableError(); } finally { clearTimeout(timer); }
-      if (res.error) { if (isAuthRetryableFetchError(res.error)) throw new AuthUnavailableError(); return null; }
-      return res.data?.session?.access_token ?? null;
+      } catch (e) {
+        if (e instanceof AuthUnavailableError) throw e;
+        throw new AuthUnavailableError(); // any unexpected throw: fail closed as "try again", never as signed in
+      } finally { clearTimeout(timer); }
     },
     /** cb(event, account|null). Returns an unsubscribe function. Never hands out tokens. */
     onChange(cb) {
@@ -334,6 +347,8 @@ export function createAuth({
     /** Leaves for Google. Afterwards the person must choose Approve again: nothing approves from a URL. */
     stepUpWithGoogle: (returnRoute) => goToGoogle(returnRoute),
 
-    _client: client, // tests only
   };
+  // Tests only. Non-enumerable, so spreading or logging the auth object doesn't carry the client along.
+  Object.defineProperty(api, "_client", { value: client, enumerable: false });
+  return api;
 }
