@@ -1,5 +1,4 @@
 # Prompt engineering principles for agent and skill text
-
 Source: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview ; https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
 Retrieved: 2026-11-23
 

@@ -1,5 +1,4 @@
 # Agent teams vs subagents
-
 Source: https://code.claude.com/docs/en/agent-teams (read as https://code.claude.com/docs/en/agent-teams.md) ; https://code.claude.com/docs/en/sub-agents#subagent-names
 Retrieved: 2026-11-23
 

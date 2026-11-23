@@ -1,5 +1,4 @@
 # Skills at runtime (invocation, preload, lifecycle) and agent memory
-
 Source: https://code.claude.com/docs/en/skills#control-who-invokes-a-skill ; https://code.claude.com/docs/en/skills#skill-content-lifecycle ; https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents ; https://code.claude.com/docs/en/sub-agents#enable-persistent-memory ; https://code.claude.com/docs/en/memory
 Retrieved: 2026-11-23
 

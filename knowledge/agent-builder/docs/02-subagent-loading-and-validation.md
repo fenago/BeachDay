@@ -1,5 +1,4 @@
 # How agent files load, get skipped, and how to validate them
-
 Source: https://code.claude.com/docs/en/sub-agents#subagent-files-claude-code-skips ; https://code.claude.com/docs/en/sub-agents#write-subagent-files ; https://code.claude.com/docs/en/sub-agents#what-loads-at-startup
 Retrieved: 2026-11-23
 
@@ -71,4 +70,4 @@ Background subagents (the default when spawned from the main conversation) keep 
 - The Agent Console builds `agents.json` from the same files (`scripts/build-agents.mjs`, docs/03 §2). A file Claude Code skips should also fail the build, not show up in the Console with a missing description. The parser and validation rules should be shared, so flag this to agent-console-engineer through the orchestrator.
 - Our 11 descriptions are short (one or two sentences each), far below the 15k-token warning.
 - The background-subagent tool set includes everything our experts list (`Read, Grep, Glob, Edit, Write, Bash, WebFetch, WebSearch`). No expert depends on a tool that background mode strips.
-- **Changing `.claude/agents/**` or `.claude/skills/**` needs agent-builder + orchestrator review** (change-proposal-protocol). In the Console, `.claude/agents/*.md` and `.claude/skills/**/*.md` are on the allow-list, so proposals there are possible. Each approved one is a commit; whether it is a deploy depends on the `[build] ignore` rule.
+- **Changing `.claude/agents/**` or `.claude/skills/**` needs agent-builder + orchestrator review** (change-proposal-protocol). In the Console, `.claude/agents/*.md` and `.claude/skills/**/*.md` are on the allow-list, so proposals there are possible. Each approved one is a commit **and a production deploy**: the `[build] ignore` command in docs/03 deliberately includes `.claude`, so the Console's `agents.json` is rebuilt. Batch agent and skill edits.

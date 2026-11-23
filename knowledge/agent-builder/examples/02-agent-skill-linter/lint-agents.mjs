@@ -18,7 +18,7 @@ import { parse as parseYaml } from 'yaml';
 const AGENT_FIELDS = ['name', 'description', 'tools', 'disallowedTools', 'model', 'permissionMode', 'maxTurns',
   'autoCompactWindow', 'skills', 'mcpServers', 'hooks', 'memory', 'background', 'omitClaudeMd', 'effort',
   'isolation', 'color', 'initialPrompt', 'experimental'];
-const CUSTOM_AGENT_FIELDS = ['personality']; // Beach Day: read by the Agent Console, ignored by Claude Code
+const CUSTOM_AGENT_FIELDS = ['personality', 'persona']; // Beach Day: read by the Agent Console, ignored by Claude Code
 const SKILL_FIELDS = ['name', 'description', 'when_to_use', 'argument-hint', 'arguments', 'disable-model-invocation',
   'user-invocable', 'allowed-tools', 'disallowed-tools', 'model', 'effort', 'context', 'agent', 'background',
   'hooks', 'paths', 'shell', 'metadata', 'license', 'compatibility'];
@@ -165,7 +165,10 @@ for (const f of agentFiles) {
   // Beach Day conventions
   if (name !== basename(f, '.md')) add('ERROR', file, `convention: name "${name}" must equal the filename`);
   if (!data.personality || String(data.personality).trim() === '') add('ERROR', file, 'convention: personality line missing (Agent Console falls back to description)');
-  else if (String(data.personality).includes('\n')) add('WARN', file, 'personality should be one line');
+  if (!data.persona || !/^[A-Z][a-z]+$/.test(String(data.persona))) add('ERROR', file, `convention: persona must be a first name (got ${JSON.stringify(data.persona)})`);
+  else if (!new RegExp(`^## Who you are\\s*$`, 'm').test(body)) add('WARN', file, 'convention: body has no "## Who you are" section for the persona');
+  else if (!body.includes(`**${data.persona}**`)) add('WARN', file, `"Who you are" section does not name **${data.persona}**`);
+  if (data.personality && String(data.personality).includes('\n')) add('WARN', file, 'personality should be one line');
   for (const k of ['tools', 'model', 'color']) if (data[k] == null) add('WARN', file, `convention: set "${k}" explicitly`);
   const tools = splitTools(data.tools);
   const disallowed = splitTools(data.disallowedTools);
@@ -202,11 +205,12 @@ if (orch) {
 const used = new Set([...agents.values()].flatMap((a) => toList(a.data.skills)));
 for (const s of skills.keys()) if (!used.has(s)) add('WARN', rel(skills.get(s).path), 'skill is not preloaded by any agent');
 
-for (const doc of ['CLAUDE.md', 'docs/expert-roster.md']) {
+for (const doc of ['CLAUDE.md', 'docs/expert-roster.md', 'docs/agent-brains.md']) {
   const p = join(root, doc);
   if (!checkDocs || !existsSync(p) || agents.size < 2) continue;
   const text = readFileSync(p, 'utf8');
   for (const n of agents.keys()) if (!text.includes(n)) add('WARN', doc, `does not mention agent "${n}"`);
+  if (doc !== 'docs/expert-roster.md') for (const a of agents.values()) if (a.data.persona && !text.includes(String(a.data.persona))) add('WARN', doc, `does not mention persona "${a.data.persona}"`);
   if (doc === 'docs/expert-roster.md') for (const s of skills.keys()) if (!text.includes(s)) add('WARN', doc, `does not mention skill "${s}"`);
 }
 

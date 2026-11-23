@@ -1,5 +1,4 @@
 # Subagents: how delegation works in Claude Code
-
 Source: https://code.claude.com/docs/en/sub-agents (read as https://code.claude.com/docs/en/sub-agents.md)
 Retrieved: 2026-11-23
 

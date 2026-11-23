@@ -33,4 +33,15 @@
       "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b", "summary": "Add a helper script to a skill folder.",
       "files": [{ "path": ".claude/skills/team-protocol/run.sh", "content": "x" }],
       "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" } }
+,
+  { "expect": "invalid", "why": "binary image under public/ (png was removed from the docs/04 allow-list; text files only)",
+    "data": { "id": "prop_7f3a9c21d4", "agent": "ui-designer-apple-liquid-glass", "status": "pending", "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b", "summary": "Add a new hero image for the Today screen.",
+      "files": [{ "path": "public/icons/hero.png", "content": "x" }],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" } },
+  { "expect": "valid", "why": "public/_headers is allow-listed (but gated: security + netlify review)",
+    "data": { "id": "prop_7f3a9c21d4", "agent": "netlify-engineer", "status": "pending", "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b", "summary": "Tighten the CSP connect-src to Open-Meteo hosts only.",
+      "files": [{ "path": "public/_headers", "content": "/*\n  X-Frame-Options: DENY\n" }],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" } }
 ]

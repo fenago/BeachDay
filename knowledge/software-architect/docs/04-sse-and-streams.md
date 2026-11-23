@@ -1,5 +1,4 @@
 # Server-sent events and ReadableStream (the `/api/chat` contract)
-
 Source: https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events ; https://developer.mozilla.org/en-US/docs/Web/API/EventSource/EventSource ; https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream
 Retrieved: 2026-11-23
 

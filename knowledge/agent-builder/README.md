@@ -20,7 +20,7 @@ Read this index first, then the files the task needs.
 | Folder | What it shows | Read when |
 |---|---|---|
 | [examples/01-model-agent-and-skill/](examples/01-model-agent-and-skill/) | A template expert (`fixture-curator`) and a skill with a supporting `reference.md`, each choice tied to a doc. Lints with 0 errors | Writing a new agent or skill |
-| [examples/02-agent-skill-linter/](examples/02-agent-skill-linter/) | `lint-agents.mjs`: Claude Code load rules plus Beach Day conventions, **run on the real repo** (0 errors, 2 warnings) and on broken fixtures (12 errors caught) | After every agent or skill change; put its output in your HANDOFF |
+| [examples/02-agent-skill-linter/](examples/02-agent-skill-linter/) | `lint-agents.mjs`: Claude Code load rules plus Beach Day conventions, **run on the real repo** (0 errors, 1 warning) and on broken fixtures (13 errors caught) | After every agent or skill change; put its output in your HANDOFF |
 | [examples/03-prompt-postmortem/](examples/03-prompt-postmortem/) | Before/after post-mortem: root-cause buckets, smallest fix in the shared skill, a deterministic end-state check (ran: before FAIL, after ok) | Improving an agent after a mistake |
 
 ## Open findings from the linter run (2026-11-23)

@@ -48,10 +48,16 @@ test('service worker and manifest → pwa + QA', () => {
   assert.equal(r.gates.find((g) => g.id === 'pwa').paths.length, 2);
 });
 
-test('agent and skill files → agent-builder + orchestrator, no deploy', () => {
+test('agent and skill files → agent-builder + orchestrator, and they deploy (agents.json rebuild)', () => {
   const r = requiredReviewers(['.claude/agents/qa-engineer.md', '.claude/skills/team-protocol/SKILL.md']);
-  assert.deepEqual(r.reviewers, ['agent-builder', 'orchestrator']);
-  assert.equal(r.deploys, false);
+  assert.deepEqual(r.reviewers, ['agent-builder', 'orchestrator', 'qa-engineer']);
+  assert.equal(r.deploys, true);
+});
+
+test('build script change deploys and needs qa', () => {
+  const r = requiredReviewers(['scripts/build-agents.mjs']);
+  assert.deepEqual(r.reviewers, ['qa-engineer']);
+  assert.equal(r.deploys, true);
 });
 
 test('docs-only change needs no gate and does not deploy', () => {

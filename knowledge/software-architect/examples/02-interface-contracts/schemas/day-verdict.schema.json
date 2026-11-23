@@ -42,13 +42,13 @@
     }
   },
   "allOf": [
-    { "if": { "properties": { "verdict": { "const": "great" } } }, "then": { "properties": { "score": { "minimum": 80 } } } },
-    { "if": { "properties": { "verdict": { "const": "good" } } },  "then": { "properties": { "score": { "minimum": 65, "maximum": 79 } } } },
-    { "if": { "properties": { "verdict": { "const": "fair" } } },  "then": { "properties": { "score": { "minimum": 45, "maximum": 64 } } } },
-    { "if": { "properties": { "verdict": { "const": "skip" } } },  "then": { "properties": { "score": { "maximum": 44 } } } },
+    { "if": { "properties": { "verdict": { "const": "great" } } }, "then": { "properties": { "score": { "type": "integer", "minimum": 80 } } } },
+    { "if": { "properties": { "verdict": { "const": "good" } } },  "then": { "properties": { "score": { "type": "integer", "minimum": 65, "maximum": 79 } } } },
+    { "if": { "properties": { "verdict": { "const": "fair" } } },  "then": { "properties": { "score": { "type": "integer", "minimum": 45, "maximum": 64 } } } },
+    { "if": { "properties": { "verdict": { "const": "skip" } } },  "then": { "properties": { "score": { "type": "integer", "maximum": 44 } } } },
     {
       "if": { "properties": { "marineAvailable": { "const": false } } },
-      "then": { "properties": { "reasons": { "contains": { "const": "Wave data unavailable" } } } }
+      "then": { "properties": { "reasons": { "type": "array", "contains": { "const": "Wave data unavailable" } } } }
     }
   ]
 }

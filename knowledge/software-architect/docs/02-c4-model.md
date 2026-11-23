@@ -1,5 +1,4 @@
 # The C4 model (context and container diagrams)
-
 Source: https://c4model.com/ ; https://c4model.com/abstractions/container ; https://c4model.com/diagrams/system-context ; https://c4model.com/diagrams/container
 Retrieved: 2026-11-23
 

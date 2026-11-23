@@ -54,6 +54,8 @@ Every agent file has a **Before you answer** section. It tells the agent to read
   ```bash
   claude --agent orchestrator
   ```
+- The orchestrator's `Agent(...)` allow-list is enforced only when it runs as the main agent (`--agent`). When it runs as a subagent, the experts' `disallowedTools: Agent` is what keeps all routing in the orchestrator.
+- Keep the experimental agent-teams mode off: teammates ignore the `skills:` preloads.
 - In an ordinary session, hand any multi-step Beach Day request to the `orchestrator` subagent. Don't call experts yourself, so routing stays in one place. Answering a quick question yourself is fine.
 - Each agent file has a model (its "brain"), a first name in the custom `persona:` field, and a one-line `personality:` field. Claude Code ignores the two custom fields; the Agent Console shows them. They are all listed in `docs/agent-brains.md`.
 

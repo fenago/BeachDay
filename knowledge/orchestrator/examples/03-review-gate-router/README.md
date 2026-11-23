@@ -20,9 +20,9 @@ The rules implement the review-gate table in `.claude/skills/change-proposal-pro
 | Visual tokens/components | `public/css/**` |
 | Service worker / manifest | `public/sw.js`, `public/manifest.webmanifest`, `public/offline.html`, `public/icons/**` |
 | `.claude/agents/**`, `.claude/skills/**` | same |
-| Anything going to production | `public/**`, `netlify/**`, `netlify.toml`, `package*.json`, `scripts/**` |
+| Anything going to production | `public/**`, `netlify/**`, `scripts/**`, `.claude/**`, `netlify.toml`, `package*.json` |
 
-Some of these paths are **assumptions**: `public/js/copy/verdicts.js`, `public/js/console/*.js` and `netlify/functions/proposals/**` don't exist yet, because the repo has no code. Update `GATES` when the real files land. The "production" row mirrors the proposed `[build] ignore` (`-- public netlify`) plus build inputs.
+Some of these paths are **assumptions**: `public/js/copy/verdicts.js`, `public/js/console/*.js` and `netlify/functions/proposals/**` don't exist yet, because the repo has no code. Update `GATES` when the real files land. The "production" row uses exactly the paths in the `[build] ignore` command in `docs/03-architecture-netlify.md`. That list includes `.claude/`, because the Console's `agents.json` is rebuilt from it, so agent and skill edits are production deploys too.
 
 ## Why this is "what good looks like"
 
@@ -47,11 +47,11 @@ Run on 2026-11-23 with Node v22.23.5:
 ```
 $ node --test
 ...
-ok 12 - unsafe paths are rejected and escalated to security-engineer
-ok 13 - every gate row from the skill table is implemented
-1..13
-# tests 13
-# pass 13
+ok 13 - unsafe paths are rejected and escalated to security-engineer
+ok 14 - every gate row from the skill table is implemented
+1..14
+# tests 14
+# pass 14
 # fail 0
 
 $ printf 'netlify/functions/lib/allowlist.mts\npublic/css/tokens.css\ndocs/README.md\n' | node review-gates.mjs

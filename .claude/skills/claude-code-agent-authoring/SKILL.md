@@ -1,6 +1,6 @@
 ---
 name: claude-code-agent-authoring
-description: How to write and maintain Claude Code project subagents (.claude/agents/*.md) and skills (.claude/skills/<name>/SKILL.md) for Beach Day, including the custom personality field the Agent Console reads. Use when creating, editing, reviewing or parsing agent and skill files.
+description: How to write and maintain Claude Code project subagents (.claude/agents/*.md) and skills (.claude/skills/[name]/SKILL.md) for Beach Day, including the custom personality field the Agent Console reads. Use when creating, editing, reviewing or parsing agent and skill files.
 ---
 # Authoring agents and skills
 

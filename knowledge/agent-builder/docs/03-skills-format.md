@@ -1,5 +1,4 @@
 # Skills: SKILL.md format, frontmatter, size and supporting files
-
 Source: https://code.claude.com/docs/en/skills (read as https://code.claude.com/docs/en/skills.md)
 Retrieved: 2026-11-23
 

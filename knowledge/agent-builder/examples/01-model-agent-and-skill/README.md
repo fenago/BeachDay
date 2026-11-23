@@ -9,14 +9,14 @@
 
 | Choice | Reason (doc) |
 |---|---|
-| `---` on line 1; only documented fields plus `personality` | Otherwise the file is skipped, or the field is silently ignored (docs/01, docs/02) |
+| `---` on line 1; only documented fields plus the two custom ones (`persona`, `personality`) | Otherwise the file is skipped, or the field is silently ignored (docs/01, docs/02) |
 | `name` = filename = how the orchestrator will call it | Beach Day convention; `name` is the identity (docs/01) |
 | Description: one sentence on the job, then "Use when ..." with concrete triggers | Claude delegates on the description; keep it short because there is a 15k-token budget across all agents (docs/02) |
 | `tools` is an allowlist with **no `Edit`**, plus `disallowedTools: Agent` | Least privilege for a narrow role; experts never delegate (hub-and-spoke) |
-| `model: haiku` | The authoring skill: `haiku` "only for narrow, high-volume tasks". Capturing fixtures is exactly that |
+| `model: haiku` | The authoring skill: `haiku` for small, well-defined jobs. `docs/agent-brains.md` names "a fixture refresher that re-saves Open-Meteo responses" as a future Haiku helper; this template is that helper |
 | `skills:` starts with `beach-day-context` and ends with `change-proposal-protocol`; only 4 skills | Required pair; every preloaded skill costs tokens on every spawn (docs/04) |
-| `personality` is one plain line | The Agent Console shows it; Claude Code ignores it |
-| Body: "Before you answer" block → role → responsibilities → how you work → boundaries → HANDOFF | The house structure; it gives the role first and a reason with each rule (docs/05) |
+| `persona: Mo` + one-line `personality` + a `## Who you are` section | House convention (`docs/agent-brains.md`); the Console shows both custom fields and Claude Code ignores them |
+| Body: "Who you are" → "Before you answer" → role → responsibilities → how you work → boundaries → HANDOFF | The house structure; it gives the role first and a reason with each rule (docs/05) |
 | Positive, calm instructions; no "CRITICAL/MUST" | Current models over-trigger on aggressive wording (docs/05) |
 | Skill `name` = folder; description starts with the domain noun and says when to use it | The listing truncates at 1,536 characters, and rarely used descriptions get dropped (docs/03) |
 | Standing rules at the **top** of the skill | Only the first 5,000 tokens of a skill are re-attached after compaction (docs/04) |
@@ -37,7 +37,7 @@ node knowledge/agent-builder/examples/02-agent-skill-linter/lint-agents.mjs --ro
 To actually adopt the agent, agent-builder would:
 
 1. copy the files into `.claude/agents/` and `.claude/skills/`;
-2. add `fixture-curator` to the orchestrator's `Agent(...)` list, `docs/expert-roster.md` and CLAUDE.md in the same change;
+2. add `fixture-curator` to the orchestrator's `Agent(...)` list, `docs/expert-roster.md`, `docs/agent-brains.md` and CLAUDE.md in the same change;
 3. create `knowledge/fixture-curator/`;
 4. get agent-builder + orchestrator review and Dr. Lee's approval.
 

@@ -1,5 +1,4 @@
 # Netlify Functions: the server-side boundary
-
 Source: https://docs.netlify.com/build/functions/overview/ ; https://docs.netlify.com/build/functions/get-started/ ; limits as cited in docs/03-architecture-netlify.md (https://docs.netlify.com/build/functions/configuration/#default-values, https://docs.netlify.com/build/functions/background-functions/)
 Retrieved: 2026-11-23
 

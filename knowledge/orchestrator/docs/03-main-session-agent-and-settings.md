@@ -1,5 +1,4 @@
 # Running the orchestrator as the main session (`--agent`, `agent` setting)
-
 Source: https://code.claude.com/docs/en/sub-agents#invoke-subagents-explicitly ; https://code.claude.com/docs/en/settings ; https://code.claude.com/docs/en/settings-reference#agent
 Retrieved: 2026-11-23
 

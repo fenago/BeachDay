@@ -20,10 +20,7 @@ Use a **fine-grained personal access token** set up as follows:
 - Commits are attributed to the token owner; the agent name goes in the commit message and author name.
 - Add a ruleset on `main` to block force pushes and deletions.
 
-## Open check
-Netlify's pricing table lists per-deploy-context env var values as "Not included" on Free **[UNVERIFIED]**. Before launch, run `netlify env:set GITHUB_TOKEN <value> --context production --secret`. If Free refuses it:
-- the token will also be visible to Deploy Preview and branch builds;
-- disable deploy previews and branch deploys, or raise the decision with Dr. Lee.
+- **Open check before launch:** Netlify's pricing table lists per-deploy-context env var values as "Not included" on Free **[UNVERIFIED]**. Before launch, run `netlify env:set GITHUB_TOKEN <value> --context production --secret`. If Free refuses it, the token will also be visible to Deploy Preview and branch builds. In that case, disable deploy previews and branch deploys, or raise the decision with Dr. Lee.
 
 ## Revisit when
 More people use the Console, the token is suspected leaked, or bot-attributed commits are wanted. Then move to a GitHub App.

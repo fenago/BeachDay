@@ -1,5 +1,4 @@
 # Anthropic engineering guidance on orchestrating agents
-
 Source: https://www.anthropic.com/engineering/multi-agent-research-system ; https://www.anthropic.com/engineering/building-effective-agents ; https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#subagent-orchestration ; https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#time-signals-for-multi-agent-harnesses
 Retrieved: 2026-11-23
 

@@ -20,12 +20,13 @@
 | Check | Level |
 |---|---|
 | Agent `name` equals the filename | ERROR |
-| `personality` present (one line) | ERROR |
+| `personality` present (one line); `persona` is a capitalised first name | ERROR |
+| Body has a `## Who you are` section naming the persona in bold | WARN |
 | Every expert has `disallowedTools: Agent` and no `Agent`/`Task` in `tools` | ERROR |
 | The orchestrator's `Agent(...)` list equals the set of expert files, with nothing missing and nothing extra | ERROR |
 | Every agent preloads `beach-day-context` and `change-proposal-protocol` | ERROR |
 | `tools`, `model` and `color` set explicitly; body mentions HANDOFF; body points to `knowledge/<name>/` and the folder exists | WARN |
-| Every skill is preloaded by some agent; CLAUDE.md and `docs/expert-roster.md` mention every agent and skill (skip with `--no-docs`) | WARN |
+| Every skill is preloaded by some agent; CLAUDE.md, `docs/expert-roster.md` and `docs/agent-brains.md` mention every agent (and persona or skill) (skip with `--no-docs`) | WARN |
 | A token-shaped secret in an agent file | ERROR |
 
 Also included:
@@ -61,24 +62,23 @@ Run on 2026-11-23, Node v22.23.5, `yaml` 2.9.1 installed in a scratch directory 
 ```
 Linted 11 agent(s) in .claude/agents and 22 skill(s) in .claude/skills
 WARN  .claude/skills/claude-code-agent-authoring/SKILL.md: description contains < or >; shown as HTML entities
-WARN  .claude/agents/software-architect.md: knowledge/software-architect/ referenced but missing
 INFO  .claude/agents/orchestrator.md: Agent(...) matches the 10 expert files
 INFO  .claude/agents/orchestrator.md: Agent(...) is enforced only when run as `claude --agent orchestrator` (docs: sub-agents)
 
-0 error(s), 2 warning(s), 2 info
+0 error(s), 1 warning(s), 2 info
 exit=0
 ```
 
 Issues to report, not fix here:
 
 1. The `claude-code-agent-authoring` description contains `<name>` (`.claude/skills/<name>/SKILL.md`). The skills docs say angle brackets in `description` display as `&lt;`/`&gt;`, so the listing shows HTML entities. Suggested fix for agent-builder: write `[name]` instead.
-2. `knowledge/software-architect/` was missing at the moment of the run because it was being written in the same session. It is no longer missing once this knowledge build finishes.
+2. An earlier run in the same session also warned that `knowledge/software-architect/` was missing. That folder was still being written; the final run above is clean. The repo gained the custom `persona:` field and a `## Who you are` section while this example was being built, so the linter learned both (`persona` is no longer reported as an unknown field).
 
-All 11 agents passed every ERROR check: frontmatter on line 1, YAML parses, name and description, name equals filename, valid model and color, all `skills:` folders exist, both required skills preloaded, personality present, `disallowedTools: Agent` on all 10 experts, and the orchestrator's `Agent(...)` list exactly matches the 10 expert files.
+All 11 agents passed every ERROR check: frontmatter on line 1, YAML parses, name and description, name equals filename, valid model and color, all `skills:` folders exist, both required skills preloaded, personality and persona present (each with a matching "Who you are" section and a mention in `docs/agent-brains.md`), `disallowedTools: Agent` on all 10 experts, and the orchestrator's `Agent(...)` list exactly matches the 10 expert files.
 
 **Model example (`../01-model-agent-and-skill/`):** 0 errors. The only warnings are the shared one above and the expected `knowledge/fixture-curator/` missing (it is a template, not a roster agent).
 
-**Broken fixtures:** 12 errors caught, exit 1. Excerpt:
+**Broken fixtures:** 13 errors caught, exit 1. Excerpt:
 
 ```
 ERROR broken-fixtures/agents/bad-yaml.md: YAML does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 2, column 23: → Claude Code skips this agent
@@ -87,11 +87,12 @@ ERROR broken-fixtures/agents/reviewer.md: unknown field "disalowedTools" is sile
 ERROR broken-fixtures/agents/reviewer.md: model "gpt-5" is not an alias (sonnet/opus/haiku/fable/inherit) or a claude-* ID
 ERROR broken-fixtures/agents/reviewer.md: color "teal" not in red, blue, green, yellow, purple, orange, pink, cyan
 ERROR broken-fixtures/agents/reviewer.md: skill "missing-skill" has no folder with SKILL.md → silently not preloaded
+ERROR broken-fixtures/agents/reviewer.md: convention: persona must be a first name (got undefined)
 ERROR broken-fixtures/agents/reviewer.md: expert must have disallowedTools: Agent (hub-and-spoke)
 ERROR broken-fixtures/agents/orchestrator.md: Agent(...) lists agents with no file: ghost-agent
 ERROR broken-fixtures/skills/Wrong_Name/SKILL.md: name "wrong-name" != folder "Wrong_Name"
 ...
-12 error(s), 26 warning(s), 2 info
+13 error(s), 26 warning(s), 2 info
 exit=1
 ```
 

@@ -1,5 +1,4 @@
 # Prompting the current models (Opus 5.5 focus)
-
 Source: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5 ; https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#model-specific-guidance
 Retrieved: 2026-11-23
 
@@ -40,4 +39,4 @@ From [prompting-claude-opus-5-5](https://platform.claude.com/docs/en/build-with-
 - **Audit our bodies for legacy lines.** Remove "think step by step and show your reasoning", "CRITICAL: you MUST...", and prefill-style instructions. None exist today; keep it that way.
 - **Console chat shows progress.** Opus 5.5 progress notes come back as `thinking` blocks. The Console's SSE `text` events will be empty during long tool loops unless the function requests `display: "updates"` and forwards those summaries. Raise this with agent-console-engineer via the orchestrator. The beta header name is time-bound; re-check it before relying on it.
 - **Pasted text in the Console:** when a user pastes a log or file into chat, wrap it with the random-ID tag pattern before sending. This is one layer of the prompt-injection defense in `agent-console-security`, not a replacement for the server-side allow-list.
-- **Model choice per role stays as in the authoring skill:** `opus` for judgement (orchestrator, architect, security, console engineer, agent-builder) and `sonnet` for build/test. Opus 5.5 at `medium` is cheaper than Opus 5 at `high`, which weakens the cost argument for downgrading judgement roles.
+- **Model choice per role** is recorded in `docs/agent-brains.md`: `opus` for the orchestrator, architect, security and Console engineer; `sonnet` for the other seven, including agent-builder (moved from `opus`); `haiku` for none yet. Opus 5.5 at `medium` matches Opus 5 at `high` on coding, so re-check the `sonnet` choices against evals before assuming `opus` is too costly.

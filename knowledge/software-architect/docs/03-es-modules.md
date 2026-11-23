@@ -1,5 +1,4 @@
 # JavaScript modules in the browser (no framework, no bundler)
-
 Source: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules
 Retrieved: 2026-11-23
 

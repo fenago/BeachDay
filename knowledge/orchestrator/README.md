@@ -21,7 +21,7 @@ Read this index first. Open a file only when the task needs it; none of these ar
 |---|---|---|
 | [examples/01-seven-day-view-plan/](examples/01-seven-day-view-plan/) | Full plan for "add a 7-day view": fit check, parallel waves, who is *not* called, exact briefs, three HANDOFFs and how each was routed, gates, report | Planning a feature end to end |
 | [examples/02-task-briefs-and-handoffs/](examples/02-task-briefs-and-handoffs/) | Three model briefs (build, blocking security review, design) with their HANDOFFs, plus `validate-handoff.mjs`, which checks required fields, the status enum and test claims (ran: 6 valid, 4 invalid caught) | Writing a brief, or checking an expert's HANDOFF before routing it |
-| [examples/03-review-gate-router/](examples/03-review-gate-router/) | `requiredReviewers(paths)` implementing the change-proposal-protocol gate table, with 13 passing `node:test` tests | Deciding which reviewers a change needs, or whether it costs a deploy |
+| [examples/03-review-gate-router/](examples/03-review-gate-router/) | `requiredReviewers(paths)` implementing the change-proposal-protocol gate table, with 14 passing `node:test` tests | Deciding which reviewers a change needs, or whether it costs a deploy |
 
 ## Five rules to remember
 

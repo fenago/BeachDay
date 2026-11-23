@@ -25,11 +25,11 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Allow-listed path (docs/04 §6). Rejects '..', absolute paths, backslashes and every DENY prefix.",
+            "description": "Allow-listed path (docs/04 §6 ALLOW: public/**/*.{html,css,js,json,webmanifest,svg}, public/_headers, tests/**, docs/**, .claude/agents/*.md, .claude/skills/**/*.md). Rejects '..', absolute paths, backslashes, .env files and every DENY prefix.",
             "allOf": [
-              { "pattern": "^(public/[^\\\\]+|tests/[^\\\\]+|docs/[^\\\\]+|\\.claude/agents/[^/\\\\]+\\.md|\\.claude/skills/[^\\\\]+\\.md)$" },
-              { "not": { "pattern": "(^|/)\\.\\.(/|$)" } },
-              { "not": { "pattern": "(^|/)\\.env" } }
+              { "type": "string", "pattern": "^(public/[^\\\\]+\\.(html|css|js|json|webmanifest|svg)|public/_headers|tests/[^\\\\]+|docs/[^\\\\]+|\\.claude/agents/[^/\\\\]+\\.md|\\.claude/skills/[^\\\\]+\\.md)$" },
+              { "not": { "type": "string", "pattern": "(^|/)\\.\\.(/|$)" } },
+              { "not": { "type": "string", "pattern": "(^|/)\\.env" } }
             ]
           },
           "content": { "type": "string", "maxLength": 204800, "description": "Complete new file contents (text only). maxLength counts characters; the server also checks bytes." },
@@ -42,9 +42,9 @@
     "rejectReason": { "type": "string", "maxLength": 500 }
   },
   "allOf": [
-    { "if": { "properties": { "status": { "const": "committed" } } }, "then": { "required": ["commitSha", "decidedAt"] } },
-    { "if": { "properties": { "status": { "const": "rejected" } } }, "then": { "required": ["decidedAt"] } },
-    { "if": { "properties": { "status": { "enum": ["pending", "stale", "rejected"] } } }, "then": { "not": { "required": ["commitSha"] } } }
+    { "if": { "properties": { "status": { "const": "committed" } } }, "then": { "properties": { "commitSha": true, "decidedAt": true }, "required": ["commitSha", "decidedAt"] } },
+    { "if": { "properties": { "status": { "const": "rejected" } } }, "then": { "properties": { "decidedAt": true }, "required": ["decidedAt"] } },
+    { "if": { "properties": { "status": { "enum": ["pending", "stale", "rejected"] } } }, "then": { "not": { "properties": { "commitSha": true }, "required": ["commitSha"] } } }
   ],
   "$defs": {
     "sha1": { "type": "string", "pattern": "^[0-9a-f]{40}$" }

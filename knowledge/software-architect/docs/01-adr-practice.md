@@ -1,5 +1,4 @@
 # Architecture Decision Records (ADR) practice
-
 Source: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions (Michael Nygard, 2011) ; https://adr.github.io/
 Retrieved: 2026-11-23
 

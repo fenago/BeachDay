@@ -1,5 +1,4 @@
 # Subagent file format and every frontmatter field
-
 Source: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields (read as https://code.claude.com/docs/en/sub-agents.md)
 Retrieved: 2026-11-23
 
@@ -77,8 +76,8 @@ A family alias such as `opus` runs the **parent's version** when the parent is i
 
 ## Beach Day notes
 
-- **Required by Claude Code:** `name`, `description`. **Required by us** (`claude-code-agent-authoring` skill): also `tools`, `model`, `color`, `skills` (always including `beach-day-context` and `change-proposal-protocol`), `personality`, and `disallowedTools: Agent` on every expert.
-- **`personality` is a custom field.** Claude Code silently ignores unknown fields, which is why it's safe, and why a typo like `skill:` or `disallowedtools:` (wrong case) also fails silently. The linter in `examples/02-agent-skill-linter/` flags unknown keys and close misspellings.
+- **Required by Claude Code:** `name`, `description`. **Required by us** (`claude-code-agent-authoring` skill): also `tools`, `model`, `color`, `skills` (always including `beach-day-context` and `change-proposal-protocol`), the custom `persona` (first name) and `personality` (one line), a `## Who you are` body section, and `disallowedTools: Agent` on every expert (see `docs/agent-brains.md`).
+- **`persona` and `personality` are custom fields.** Claude Code silently ignores unknown fields, which is why they're safe, and why a typo like `skill:` or `disallowedtools:` (wrong case) also fails silently. The linter in `examples/02-agent-skill-linter/` flags unknown keys and close misspellings.
 - **Name = filename** is our convention (the Agent Console's `agents.json` build and the orchestrator's `Agent(...)` list assume it), even though Claude Code doesn't require it.
 - **Skills cap:** our largest preload list (agent-console-engineer) has 12 skills, well under 32. Each preloaded skill costs tokens on every spawn, so keep skills lean.
 - **Model aliases → API IDs for the Console:** `opus` → `claude-opus-5-5`, `sonnet` → `claude-sonnet-5-5`, `haiku` → `claude-haiku-5-5`, `fable` → `claude-fable-5-2` (from the authoring skill / docs/05). Inside Claude Code, an alias may resolve to the parent session's version instead (see above).

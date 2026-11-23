@@ -1,5 +1,4 @@
 # Restricting tools, spawnable agents, nesting depth and models
-
 Source: https://code.claude.com/docs/en/sub-agents (sections "Control subagent capabilities", "Let subagents spawn their own subagents", "Choose a model")
 Retrieved: 2026-11-23
 

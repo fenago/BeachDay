@@ -76,9 +76,10 @@ export const GATES = [
   {
     id: 'production',
     table: 'Anything going to production',
-    // Paths that trigger a Netlify production deploy. Mirrors the proposed
-    // `[build] ignore` in docs/03 (`-- public netlify`) plus build inputs.
-    paths: ['public/**', 'netlify/**', 'netlify.toml', 'package.json', 'package-lock.json', 'scripts/**'],
+    // Paths that trigger a Netlify production deploy: exactly the paths in the `[build] ignore`
+    // command in docs/03 (`-- public netlify scripts .claude netlify.toml package.json package-lock.json`).
+    // `.claude` is included because the Console's agents.json is built from it.
+    paths: ['public/**', 'netlify/**', 'scripts/**', '.claude/**', 'netlify.toml', 'package.json', 'package-lock.json'],
     reviewers: ['qa-engineer'],
   },
 ];
