@@ -71,6 +71,14 @@ try {
   assert.ok(!JSON.stringify(cs).includes('/api/'), '/api/* must never be cached');
   log('caches:', JSON.stringify(cs));
 
+  // 2b. Never-cached set: version.json, Console page, vendored auth bundle, generated config, Console modules.
+  const NEVER = ['/version.json', '/console.html', '/vendor/supabase-auth-js-0.0.0.mjs', '/generated/config.js', '/js/console/main.js'];
+  for (const p of NEVER) assert.equal(await page.evaluate(async (u) => (await fetch(u)).status, p), 200, p);
+  assert.equal(await page.evaluate(async () => (await (await fetch('/sw.js')).text()).includes('beachday-shell-')), true);
+  cs = await cacheState();
+  for (const p of [...NEVER, '/sw.js']) assert.ok(!JSON.stringify(cs).includes(p), `${p} must never be cached`);
+  log('never cached:', [...NEVER, '/sw.js'].join(' '));
+
   // 3. Network-first with 4 s timeout: slow Open-Meteo -> cached copy served after ~4 s.
   mode = 'slow';
   const t0 = Date.now();
@@ -94,6 +102,10 @@ try {
   assert.equal(apiOffline, 'failed', '/api/* must not be served from cache');
   log(`offline reload: shell from cache, status = "${offlineText}", /api/hello -> ${apiOffline}`);
 
+  const consoleOffline = await page.evaluate(() => fetch('/vendor/supabase-auth-js-0.0.0.mjs').then(() => 'ok', () => 'failed'));
+  assert.equal(consoleOffline, 'failed', 'vendored auth bundle must not be served from cache');
+  log('offline: vendored auth bundle -> failed (not cached)');
+
   // 4b. The installed app launches at start_url "/?source=pwa": the precache holds "/", so ignoreSearch must match it.
   await page.goto(`${ORIGIN}/?source=pwa`);
   await page.waitForFunction(() => /showing data from|no saved/.test(document.querySelector('#status').textContent));
@@ -112,6 +124,7 @@ try {
   });
   assert.deepEqual(waiting, { waiting: 'installed', active: 'activated' });
   assert.equal(await swVersion(), 'v1', 'old worker still controls the page while the new one waits');
+  assert.equal(await page.evaluate(async () => (await (await fetch('/version.json')).json()).version), 'v2', 'version.json is fresh through the old SW');
   cs = await cacheState();
   assert.ok(cs['beachday-shell-v1'] && cs['beachday-shell-v2'], 'both shells exist while waiting');
   log('update found: v2 waiting, toast shown, page still on v1');

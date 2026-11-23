@@ -22,6 +22,10 @@ export function startServer({ port = 0, version = 'v1' } = {}) {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       return res.end(JSON.stringify({ hits: apiHits }));
     }
+    if (url.pathname === '/version.json') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      return res.end(JSON.stringify({ version }));
+    }
     const path = url.pathname === '/' ? '/index.html' : url.pathname;
     const file = normalize(join(ROOT, path));
     if (!file.startsWith(ROOT)) { res.writeHead(403); return res.end(); }

@@ -123,7 +123,7 @@ Each skill becomes one folder under `.claude/skills/<skill-id>/SKILL.md`. Skills
 | `apple-hig` | Key Human Interface Guidelines: layout, navigation, touch targets, typography, feedback, platform conventions for the web | ux-designer-apple-hig, ui-designer-apple-liquid-glass, pwa-mobile-engineer |
 | `liquid-glass-visual-design` | Web take on Liquid Glass: `backdrop-filter` materials, layering, tint, motion; fallbacks for `prefers-reduced-transparency`/`-motion`; contrast rules; system font stack (no bundled SF Pro, whose licence is limited to Apple platforms) | ui-designer-apple-liquid-glass, ux-designer-apple-hig |
 | `accessibility-wcag22` | WCAG 2.2 AA checklist for this app: contrast, target size, focus, reflow, color-not-alone for verdicts, live regions for chat | ux-designer-apple-hig, ui-designer-apple-liquid-glass, qa-engineer, pwa-mobile-engineer, agent-console-engineer |
-| `testing-vitest-playwright` | Vitest for scoring and parsing, Playwright mobile profiles, offline and SW tests, `@axe-core/playwright`, function tests, CI on deploy previews | qa-engineer, open-meteo-integrator, pwa-mobile-engineer, agent-console-engineer |
+| `testing-vitest-playwright` | Vitest for scoring and parsing, Playwright mobile profiles, offline and SW tests, `@axe-core/playwright`, function tests, QA green on the main deploy, rollback ready (ADR-0003) | qa-engineer, open-meteo-integrator, pwa-mobile-engineer, agent-console-engineer |
 | `performance-budgets` | Page weight and Core Web Vitals targets, image/icon budgets, cost of `backdrop-filter` on low-end phones | pwa-mobile-engineer, ui-designer-apple-liquid-glass, software-architect, qa-engineer |
 
 ### Skill matrix

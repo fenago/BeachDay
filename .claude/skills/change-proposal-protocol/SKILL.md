@@ -17,7 +17,7 @@ description: How any Beach Day agent proposes or makes code changes — small re
 - Send **complete new file contents** for each changed file, plus a one-paragraph `summary` covering what, why and how it was tested.
 - Only allow-listed paths are accepted. Deny wins.
   - **Allowed:** `public/**` (text types only), `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`.
-  - **Denied:** `public/_headers`, `public/_redirects`, `public/sw.js` and every file `sw.js` imports, `netlify/**`, `netlify.toml`, `.github/**`, `package*.json`, `scripts/**`, `.env*`, `.git/**`, `.gitmodules`, `.claude/settings*`, `*.pem`, `*.key`, and any binary or non-text file.
+  - **Denied:** `public/_headers`, `public/_redirects`, `public/sw.js` and every file it imports (`public/sw/**`), `public/vendor/**`, `public/generated/**`, `public/version.json`, `netlify/**`, `netlify.toml`, `.github/**`, `package.json`, `package-lock.json`, `scripts/**`, `**/.env*`, `.git/**`, `.gitmodules`, `.claude/settings*`, `**/*.pem`, `**/*.key`, and any binary or non-text file.
   - Open question for Dr. Lee: also deny `public/console.html` and `public/js/console/**` (security-engineer's recommendation). Until he rules, they are allowed.
 - Limits: at most 20 files and 200 KB per file, text files only.
 - Never include secrets, tokens or keys in proposed content. Proposals are secret-scanned and rejected if they contain any.
