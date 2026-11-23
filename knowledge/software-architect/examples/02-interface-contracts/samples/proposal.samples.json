@@ -397,5 +397,24 @@
    "decidedAt": "2026-11-23T15:10:00Z",
    "commitSha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
   }
+ },
+ {
+  "expect": "invalid",
+  "why": "public/version.json is build output and deny-listed",
+  "data": {
+   "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "agent": "open-meteo-integrator",
+   "status": "pending",
+   "createdAt": "2026-11-23T15:04:05Z",
+   "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+   "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+   "files": [
+    {
+     "path": "public/version.json",
+     "content": "{}\n"
+    }
+   ],
+   "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  }
  }
 ]

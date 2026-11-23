@@ -28,7 +28,7 @@ Auth on **every** route (ADR-0006): `Authorization: Bearer <Supabase access toke
 | `POST /api/proposals/:id/approve` | sync | Bearer + super_admin + step-up (§4) | Body `{contentHash}`; re-validate, cap check (ADR-0008), commit to GitHub |
 | `POST /api/proposals/:id/reject` | sync | Bearer + super_admin | Mark rejected |
 
-Background functions can't answer the caller (they return `202` immediately), so the **sync** `/api/jobs` wrapper checks auth and limits and creates the job record, including a random 256-bit nonce. It then calls `/api/jobs-run`, forwarding the caller's `Authorization` header and `{jobId, nonce}`. The background function repeats the token and role check, consumes the nonce with a compare-and-swap, and does nothing if either check fails. No shared signing secret is needed. Deploy status needs no function: the Console polls `/generated/version.json` (ADR-0006 §8).
+Background functions can't answer the caller (they return `202` immediately), so the **sync** `/api/jobs` wrapper checks auth and limits and creates the job record, including a random 256-bit nonce. It then calls `/api/jobs-run`, forwarding the caller's `Authorization` header and `{jobId, nonce}`. The background function repeats the token and role check, consumes the nonce with a compare-and-swap, and does nothing if either check fails. No shared signing secret is needed. Deploy status needs no function: the Console polls `/version.json` (ADR-0006 §8, docs/03).
 
 ### 2.1 Shared contracts (builders code against these)
 
@@ -119,7 +119,8 @@ export const DENY = [        // DENY wins over ALLOW
   "public/sw.js",            // and everything it imports (see the convention below)
   "public/sw/**",
   "public/vendor/**",        // vendored @supabase/auth-js (ADR-0006)
-  "public/generated/**",     // build output: config.js, version.json (ADR-0006)
+  "public/generated/**",     // build output: config.js (ADR-0006)
+  "public/version.json",     // build output (docs/03 §9)
   "netlify/**",              // functions, including this allow-list and approve
   "netlify.toml",
   ".github/**",
@@ -178,7 +179,7 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
 
 Headers: `Authorization: Bearer $GITHUB_TOKEN`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28` (supported until 10 Mar 2028; a newer `2026-03-10` exists — read its changelog before switching; [API versions](https://docs.github.com/en/rest/about-the-rest-api/api-versions)). Make requests **serially**; GitHub's secondary limits allow ≤80 content-creating requests/min and ≤500/hour ([rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)); honor `retry-after`.
 
-Netlify auto-deploys the push to `main` ([deploy overview](https://docs.netlify.com/deploy/deploy-overview/)). Show deploy status without a function (ADR-0006 §8): after `committed`, the Console polls `/generated/version.json` (`no-store`, never cached by the service worker) every 10 s until `commit` equals `commitSha` → "Live". After 10 min it shows "Still deploying — check Netlify". Rollback = "Publish deploy" on the previous deploy in Netlify (instant), or a revert commit.
+Netlify auto-deploys the push to `main` ([deploy overview](https://docs.netlify.com/deploy/deploy-overview/)). Show deploy status without a function (ADR-0006 §8): after `committed`, the Console polls `/version.json` (`no-store`, never cached by the service worker) every 10 s until `commit` equals `commitSha` → "Live". After 10 min it shows "Still deploying — check Netlify". Rollback = "Publish deploy" on the previous deploy in Netlify (instant), or a revert commit.
 
 **Decided (ADR-0003): Approve commits straight to `main`** using the steps above. The PR flow below is recorded as a future option only.
 

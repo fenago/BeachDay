@@ -25,7 +25,7 @@ We will use Supabase Auth for identity only. The system boundary becomes:
 
 2. **Keys.** We will use only the project URL and the **publishable** key, in the browser and in functions alike. The secret key and the legacy `service_role` key are never put in an env var, the repo or any code. The build fails if `SUPABASE_PUBLISHABLE_KEY` does not start with `sb_publishable_`. This catches a pasted secret key and the legacy JWT-style keys, which look alike.
 
-3. **Config reaches the browser at build time.** The build step (netlify-engineer's script, docs/03) writes `public/generated/config.js` from the env vars, exporting `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `BUILD_VERSION` (from `COMMIT_REF`). It also writes `public/generated/version.json` as `{"commit": "<COMMIT_REF>"}`. It never prints env. `public/generated/` is git-ignored, so the env var stays the single source of truth for functions and browser alike. There is no `/api/config` endpoint, because every function requires a token (point 5).
+3. **Config reaches the browser at build time.** The build step (netlify-engineer's script, docs/03) writes `public/generated/config.js` from the env vars, exporting `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `BUILD_VERSION` (from `COMMIT_REF`). The same step writes `public/version.json` (`{version, commit, builtAt}`, docs/03 §9). It never prints env. Both outputs are git-ignored, so the env var stays the single source of truth for functions and browser alike. There is no `/api/config` endpoint, because every function requires a token (point 5).
 
 4. **Library: vendored, pinned, auth only.**
    - We will vendor `@supabase/auth-js` at an exact version (2.119.2 when this was written). A human bundles it once with esbuild (ESM, browser platform, minified) into `public/vendor/supabase-auth-js-<version>.mjs` and commits it with its MIT licence file.
@@ -53,9 +53,9 @@ We will use Supabase Auth for identity only. The system boundary becomes:
      - non-secret: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `GITHUB_REPO`;
      - secret: `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`.
 
-8. **No unauthenticated functions.** We will drop the planned `deploy-succeeded` event function. The Console shows "Live" by polling `/generated/version.json` (served `no-store`, never cached by the service worker) until `commit` equals the approved `commitSha`.
+8. **No unauthenticated functions.** We will drop the planned `deploy-succeeded` event function. The Console shows "Live" by polling `/version.json` (served `no-store`, never cached by the service worker) until `commit` equals the approved `commitSha`.
 
-9. **Agents cannot edit the auth plumbing.** `public/vendor/**` and `public/generated/**` join the Console deny-list (docs/04 §6). The canonical list is in docs/04 §6 and in the `change-proposal-protocol` skill.
+9. **Agents cannot edit the auth plumbing.** `public/vendor/**`, `public/generated/**` and `public/version.json` join the Console deny-list (docs/04 §6). The canonical list is in docs/04 §6 and in the `change-proposal-protocol` skill.
 
 ## Consequences
 - **Good:** real per-person accounts, so the audit log records a user id instead of "console". Password reset, email confirmation, leaked-password protection and Google sign-in come from Supabase instead of our own code. Two secrets fewer to rotate or leak (`CONSOLE_PASSWORD_HASH`, `SESSION_SECRET`). The bearer token is sent in a header, not a cookie, which removes the cookie-CSRF class; security-engineer confirms this in docs/04 §3.
@@ -75,7 +75,7 @@ We will use Supabase Auth for identity only. The system boundary becomes:
   - Dr. Lee: the manual Supabase setup in docs/README.md "Build plan".
   - supabase-auth-engineer: the verification mechanism and the profiles/RLS SQL.
   - security-engineer: docs/04 §3, §4, §9 and §10, and the CSP `connect-src` for the Supabase origin.
-  - netlify-engineer: the generated config, version.json, the env table and the header scoping in docs/03.
+  - netlify-engineer: the generated `config.js` (alongside the `version.json` it already specifies), the env table and the header scoping in docs/03.
   - agent-console-engineer: Bearer handling in the Console client and docs/04 §1, §2 and §5.
   - qa-engineer: 401/403/503 tests on every function.
 

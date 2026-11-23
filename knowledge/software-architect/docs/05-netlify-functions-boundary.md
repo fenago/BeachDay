@@ -65,6 +65,6 @@ Design rules that follow:
 2. **Every function begins `requireAuth()`** (token + `super_admin` role, docs/04 §4, ADR-0006). There are no exceptions and no unauthenticated functions. Background functions can't answer the caller, so the sync `/api/jobs` wrapper authenticates first, and `jobs-run` authenticates again and consumes a single-use nonce.
 3. **Idempotent background work.** Key by job ID, check status first, write with `onlyIfNew` (Blobs), never commit from a job. Commits happen only in approve.
 4. **Time budget inside 60 s.** The chat function hands off to a job at about 45 s by emitting `handoff`.
-5. **No event functions.** `deploySucceeded` was dropped (ADR-0006 §8) because it can't carry a Bearer token. The Console's "Live" state comes from polling `/generated/version.json`.
+5. **No event functions.** `deploySucceeded` was dropped (ADR-0006 §8) because it can't carry a Bearer token. The Console's "Live" state comes from polling `/version.json`.
 6. **Immutable deploys:** a Deploy Preview runs that commit's function code. Production secrets (`GITHUB_TOKEN`) are meant to exist only in the Production context (ADR-0005), so preview functions can't commit or read GitHub. Whether Free can scope env per context is [UNVERIFIED]; see docs/03.
 7. Any new route, store or external call is a **trust-boundary change**. It needs security-engineer + netlify-engineer review and, if it changes ADR-0006's scope, a Proposed ADR. Auth changes also need supabase-auth-engineer.

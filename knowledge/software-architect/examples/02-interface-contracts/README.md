@@ -9,7 +9,7 @@ Four contracts that builders can code against in parallel. All are JSON Schema 2
 | `schemas/forecast-hour.schema.json` | `api/openmeteo.js` normalizer → `score.js` | Fixed units (°F, mph, inch, ft). WMO code 0–99. Marine fields are **present but `null`** when missing, never absent or guessed. SST already converted to °F |
 | `schemas/day-verdict.schema.json` | `scoreDay()` → UI | Verdict **key** (`great/good/fair/skip`), not display text. Score bands tied to the verdict with `if/then` (80–100, 65–79, 45–64, 0–44). ≤4 reasons. `confidence: forecast \| outlook`. `marineAvailable: false` requires the reason "Wave data unavailable" |
 | `schemas/sse-event.schema.json` | `/api/chat` function → Console UI | `oneOf` union of the six docs/04 §2.1 event types: `text`, `tool`, `proposal`, `handoff`, `error`, `done`. `additionalProperties: false` everywhere, so an error can't leak a `stack`. Tool names are limited to the Console's three tools. ≤20 files, ≤200 KB each. `error.code` includes `unauthorized` (401) and `forbidden` (403, not `super_admin`). IDs `p_`/`j_` + 26-char ULID |
-| `schemas/proposal.schema.json` | `propose_change` → Blobs → approve | ID `^p_[0-9A-Z]{26}$`. Status enum `pending/committing/committed/failed/stale/rejected` (docs/04 §2.1). 40-hex SHAs, `sha256:` content hash, `decidedBy` = Supabase user id. Path shape mirrors the **canonical list** in docs/04 §6: ALLOW `public/**` text types, `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`; DENY wins: `public/_headers`, `public/_redirects`, `public/sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `..`, `.env*`, `*.pem`, `*.key`. `committed` requires `commitSha` + `decidedAt`; `failed`/`stale` require `error`; only `committed` may carry `commitSha` |
+| `schemas/proposal.schema.json` | `propose_change` → Blobs → approve | ID `^p_[0-9A-Z]{26}$`. Status enum `pending/committing/committed/failed/stale/rejected` (docs/04 §2.1). 40-hex SHAs, `sha256:` content hash, `decidedBy` = Supabase user id. Path shape mirrors the **canonical list** in docs/04 §6: ALLOW `public/**` text types, `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`; DENY wins: `public/_headers`, `public/_redirects`, `public/sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `public/version.json`, `..`, `.env*`, `*.pem`, `*.key`. `committed` requires `commitSha` + `decidedAt`; `failed`/`stale` require `error`; only `committed` may carry `commitSha` |
 
 `validate.mjs` performs four checks:
 
@@ -38,7 +38,7 @@ cd /tmp/scratch/contracts && node validate.mjs
 
 ## Verified
 
-**Re-run 2026-11-23 after ADR-0006/0007 and the canonical list** (Node v22.23.5, ajv 8.20.0, ajv-formats 3.0.1). Changes: IDs `p_`/`j_` + ULID; statuses `committing` and `failed` added; `forbidden` error code; `_headers` sample flipped to invalid; new deny samples for `sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `_redirects` and `.claude/settings.json`; old `prop_`/`job_` prefixes now rejected. 39 sample checks plus the fixture and SSE round trip:
+**Re-run 2026-11-23 after ADR-0006/0007 and the canonical list** (Node v22.23.5, ajv 8.20.0, ajv-formats 3.0.1). Changes: IDs `p_`/`j_` + ULID; statuses `committing` and `failed` added; `forbidden` error code; `_headers` sample flipped to invalid; new deny samples for `sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `public/version.json`, `_redirects` and `.claude/settings.json`; old `prop_`/`job_` prefixes now rejected. 39 sample checks plus the fixture and SSE round trip:
 
 ```
 PASS  proposal#7 expect=invalid got=invalid — public/_headers is deny-listed (canonical list, Dr. Lee decision 7)
@@ -48,6 +48,7 @@ PASS  proposal#14 expect=valid got=valid — console UI is allowed until Dr. Lee
 PASS  proposal#15 expect=invalid got=invalid — old prop_ prefix is no longer valid [/id must match pattern "^p_[0-9A-Z]{26}$"]
 PASS  proposal#17 expect=invalid got=invalid — stale without error [/ must have required property 'error'; ...]
 PASS  proposal#18 expect=invalid got=invalid — committing must not carry commitSha yet [...]
+PASS  proposal#19 expect=invalid got=invalid — public/version.json is build output and deny-listed [/files/0/path must NOT be valid]
 PASS  sse-event#10 expect=valid got=valid — forbidden: signed in but not super_admin (ADR-0006)
 PASS  sse-event#11 expect=invalid got=invalid — old job_ prefix [...]
 ... (39 sample checks, all PASS)

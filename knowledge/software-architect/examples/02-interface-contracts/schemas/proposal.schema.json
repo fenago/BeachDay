@@ -78,7 +78,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Canonical list (docs/04 §6). ALLOW: public/** with a text extension (html, css, js, json, webmanifest, svg, txt, md), tests/**, docs/**, .claude/agents/*.md, .claude/skills/**/*.md. DENY wins: public/_headers, public/_redirects, public/sw.js, public/sw/**, public/vendor/**, public/generated/**, netlify/**, netlify.toml, .github/**, package*.json, scripts/**, .env*, .git/**, .gitmodules, .claude/settings*, *.pem, *.key. Case-insensitive matching is enforced server-side; JSON Schema regexes are case-sensitive.",
+            "description": "Canonical list (docs/04 §6). ALLOW: public/** with a text extension (html, css, js, json, webmanifest, svg, txt, md), tests/**, docs/**, .claude/agents/*.md, .claude/skills/**/*.md. DENY wins: public/_headers, public/_redirects, public/sw.js, public/sw/**, public/vendor/**, public/generated/**, public/version.json, netlify/**, netlify.toml, .github/**, package*.json, scripts/**, .env*, .git/**, .gitmodules, .claude/settings*, *.pem, *.key. Case-insensitive matching is enforced server-side; JSON Schema regexes are case-sensitive.",
             "allOf": [
               {
                 "type": "string",
@@ -87,7 +87,7 @@
               {
                 "not": {
                   "type": "string",
-                  "pattern": "^public/(_headers|_redirects|sw\\.js)$"
+                  "pattern": "^public/(_headers|_redirects|sw\\.js|version\\.json)$"
                 }
               },
               {

@@ -58,7 +58,7 @@ Nothing is built yet. This round changed only docs, ADRs, agents, skills and kno
 
 **Phase 1: platform skeleton** (netlify-engineer, then security-engineer review)
 - `netlify.toml`, `public/_headers` (CSP including the Supabase origin for `connect-src`), and the `ignore` rule.
-- The build script that writes `public/generated/config.js` and `public/generated/version.json`, stamps `sw.js`, and never prints env.
+- The build script that writes `public/generated/config.js` and `public/version.json`, stamps `sw.js`, and never prints env.
 - The vendored `public/vendor/supabase-auth-js-<version>.mjs`, committed by a human.
 
 **Phase 2: beach app, in parallel** (open-meteo-integrator, pwa-mobile-engineer, ui and ux designers)
