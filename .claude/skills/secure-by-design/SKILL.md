@@ -5,7 +5,7 @@ description: Baseline security rules for all Beach Day code — secrets handling
 # Secure by design
 
 ## Secrets
-- **The secrets are `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`**, plus `GITHUB_READ_TOKEN` if Dr. Lee accepts the read-token ADR (docs/04 §4.6).
+- **The secrets are `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`**, plus `GITHUB_READ_TOKEN` only if Dr. Lee accepts ADR-0009 (Proposed; docs/04 §4.6). Until then it is not created.
   - They live **only** in Netlify secret env vars, Production context, and are read only inside functions.
   - Functions that use them refuse to run outside `context.deploy.context === "production"`.
 - **`SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` are public by design.**
@@ -19,7 +19,7 @@ description: Baseline security rules for all Beach Day code — secrets handling
 - If a secret leaks, rotate it first, then investigate. After rotating, trigger a new deploy, because functions keep the old value until then.
 
 ## Least privilege
-- **GitHub:** a fine-grained PAT for one repo with Contents read/write only, read only by the approve function. Reads use a public-read-only token if Dr. Lee accepts it.
+- **GitHub:** a fine-grained PAT for one repo with Contents read/write only. Today (ADR-0007) approve writes with it and `chat`/`jobs-run` read with it through a module with no write methods. If Dr. Lee accepts ADR-0009, reads move to `GITHUB_READ_TOKEN` (public repositories only, no permissions, no fallback) and only approve loads `GITHUB_TOKEN`.
 - **Anthropic:** a dedicated workspace with a low spend limit.
 - **Supabase:** the publishable key plus the user's own token, so RLS always applies. API roles have no write privilege on `profiles`.
 - **Functions:** do one job each and read only the env vars they need.

@@ -151,7 +151,7 @@ Machine-checkable JSON Schemas for these shapes are in `knowledge/software-archi
 
 ## 3. Threat model (what we defend against)
 
-Owner: security-engineer. Updated 2026-11-23 for ADR-0006 (Supabase Auth), ADR-0007 (reads from GitHub `main`) and ADR-0008 (Approve cap). Mechanisms are in §4, limits in §9, headers in §10.
+Owner: security-engineer. Updated 2026-11-23 for ADR-0006 (Supabase Auth), ADR-0007 (reads from GitHub `main`) ADR-0008 (Approve cap) and the Proposed ADR-0009 (read token); wave 3b added the returned-error 503 rule, the header pre-check and the email-flow settings. Mechanisms are in §4, limits in §9, headers in §10.
 
 **Trust boundary in one paragraph.** Anyone on the internet can create a Supabase account, so "signed in" means nothing on its own. The only privilege is `profiles.role = 'super_admin'`, which only Dr. Lee sets by hand. Every function re-checks it on every request. The browser holds the user's tokens in `localStorage` on the **same origin as the public beach app**, so any script that runs anywhere on the site can read them. Agents can propose changes but never commit, and a human Approve after a fresh sign-in is the only path to `main`.
 
@@ -163,9 +163,9 @@ Owner: security-engineer. Updated 2026-11-23 for ADR-0006 (Supabase Auth), ADR-0
 | Token theft through XSS | Injected script on **any** page of the origin (beach app or Console) reads the Supabase session from `localStorage` | Strict CSP with `script-src 'self'`, no inline script, no CDN (§10). `textContent` only. 10-minute access tokens (§4.3). Approve needs a fresh sign-in, which a stolen token can't produce (§4.2). Approved `public/**/*.js` and `*.html` changes are reviewed as privileged code; the proposal card warns. **Open for Dr. Lee:** deny `public/console.html` and `public/js/console/**` to agents |
 | Stolen or signed-out token replayed | A token copied from a device, or a user who signed out but whose token is still valid | Access tokens live 10 minutes (§4.3). Tokens are never logged or stored server-side. Approve also calls `getUser(token)` (§4.2) |
 | Walk-up Approve | Someone uses an unlocked laptop with a live Console tab | Step-up before Approve: a password or Google sign-in no more than 10 minutes old, plus `aal2` if the user has a TOTP factor (§4.2) |
-| Account takeover through the auth flows | Open redirect leaks the auth code; reset form reveals which emails exist; weak password; attacker signs up first with Dr. Lee's address | PKCE; exact redirect allow-list; email confirmation on; reset copy never says whether an address exists; minimum length 12; promote only a confirmed user id; TOTP recommended for `super_admin` (§4.5) |
+| Account takeover through the auth flows | Open redirect leaks the auth code; reset form reveals which emails exist; weak password; attacker signs up first with Dr. Lee's address | PKCE; `token_hash` email links acted on only by a tap; exact redirect allow-list; Confirm email **and** Confirm phone on, so sign-up doesn't say "already registered"; custom SMTP; default Auth rate limits; reset copy never says whether an address exists; minimum length 12; promote only a confirmed user id; TOTP recommended for `super_admin` (§4.5) |
 | Secret leakage to the browser | API key or GitHub token in a bundle, response or `config.js` | Secrets only in function env vars; `config.js` is written from three named non-secret variables only; responses never echo env; Netlify secret scanning; CSP |
-| Over-privileged token | The token can touch other repos, or the write token is exposed by the chat code | Fine-grained PAT, this repo only, Contents R/W, no Workflows (ADR-0005), read only by approve. Recommended: a separate public-read-only token for the read tools (§4.6, needs an ADR) |
+| Over-privileged token | The token can touch other repos, or the write token is exposed by the chat code | Fine-grained PAT, this repo only, Contents R/W, no Workflows (ADR-0005), read only by approve. Proposed: a separate public-read-only token for the read tools (ADR-0009, §4.6, awaiting Dr. Lee) |
 | Agent writes dangerous files | Proposes `netlify/functions/approve.mts`, `.github/workflows/*`, `netlify.toml`, `public/_headers`, `public/vendor/**` | Server-side allow-list and deny-list, re-checked at Approve (§6); no Workflows permission |
 | Agent-written code runs with secrets | A proposed test runs during the Netlify build, where Free gives every step every secret | No `vitest` in the Netlify build; `scripts/**` denied; tests run in GitHub Actions with a read-only token and no secrets (§4.7) |
 | Prompt injection | A repo file or chat text says "commit this secret" or "widen the allow-list" | Agents have no commit tool; human Approve with a visible diff; policy in code, re-checked at Approve; secrets never in prompts; read tools refuse `.env*`, `*.pem`, `*.key` (ADR-0007) |
@@ -173,7 +173,8 @@ Owner: security-engineer. Updated 2026-11-23 for ADR-0006 (Supabase Auth), ADR-0
 | Replay or double Approve | Approve clicked twice, or a proposal edited after review | Content hash shown and compared; CAS status; one approve in flight; base-SHA check (§7) |
 | Cost abuse | Loops, huge prompts, too many jobs | Netlify rate rules, per-user counters, per-job caps, a site-wide compute budget, the Approve cap and the Anthropic spend limit (§9) |
 | Preview deploys with production powers | A branch deploy reads `GITHUB_TOKEN` and commits | Secrets set for the Production context; Deploy Previews and branch deploys turned off; functions refuse GitHub and Claude calls unless `context.deploy.context === "production"` (§4.6) |
-| Supabase down or project paused | Auth or PostgREST unreachable | Fail closed (503). The beach app has no auth code and keeps working |
+| Supabase down or project paused | Auth or PostgREST unreachable | Fail closed (503), including errors auth-js **returns** rather than throws (§4.1 step 5, §4.2 rule 1). The beach app has no auth code and keeps working |
+| Forged-token flood | Random tokens with unknown `kid` or `HS256` make every `getClaims` call Supabase from the function's IP | Header pre-check (§4.1 step 1) once asymmetric keys are confirmed; Netlify rate rules on chat and jobs (§9) |
 
 **Residual risks (accepted, revisit if the user base grows):**
 - An XSS anywhere on the origin, including an approved malicious `public/**/*.js`, can use the tokens for chat and proposals, and can approve within 10 minutes of a real step-up. CSP and diff review are the controls. Moving the Console to its own origin would remove this; it needs an ADR.
@@ -189,10 +190,11 @@ Decision: ADR-0006. Reference code: `knowledge/supabase-auth-engineer/examples/0
 Every `/api/*` handler runs this first, before reading the body, counting limits, or touching Blobs, GitHub or Claude:
 
 1. `Authorization: Bearer <access token>` is present and has three dot-separated parts. Otherwise **401**, with `www-authenticate: Bearer`.
+   - **Header pre-check (decided; switched on once the project's asymmetric signing keys are confirmed, pre-launch test (f) in §4.2).** Decode only the JWT header. If it isn't a JSON object, if `alg` isn't `ES256` or `RS256`, or if `kid` isn't a non-empty string, answer **401** with no network call. This verifies nothing (step 2 does). It exists because `getClaims` falls back to `GET /auth/v1/user` for an unknown `kid` or an `HS*` alg, so every cheap forgery would cost one Auth call from the function's shared IP, and the per-IP `user` limit (30 per 5 min by default, knowledge/supabase-auth-engineer/docs/06) is the same bucket Approve's `getUser` may draw from (**UNVERIFIED**). A forgery with a plausible `kid` still costs one call; that is accepted. If the project turns out to use the legacy HS256 secret, the pre-check stays off, because it would reject every real token. Reference: security-engineer example 01, `precheckJwtHeader`.
 2. `supabase.auth.getClaims(token)` verifies the signature and `exp` against the project's JWKS. The token is passed explicitly. Never `getSession()` on a server, and never `allowExpired`. An invalid token gets **401**.
 3. The function checks the claims itself, because `getClaims` doesn't: `iss === <SUPABASE_URL>/auth/v1`, `aud === "authenticated"`, `is_anonymous !== true`, and `sub` is a string. Otherwise **401**.
 4. It reads the role with one PostgREST call made as the caller: `GET <SUPABASE_URL>/rest/v1/profiles?select=role&id=eq.<sub>`, with `apikey: <publishable key>` and the caller's Bearer token. A PostgREST 401 means **401**. Anything other than exactly one row with `role === "super_admin"` means **403**.
-5. A network error, timeout, 5xx, cold-JWKS fetch failure or any unexpected exception means **503 `unavailable`**. Never allow, never echo the error.
+5. A network error, timeout, 5xx, cold-JWKS fetch failure or any unexpected exception means **503 `unavailable`**. **auth-js returns these as `{ error }` instead of throwing**, so map `isAuthRetryableFetchError(error)` to 503 and any other returned auth error to 401, and treat any throw as 503. Code that only catches throws turns an outage into a 401 and sends the user to sign in again. Never allow, never echo the error.
 6. The function logs the user id (`sub`), route, status and `requestId`. It never logs the token or the `Authorization` header.
 
 Rules that go with it:
@@ -205,15 +207,16 @@ Rules that go with it:
 
 `reauthenticate()` is **not** a step-up: it sends a nonce for password changes only and does nothing for Google-only users (knowledge/supabase-auth-engineer/docs/03). Instead, `POST /api/proposals/:id/approve` runs these checks after §4.1, and all of them must hold:
 
-1. `getUser(token)` succeeds, returns the same id as `sub`, and the user is not banned. A network failure means **503**. An error or an empty user means **401 `unauthorized`**.
+1. `getUser(token)` succeeds, returns the same id as `sub`, and the user is not banned. `getUser` **returns** network and 5xx failures as `{ error: AuthRetryableFetchError }`; it doesn't throw them. A returned retryable error, or any throw, means **503 `unavailable`**. Any other returned error (for example `session_not_found` after sign-out, `user_banned`) or an empty user means **401 `unauthorized`**. (Fixed 2026-11-23 in example 01, which had mapped only a throw to 503.)
 2. The token's `amr` claim has an entry with method `password` or `oauth` whose `timestamp` is **no more than 600 s old** (and no more than 60 s in the future).
-3. `user.last_sign_in_at` is no more than 600 s old. This is a server-side corroboration of rule 2.
+3. `user.last_sign_in_at` is no more than 600 s old. This is a server-side corroboration of rule 2, not a substitute (see below).
 4. If the user has any verified MFA factor, `aal === "aal2"`.
 
 If any check fails, the response is **401 `{"error":{"code":"step_up_required"}}`**, and the proposal stays `pending`.
 
 Why it is built this way:
 - Supabase documents `amr` as the way to require that a user "recently signed in with a password" (auth-mfa guide, read from the `supabase/supabase` docs source on 2026-11-23). `token_refresh`, `recovery`, `otp`, `magiclink` and the other methods don't count.
+- **Rule 2 binds the step-up to this session; rule 3 does not.** In the Auth server source, each `amr` timestamp belongs to one session and one method: a sign-in creates a new session and writes it, and a refresh writes nothing (knowledge/supabase-auth-engineer/docs/03). `last_sign_in_at` belongs to the **user**, so a sign-in on any other device, including an attacker's own sign-in elsewhere with stolen credentials, also makes it fresh. Never relax rule 2 on the strength of rule 3.
 - **TOTP is additive, never a substitute.** A thief with a stolen aal1 session could enrol their own factor, so a fresh `totp` entry alone never passes (tested in example 01).
 - Supabase TOTP MFA "is free to use and is enabled on all Supabase projects by default" (auth-mfa/totp guide). **Recommended to Dr. Lee:** enrol TOTP on the `super_admin` account. A Google step-up then also needs a code, which closes the residual risk in §3.
 
@@ -223,11 +226,13 @@ Browser flow (Wren owns the copy):
 - Allow paste and password managers (WCAG 3.3.8).
 
 **Pre-launch tests on the real project. Approve stays disabled until they pass** (supabase.com was blocked from the sandbox, so these are **UNVERIFIED**):
-- (a) the `password`/`oauth` `amr` timestamp keeps the sign-in time across a token refresh;
+- (a) the `password`/`oauth` `amr` timestamp keeps the sign-in time across a token refresh (the server source supports this);
 - (b) a new sign-in in the same browser gives a new, current timestamp;
-- (c) `last_sign_in_at` changes on password and Google sign-in, and not on refresh;
+- (c) `last_sign_in_at` changes on password and Google sign-in, and not on refresh (the server source supports this);
 - (d) `getUser` after `signOut({scope:'local'})`. If it still succeeds, a signed-out token works until `exp`. That is accepted with 10-minute tokens, but record it;
-- (e) a TOTP verify yields `aal2`.
+- (e) a TOTP verify yields `aal2`;
+- (f) a real access token's header has `alg` `ES256` or `RS256` and a `kid` (Dashboard shows asymmetric signing keys). Only then is the §4.1 header pre-check switched on;
+- (g) with Supabase unreachable from the function, Approve answers `503 unavailable`, not 401.
 
 If (a) fails, security-engineer re-specifies rule 2 before launch.
 
@@ -253,18 +258,23 @@ If (a) fails, security-engineer re-specifies rule 2 before launch.
 The browser never attaches an `Authorization` header by itself, and we send **no** `Access-Control-Allow-*` headers. So a page on another origin can't make an authorised request, and the old CSRF token and cookie are gone (ADR-0006). We keep three cheap layers:
 - **Origin check.** On every POST, reject with **403** when `Sec-Fetch-Site` is present and not `same-origin`, or when `Origin` is present and not the site URL (including `null`). When both are absent, the call is server to server and passes, because no browser credential can ride along (example 01).
 - **No state change from a URL.** No query string, hash or redirect ever triggers Approve, Reject, a chat turn or a job.
-- **PKCE** for OAuth, plus email links, protects against login CSRF and code interception. `frame-ancestors 'none'` protects against clickjacking.
+- **PKCE** for OAuth protects against login CSRF and code interception. `frame-ancestors 'none'` protects against clickjacking.
+- **Email links use `token_hash`, and a tap, not the URL, acts (§4.5).** `/console?token_hash=…&type=…` only shows a "Confirm" screen; `verifyOtp` runs when the person taps the button, and the page then removes `token_hash` and `type` from the URL with `history.replaceState`. That keeps link scanners from using up the link and keeps the rule above. Residual risk, accepted: someone can mail a victim a link for the *attacker's* account (login CSRF). The victim ends up signed in as a non-admin account that gets 403 on Agents; the Console shows which email is signed in. Google `error`, `error_code` and `error_description` parameters are never rendered as raw text; show fixed copy and strip them.
 
 ### 4.5 Supabase project settings and roles (Dr. Lee, by hand)
 
 | Setting | Value |
 |---|---|
-| Email confirmation | **On** |
+| Confirm email | **On** |
+| Confirm phone | **On**, even though phone sign-in stays off. The setting names are exactly "Confirm email" and "Confirm phone": auth-js `signUp` JSDoc, "When both **Confirm email** and **Confirm phone** (even when phone provider is disabled) are enabled ... an obfuscated/fake user object is returned. When either ... is disabled, the error message, `User already registered` is returned." That error is account enumeration. Source quoted in knowledge/supabase-auth-engineer/docs/06; matches the Auth server source; hosted **UNVERIFIED** |
+| Custom SMTP | **Required before launch.** The built-in sender mails only members of the project's organisation team, 2 emails an hour, and is "not meant for production use" (auth-smtp guide). Without it, strangers' sign-up and reset emails fail. The SMTP password lives in Supabase only, never in the repo or Netlify |
+| Email templates | Confirm signup and Reset password link to our own page with `{{ .TokenHash }}`, for example `{{ .SiteURL }}?token_hash={{ .TokenHash }}&type=email` and `&type=recovery`, as a **query string, never a `#` fragment**. The page calls `verifyOtp({ token_hash, type })` only when the person taps a button (§4.4). A PKCE `?code=` link works only in the browser that started the flow, so it fails in the installed app's mail hand-off. Exact template strings **UNVERIFIED** until tried |
+| Auth rate limits | Keep the defaults (Authentication → Rate Limits): confirmation and reset emails one per **60 s** per user; `signup`, `recover`, `resend`, `otp`, `user` 30 per 5 min per IP; `/token` 150 per 5 min per IP; `/verify` 30 per 5 min per IP; MFA verify 15 per minute per IP (fixed). Never raise them to work around a support issue without security-engineer review. The per-user 60 s cooldown may answer 429 only for real addresses (**UNVERIFIED** side channel): the UI shows the same neutral "sent" status for 200 and a per-user 429 on reset and resend |
 | Password minimum length | **12**. No character-class rules (our choice); allow paste and password managers |
 | Leaked-password protection | Pro plan and above only. On Free it isn't available: the length rule, Google sign-in and TOTP compensate |
 | Anonymous sign-ins | **Off** (the check rejects `is_anonymous` anyway) |
 | Site URL | `https://<production host>/console` |
-| Redirect URLs | Exact entries only: `https://<production host>/console` and the reset URL Wren chooses. No `*` or `**`, no Netlify preview pattern, no `localhost` (use a separate dev project) |
+| Redirect URLs | Exact entries only: `https://<production host>/console` (the reset link is `/console?token_hash=…&type=recovery`, built from the Site URL in the template, so it needs no extra entry). No `*` or `**`, no Netlify preview pattern, no `localhost` (use a separate dev project). How query strings match the allow-list is **UNVERIFIED**; the Google return route is kept in `sessionStorage`, and `redirectTo` never contains `#` |
 | Google provider | Client secret lives in Supabase only, never in the repo or Netlify. Authorised origin is the production origin |
 | JWT expiry | 600 s (§4.3) |
 | Signing keys | Asymmetric (so `getClaims` verifies locally); confirm in the Dashboard (**UNVERIFIED** for this project) |
@@ -285,11 +295,10 @@ Env-var **scopes** (Builds/Functions/Runtime) are Pro+. On Free every build step
 3. **In code:** functions that call GitHub or Claude return **503 `unavailable`** unless `context.deploy.context === "production"`, before reading the secret.
 4. **Build:** nothing agent-writable runs during the build, and build scripts never print env (§4.7).
 
-**Read token (ADR-0007 open question). Recommendation: yes, add one.**
+**Read token: [ADR-0009](adr/0009-public-read-token-for-agent-reads.md), Proposed, awaiting Dr. Lee.** Security-engineer recommended it; the ADR is the canonical statement (option C, fail closed, no fallback to the write token, a token-name scan test, a pre-launch read test). Until Dr. Lee accepts it, ADR-0007 stands: same `GITHUB_TOKEN`, read-only module, and `GITHUB_READ_TOKEN` is **not** created. On acceptance it gets the same four layers as the other secrets. Summary of why:
 - GitHub states that fine-grained tokens "always include read-only access to all public repositories" (managing-your-personal-access-tokens, read from the `github/docs` source on 2026-11-23). A token with **Public repositories** access and **no permissions** can therefore serve `read_file`/`list_files` while the repo is public.
 - If it leaks, it grants nothing an anonymous visitor lacks, apart from its rate budget.
 - `chat` and `jobs-run` then load `GITHUB_READ_TOKEN`, and only `approve` loads the write `GITHUB_TOKEN`.
-- It adds a secret and changes the trust boundary, so software-architect drafts an ADR (Proposed) for Dr. Lee. Until he accepts it, ADR-0007 stands: same token, read-only module.
 - If the repo goes private, this has to be revisited.
 
 ### 4.7 Tests, CI and the build
@@ -529,6 +538,7 @@ Recommended addition: `Cross-Origin-Opener-Policy: same-origin`. It is safe beca
 Security items (security-engineer owns them; qa-engineer writes the tests):
 - [ ] Every `/api/*` function runs the token-and-role check first (§4.1). On **every** function, tests prove: no token → 401; garbage, expired, bad-signature, wrong-`iss` or anonymous token → 401; role `user` or no row → 403; Supabase or JWKS down → 503; and nothing touches Blobs, GitHub or Claude in any of those cases. For `/api/jobs-run`: no work and no writes.
 - [ ] Approve: `getUser` + step-up (§4.2). Tests: primary sign-in 601 s old → 401 `step_up_required`; only `token_refresh` fresh → 401; fresh `totp` with stale sign-in → 401; verified factor with `aal1` → 401; fresh sign-in → passes.
+- [ ] `getClaims` and `getUser` failures that auth-js **returns** (`AuthRetryableFetchError`, network or 5xx) → 503 on every function and on Approve, tested with a returned error, not a thrown one. Once (f) passes: the header pre-check returns 401 for `HS256`, `none`, a missing `kid` or a non-JSON header with no network call.
 - [ ] **Pre-launch on the real project** (§4.2 a–e), plus: Netlify secret scanning does not flag `sb_publishable_…` in `config.js`. Approve stays disabled until these pass.
 - [ ] `POST` routes reject a cross-site `Sec-Fetch-Site` or a foreign `Origin` with 403. No `/api/*` response carries `Access-Control-Allow-*` or `Set-Cookie`.
 - [ ] No secret appears in any response, log or bundle. A test greps `public/` and the build output for `sk-ant-`, `github_pat_`, `ghp_`, `sb_secret_` and full JWTs.

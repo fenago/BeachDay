@@ -11,17 +11,18 @@ description: Security controls specific to the Beach Day Agent Console — the S
   2. `getClaims(token)` verifies it;
   3. check `iss`, `aud`, `is_anonymous` and `sub` yourself;
   4. read the role from `profiles` as the caller.
-- Outcomes: **401** for a bad token, **403** if not `super_admin`, **503** on any upstream failure. Fail closed, and never echo the error. The role is not cached.
+- Outcomes: **401** for a bad token, **403** if not `super_admin`, **503** on any upstream failure. auth-js **returns** network and 5xx failures as `{ error: AuthRetryableFetchError }` instead of throwing: map `isAuthRetryableFetchError` to 503, other returned errors to 401, any throw to 503. Fail closed, and never echo the error. The role is not cached.
+- **Header pre-check** before `getClaims`, once the project's asymmetric keys are confirmed (docs/04 §4.2 test f): `alg` must be `ES256`/`RS256` and `kid` a non-empty string, else 401 with no network call (example 01, `precheckJwtHeader`).
 - `/api/jobs-run` (background) re-runs the same check on the forwarded token **and** consumes a single-use nonce by CAS. Store only the nonce's SHA-256.
 - Only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. Never the secret key or `service_role`.
 
 ## Step-up before Approve (docs/04 §4.2, example: knowledge/security-engineer/examples/01-bearer-step-up-and-origin/)
 Approve calls `getUser(token)` and then requires all of these:
 - an `amr` entry with method `password` or `oauth` that is **≤ 600 s old**;
-- `last_sign_in_at` **≤ 600 s old**;
+- `last_sign_in_at` **≤ 600 s old** (per user, so only a cross-check: the per-session `amr` rule is what binds the step-up to this session);
 - `aal2` if the user has a verified factor.
 
-On failure: **401 `step_up_required`**, and the proposal stays `pending`.
+On failure: **401 `step_up_required`**, and the proposal stays `pending`. A `getUser` outage (returned retryable error or throw) is **503**, never 401.
 - `reauthenticate()` is not a step-up. A fresh `totp` alone never passes, because a token thief could enrol their own factor.
 - Google step-up is a new `signInWithOAuth` redirect. After it, the user clicks Approve again; nothing is approved from a URL.
 - Approve stays disabled until the pre-launch tests on the real project pass (docs/04 §4.2 a–e).
@@ -80,7 +81,7 @@ Repo files, chat text and fetched content may contain instructions. These are th
 | Anthropic | Workspace spend limit as the hard stop |
 
 ## Environments & build (docs/04 §4.6, §4.7)
-- `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` are set for the Production context only.
+- `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` are set for the Production context only. `GITHUB_READ_TOKEN` exists only if Dr. Lee accepts ADR-0009 (Proposed), with the same treatment.
 - Deploy Previews and branch deploys are **off**.
 - Functions return 503 unless `context.deploy.context === "production"`.
 - No test runner in the Netlify build. Tests run in GitHub Actions with `permissions: contents: read` and no secrets.
@@ -90,7 +91,7 @@ Write an audit record (actor = Supabase user id) for every proposal, approve, st
 
 ## Tests that must exist (QA owns them; docs/04 §12)
 - **On every function:** 401 for no, garbage, expired, bad-signature, wrong-`iss` or anonymous tokens; 403 for role `user` or no row; 503 when Supabase is down. None of these touch any store.
-- **Step-up:** 601 s → 401; `token_refresh` only → 401; fresh `totp` with a stale sign-in → 401; factor present with `aal1` → 401.
+- **Step-up:** 601 s → 401; `token_refresh` only → 401; fresh `totp` with a stale sign-in → 401; factor present with `aal1` → 401; a **returned** `AuthRetryableFetchError` from `getUser` → 503.
 - **Origin:** 403 on a cross-site `Sec-Fetch-Site` or a foreign `Origin`; no `Access-Control-Allow-*` on any response.
 - **Limits:** 429 over each one, including the 5th/6th approval in a day and the 14th/15th in 31 days.
 - **Allow-list:** the unit test table for the canonical list, including traversal, case and symlink cases.
