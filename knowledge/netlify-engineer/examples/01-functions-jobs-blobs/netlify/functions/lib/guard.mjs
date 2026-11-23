@@ -1,3 +1,5 @@
+// SHAPE ONLY: the production verifier is supabase-auth-engineer example 01
+// (knowledge/supabase-auth-engineer/examples/01). This file shows order and status codes.
 // The auth check that is the FIRST line of every /api/* handler.
 //   Authorization: Bearer <access token>  ->  verifier(token)  ->  { sub, role }
 //   no/garbled header, or verifier says invalid  -> 401  (www-authenticate: Bearer)
@@ -16,15 +18,15 @@ export class InvalidToken extends Error {}
 // NOTE: this guard's verifier contract is THROW-BASED: resolve with { sub, role },
 // throw InvalidToken for a bad token (401), throw anything else for 503.
 // Supabase auth-js does NOT throw on a network or 5xx failure: it RETURNS
-// { data, error } with error.name === "AuthRetryableFetchError" (real code:
-// isAuthRetryableFetchError(error)). A real verifier must go through an adapter like
+// { data, error } with error.name === "AuthRetryableFetchError" (real code: auth-js isAuthRetryableFetchError(error); the test below copies it:
+// __isAuthError === true plus the name, like looksRetryable in security-engineer example 01). A real verifier must go through an adapter like
 // this one, or an outage would look like an invalid token (401 instead of 503).
 // `getClaims` here is any function returning { data: { claims } | null, error }.
 export function adaptClaimsVerifier(getClaims, roleOf) {
   return async (token) => {
     const res = await getClaims(token);
     if (res?.error) {
-      if (res.error.name === "AuthRetryableFetchError") throw new Error("auth upstream unavailable"); // -> 503
+      if (res.error.__isAuthError === true && res.error.name === "AuthRetryableFetchError") throw new Error("auth upstream unavailable"); // -> 503
       throw new InvalidToken(); // any other returned auth error: the token is not valid -> 401
     }
     const claims = res?.data?.claims;

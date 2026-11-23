@@ -20,7 +20,7 @@ The rules implement the review-gate table in `.claude/skills/change-proposal-pro
 | Visual tokens/components | `public/css/**` |
 | Service worker / manifest | `public/sw.js`, `public/manifest.webmanifest`, `public/offline.html`, `public/icons/**` |
 | `.claude/agents/**`, `.claude/skills/**` | same |
-| Anything going to production | `public/**`, `netlify/**`, `scripts/**`, `.claude/**`, `netlify.toml`, `package*.json` |
+| Anything going to production | `public/**`, `netlify/**`, `scripts/**`, `.claude/agents/**`, `netlify.toml`, `package*.json` |
 
 Some of these paths are **assumptions**: `public/js/copy/verdicts.js`, `public/js/console/*.js` and `netlify/functions/proposals/**` don't exist yet, because the repo has no code. Update `GATES` when the real files land. The "production" row uses exactly the paths in the `[build] ignore` command in `docs/03-architecture-netlify.md`. That list includes `.claude/`, because the Console's `agents.json` is rebuilt from it, so agent and skill edits are production deploys too.
 

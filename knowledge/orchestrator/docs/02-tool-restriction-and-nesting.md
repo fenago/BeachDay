@@ -57,7 +57,7 @@ Further rules:
 Our orchestrator frontmatter has:
 
 ```yaml
-tools: Agent(agent-builder, software-architect, open-meteo-integrator, pwa-mobile-engineer, security-engineer, agent-console-engineer, ui-designer-apple-liquid-glass, ux-designer-apple-hig, qa-engineer, netlify-engineer), Read, Grep, Glob, Bash, Edit, Write, WebFetch, WebSearch, Skill
+tools: Agent(agent-builder, software-architect, open-meteo-integrator, pwa-mobile-engineer, security-engineer, agent-console-engineer, supabase-auth-engineer, ui-designer-apple-liquid-glass, ux-designer-apple-hig, qa-engineer, netlify-engineer), Read, Grep, Glob, Bash, Edit, Write, WebFetch, WebSearch, Skill
 ```
 
 and every expert has `disallowedTools: Agent`.

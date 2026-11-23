@@ -84,6 +84,8 @@ test("guard: a RETURNED AuthRetryableFetchError (auth-js does not throw) -> 503,
   assert.equal(down.status, 503);
   assert.ok(!(await down.text()).includes("secret-detail"));
   assert.equal((await run({ data: null, error: invalid })).status, 401);
+  const spoof = Object.assign(new Error("x"), { name: "AuthRetryableFetchError" }); // right name, no __isAuthError marker
+  assert.equal((await run({ data: null, error: spoof })).status, 401, "the name alone is not enough");
   assert.equal((await run({ data: { claims: { sub: "u-admin" } }, error: null })).status, 202, "a good result still works");
 });
 

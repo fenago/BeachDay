@@ -60,7 +60,7 @@ self.addEventListener("activate", (event) => {
 ## 3. A secret leaked or may have leaked
 Rotate first, then investigate. Dr. Lee runs these; nobody pastes values into chat or the repo.
 
-**Setting a value without leaking it.** `netlify env:set NAME <value>` puts the value in shell history and the process list. Use the Netlify UI (Site configuration, Environment variables, mark it secret, Production context only), or:
+**Setting a value without leaking it. Default: the Netlify UI** (Site configuration, Environment variables, mark it secret, Production context only). `netlify env:set NAME <value>` puts the value in shell history and the process list. The CLI fallback keeps it out of history but **not out of `ps`** (the value is still an argument while the command runs), so use it only on a machine nobody else uses:
 ```
 read -rs V && netlify env:set NAME "$V" --context production --secret; unset V
 ```

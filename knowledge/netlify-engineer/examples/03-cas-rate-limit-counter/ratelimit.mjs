@@ -83,8 +83,17 @@ export function evaluate(times, now, caps = APPROVE_CAP) {
   return { allowed: false, reason, used31: live.length, usedToday: todayN, retryAt: retryAt.toISOString() };
 }
 
+// Fail closed: a record that exists but is not { times: [ISO-8601 UTC string, ...] } is an error
+// (the handler answers 503 `unavailable`), never an empty list (which would reset the cap).
+export function assertApprovalsShape(data) {
+  const t = data?.times;
+  const ok = Array.isArray(t) && t.every((x) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}T/.test(x) && Number.isFinite(Date.parse(x)));
+  if (!ok) throw new Error("site:approvals unreadable");
+}
+
 export async function checkApproveCap(store, now = new Date(), caps = APPROVE_CAP) {
   const cur = await store.getWithMetadata(APPROVE_KEY, { type: "json" });
+  if (cur !== null) assertApprovalsShape(cur.data);
   return evaluate(cur?.data?.times ?? [], now, caps);
 }
 
@@ -92,6 +101,7 @@ export async function checkApproveCap(store, now = new Date(), caps = APPROVE_CA
 export async function recordApproval(store, now = new Date(), { maxAttempts = 20 } = {}) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const cur = await store.getWithMetadata(APPROVE_KEY, { type: "json" });
+    if (cur !== null) assertApprovalsShape(cur.data);
     const kept = (cur?.data?.times ?? []).filter((t) => new Date(t).getTime() > now.getTime() - WINDOW_MS);
     const next = { times: [...kept, now.toISOString()] };
     const r = cur === null

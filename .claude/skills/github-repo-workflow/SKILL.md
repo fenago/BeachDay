@@ -28,13 +28,13 @@ Make each call **serially**.
 3. `GET /repos/fenago/BeachDay/git/commits/{headSha}` → `tree.sha`.
 4. `POST /repos/fenago/BeachDay/git/trees` with `{ base_tree, tree: [{ path, mode: "100644", type: "blob", content }] }`.
    - **Always** send `base_tree`. Leaving it out deletes every other file.
-   - To delete a file, send `sha: null`.
+   - **No deletions.** `propose_change` cannot delete, and approve never sends `sha: null` (docs/04 §6). Deleting a file is a human change.
    - Never use mode `120000` (symlink) or `160000` (submodule).
 5. `POST /repos/fenago/BeachDay/git/commits` with `{ message, tree, parents: [headSha], author: { name: "Beach Day Agent (<agent>)", email } }`.
 6. `PATCH /repos/fenago/BeachDay/git/refs/heads/main` with `{ sha: newCommitSha, force: false }`.
    - If this fails as not fast-forward, `main` moved since step 1. Retry from step 1 once; if it fails again, mark the proposal `stale`.
 
-Commit message format: `<summary first line>` + a blank line + `Proposal: <id>\nAgent: <name>\nApproved-via: Agent Console`.
+Commit message: `buildCommitMessage(summary, id)`, built by the server only (docs/04 §7 step 5). It is the one-line cleaned summary, a blank line, and a final line exactly `Beach-Day-Proposal: <id>`. Author name is `Beach Day Agent (<agent>)`. Agent text can never produce the trailer line; the reconciler relies on it.
 
 Do **not** use the Contents API (`PUT /contents/{path}`) for multi-file changes. It makes one commit per file and breaks under parallel calls.
 

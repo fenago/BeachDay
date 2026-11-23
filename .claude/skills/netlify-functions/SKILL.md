@@ -51,7 +51,7 @@ How background functions behave:
   2. Verify the token with Supabase (how is supabase-auth-engineer's call). Invalid, expired or wrong project: **401**.
   3. Look up the role. Not `super_admin`: **403**.
   4. Verifier or its config unavailable: **503**. **Fail closed**, and never echo the error.
-  5. **Production-context check** (`chat`, `jobs-run`, `approve`: the functions that read a secret): if `context.deploy.context !== "production"`, answer **503 `unavailable`** before reading the secret. On Free, per-context secrets are UNVERIFIED, so this is one of four required layers (docs/03 §6).
+  5. **Production-context check** (`chat`, `jobs-run`, `approve` and `GET /api/proposals/:id`: the functions that read a secret or call GitHub; the proposal GET uses only the read-only GitHub module): if `context.deploy.context !== "production"`, answer **503 `unavailable`** before reading the secret. On Free, per-context secrets are UNVERIFIED, so this is one of four required layers (docs/03 §6).
   6. Only then do the work.
   Use only the project URL and the publishable key. The Supabase secret / `service_role` key is used nowhere. A runnable shape: `knowledge/netlify-engineer/examples/01-functions-jobs-blobs/`.
 - **Set your own headers.** `_headers` does not apply to functions. Always send `cache-control: no-store`, a `content-type` and `x-content-type-options: nosniff`, including on 401, 403 and 503.

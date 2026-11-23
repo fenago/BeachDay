@@ -162,6 +162,18 @@ test("approve cap: 30 parallel recordApproval calls lose none (CAS), and old tim
 
 // ---- site-wide compute budget (site:compute) -------------------------------
 const MIN = 60_000;
+test("approve cap: an unreadable site:approvals record or a store error fails closed (throws, so the handler answers 503), never an empty list", async () => {
+  const now = new Date("2026-11-23T15:00:00Z");
+  for (const bad of [{}, { times: null }, { times: "x" }, { times: ["not a date"] }, { times: [123] }, { times: ["2026-11-01T00:00:00Z", null] }]) {
+    const store = createFakeStore();
+    await store.setJSON(APPROVE_KEY, bad);
+    await assert.rejects(() => checkApproveCap(store, now), /unreadable/, JSON.stringify(bad));
+    await assert.rejects(() => recordApproval(store, now), /unreadable/, JSON.stringify(bad));
+  }
+  const broken = { getWithMetadata: async () => { throw new Error("blobs down"); } };
+  await assert.rejects(() => checkApproveCap(broken, now));
+});
+
 test("compute budget: one fixed record, 180 minutes pending Dr. Lee, chat needs 60 s and a job 5 min", () => {
   assert.equal(COMPUTE_KEY, "site:compute");
   assert.deepEqual(COMPUTE_BUDGET, { windowMinutes: 180, chatNeedMs: 60_000, jobNeedMs: 300_000 });

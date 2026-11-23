@@ -40,13 +40,14 @@ ok 10 - approve cap: the window is rolling, not a calendar month, and a time exa
 ok 11 - approve cap: sequential check-then-record admits exactly 5 on one day
 ok 12 - approve cap: failed, stale and rejected approvals are never recorded (record only on committed)
 ok 13 - approve cap: 30 parallel recordApproval calls lose none (CAS), and old times are pruned on write
-ok 14 - compute budget: one fixed record, 180 minutes pending Dr. Lee, chat needs 60 s and a job 5 min
-ok 15 - compute budget: sequential records add up; a turn is refused when less than 60 s is left; a job when less than 5 min
-ok 16 - compute budget: the window rolls (31 days, whole New York days, rounded outwards) and old buckets are pruned on write
-ok 17 - compute budget: an unreadable record or a store error fails closed (throws, so the handler answers 503), never allowed
-ok 18 - compute budget: 30 parallel recordCompute calls lose nothing (CAS), and the record stays small
-# tests 18
-# pass 18
+ok 14 - approve cap: an unreadable site:approvals record or a store error fails closed (throws, so the handler answers 503), never an empty list
+ok 15 - compute budget: one fixed record, 180 minutes pending Dr. Lee, chat needs 60 s and a job 5 min
+ok 16 - compute budget: sequential records add up; a turn is refused when less than 60 s is left; a job when less than 5 min
+ok 17 - compute budget: the window rolls (31 days, whole New York days, rounded outwards) and old buckets are pruned on write
+ok 18 - compute budget: an unreadable record or a store error fails closed (throws, so the handler answers 503), never allowed
+ok 19 - compute budget: 30 parallel recordCompute calls lose nothing (CAS), and the record stays small
+# tests 19
+# pass 19
 # fail 0
 ```
 Compute-budget mutation check: writing the day map without pruning old buckets fails test 16.
