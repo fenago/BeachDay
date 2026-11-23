@@ -212,5 +212,23 @@
    "message": "The Console has used its compute for now.",
    "retryable": false
   }
+ },
+ {
+  "expect": "valid",
+  "why": "refusal: one terminal error event, no done (docs/04 §2.1)",
+  "data": {
+   "type": "error",
+   "code": "refusal",
+   "message": "The agent declined this request. Try rephrasing it.",
+   "retryable": false
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "done.stopReason 'refusal' was dropped: refusals are reported only as error{code:refusal}",
+  "data": {
+   "type": "done",
+   "stopReason": "refusal"
+  }
  }
 ]
