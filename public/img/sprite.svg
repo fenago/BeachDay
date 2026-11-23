@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" focusable="false">
+  <!-- Beach Day icon sprite. Original artwork drawn for Beach Day (not SF Symbols, not traced from Apple art).
+       24x24 grid, 2px round strokes, currentColor. Use: <svg class="icon" aria-hidden="true"><use href="/img/sprite.svg#sun"/></svg>
+       Verdict map: sun = Great, sun-cloud = Good, cloud = Fair, storm = Skip it. No style attributes (CSP). -->
+
+  <!-- Weather and verdicts -->
+  <symbol id="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Sunny</title>
+    <circle cx="12" cy="12" r="4.25"/>
+    <path d="M12 2.5v2.25M12 19.25v2.25M2.5 12h2.25M19.25 12h2.25M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/>
+  </symbol>
+  <symbol id="sun-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Mostly sunny</title>
+    <path d="M5.6 11.2a3.3 3.3 0 1 1 5.9-2.6"/>
+    <path d="M8.5 2.5v1.5M2.5 8.5H4M4.3 4.3l1.05 1.05M12.7 4.3l-1.05 1.05"/>
+    <path d="M9 20.5h8.25a3.75 3.75 0 0 0 .45-7.47 5 5 0 0 0-9.45 1.32A3.1 3.1 0 0 0 9 20.5z"/>
+  </symbol>
+  <symbol id="cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Cloudy</title>
+    <path d="M7.25 19h10a4.25 4.25 0 0 0 .5-8.47 5.75 5.75 0 0 0-11 1.5A3.5 3.5 0 0 0 7.25 19z"/>
+  </symbol>
+  <symbol id="storm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Storms</title>
+    <path d="M7.5 15.5H6.9A3.4 3.4 0 0 1 6.6 8.7a5.6 5.6 0 0 1 10.7-1.45 4.15 4.15 0 0 1-.55 8.25"/>
+    <path d="M12.75 12.5l-2.5 4.25h3.5l-2.5 4.75"/>
+  </symbol>
+  <symbol id="rain" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Rain</title>
+    <path d="M7.5 14.5H6.9A3.4 3.4 0 0 1 6.6 7.7a5.6 5.6 0 0 1 10.7-1.45 4.15 4.15 0 0 1-.55 8.25"/>
+    <path d="M8.5 17.5l-1 2.5M12.5 17.5l-1 2.5M16.5 17.5l-1 2.5"/>
+  </symbol>
+  <symbol id="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Night</title>
+    <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.75 6.75 0 0 0 10.5 10.5z"/>
+  </symbol>
+  <symbol id="wind" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Wind</title>
+    <path d="M3 8.5h10.5a2.75 2.75 0 1 0-2.75-2.75"/>
+    <path d="M3 12.5h15a2.75 2.75 0 1 1-2.75 2.75"/>
+    <path d="M3 16.5h6.5a2.25 2.25 0 1 1-2.25 2.25"/>
+  </symbol>
+  <symbol id="wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Waves</title>
+    <path d="M2 7q2.5-3 5 0t5 0t5 0t5 0"/>
+    <path d="M2 12q2.5-3 5 0t5 0t5 0t5 0"/>
+    <path d="M2 17q2.5-3 5 0t5 0t5 0t5 0"/>
+  </symbol>
+  <symbol id="uv" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>UV index</title>
+    <path d="M6 16.5a6 6 0 0 1 12 0"/>
+    <path d="M12 4.5v3M4.6 8.6l2.1 2.1M19.4 8.6l-2.1 2.1M2.5 16.5h19M7 20.5h10"/>
+  </symbol>
+  <symbol id="thermometer" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Temperature</title>
+    <path d="M10 14.4V5a2 2 0 1 1 4 0v9.4a4.25 4.25 0 1 1-4 0z"/>
+    <path d="M12 9v8.25"/>
+  </symbol>
+  <symbol id="flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Beach flag</title>
+    <path d="M5.5 21.5V3"/>
+    <path d="M5.5 4h11.5l-2.75 4.25L17 12.5H5.5"/>
+  </symbol>
+
+  <!-- Status -->
+  <symbol id="info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Information</title>
+    <circle cx="12" cy="12" r="9.25"/>
+    <path d="M12 11v5.5M12 7.5h.01"/>
+  </symbol>
+  <symbol id="alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Warning</title>
+    <path d="M12 3.5l9.5 16.5h-19z"/>
+    <path d="M12 10v4.5M12 17.5h.01"/>
+  </symbol>
+  <symbol id="check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Done</title>
+    <circle cx="12" cy="12" r="9.25"/>
+    <path d="M8 12.3l2.8 2.8 5.4-5.6"/>
+  </symbol>
+  <symbol id="x-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Error</title>
+    <circle cx="12" cy="12" r="9.25"/>
+    <path d="M9 9l6 6M15 9l-6 6"/>
+  </symbol>
+  <symbol id="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Check</title>
+    <path d="M5 12.5l4.5 4.5L19 7.5"/>
+  </symbol>
+
+  <!-- Navigation and actions -->
+  <symbol id="chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Next</title>
+    <path d="M9.5 5l7 7-7 7"/>
+  </symbol>
+  <symbol id="chevron-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Back</title>
+    <path d="M14.5 5l-7 7 7 7"/>
+  </symbol>
+  <symbol id="chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Expand</title>
+    <path d="M5 9.5l7 7 7-7"/>
+  </symbol>
+  <symbol id="refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Refresh</title>
+    <path d="M20 11.5A8 8 0 0 0 5.6 7.2L4 9"/>
+    <path d="M4 4.5V9h4.5"/>
+    <path d="M4 12.5a8 8 0 0 0 14.4 4.3L20 15"/>
+    <path d="M20 19.5V15h-4.5"/>
+  </symbol>
+  <symbol id="location" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Nearest beach</title>
+    <circle cx="12" cy="12" r="3"/>
+    <circle cx="12" cy="12" r="7.75"/>
+    <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22"/>
+  </symbol>
+  <symbol id="star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Favorite</title>
+    <path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9-4.3-4.1 5.9-.8z"/>
+  </symbol>
+  <symbol id="close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Close</title>
+    <path d="M6 6l12 12M18 6L6 18"/>
+  </symbol>
+  <symbol id="external-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Opens another site</title>
+    <path d="M14 4.5h5.5V10"/>
+    <path d="M19.5 4.5L11 13"/>
+    <path d="M17.5 14.5v4a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 18.5V8a1.5 1.5 0 0 1 1.5-1.5h4"/>
+  </symbol>
+  <symbol id="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Locked</title>
+    <rect x="5" y="10.5" width="14" height="10" rx="2"/>
+    <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>
+  </symbol>
+  <symbol id="send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Send</title>
+    <path d="M12 19.5V5M5.5 11.5L12 5l6.5 6.5"/>
+  </symbol>
+  <symbol id="file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>File</title>
+    <path d="M7 3.5h6.5l4 4V19.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z"/>
+    <path d="M13.5 3.5v4h4"/>
+  </symbol>
+  <symbol id="book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Knowledge</title>
+    <path d="M4.5 19V5.5a2 2 0 0 1 2-2h13v14h-13a2 2 0 0 0 0 4h13"/>
+  </symbol>
+  <symbol id="clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Time</title>
+    <circle cx="12" cy="12" r="9.25"/>
+    <path d="M12 7v5.25l3.25 1.75"/>
+  </symbol>
+
+  <!-- Brand mark for the header: sun over waves. Original, simple, no text. -->
+  <symbol id="brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <title>Beach Day</title>
+    <path d="M7 12.5a5 5 0 0 1 10 0"/>
+    <path d="M12 3v2M4.8 6.3l1.4 1.4M19.2 6.3l-1.4 1.4"/>
+    <path d="M2.5 16q2.25-2.5 4.5 0t4.5 0t4.5 0t4.5 0"/>
+    <path d="M2.5 20.5q2.25-2.5 4.5 0t4.5 0t4.5 0t4.5 0"/>
+  </symbol>
+</svg>
