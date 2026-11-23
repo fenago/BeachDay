@@ -180,7 +180,7 @@ await proposals.setJSON(id, { ...p, status: "approved" }, { onlyIfMatch: etag })
 * **Rollback:** "Publish deploy" on any older deploy — instant, no rebuild. "Lock to stop auto publishing" pauses production. Deploys retained 30 days (90 on paid).
 * **Deploy Previews** for PRs (`deploy-preview-N--site.netlify.app`) and branch deploys (`branch--site.netlify.app`) — QA runs against these (doc 06).
 * **Build hooks:** `POST https://api.netlify.com/build_hooks/<id>` — not needed for the approve flow (the commit itself triggers the deploy), but useful as a manual "redeploy" button.
-* **Ignore builds:** `[build] ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- public netlify"` to skip deploys for docs-only commits (exit 0 = skip). This saves credits.
+* **Ignore builds:** `[build] ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- public netlify scripts .claude netlify.toml package.json package-lock.json"` (must include `.claude/` and `scripts/`, or agent-only changes would skip the build and the Console would show stale agents; tested in `knowledge/netlify-engineer/examples/02-netlify-toml-headers/`) to skip deploys for docs-only commits (exit 0 = skip). This saves credits.
 * Event functions (e.g. `deploy-succeeded`) can record "your approved change is live" in Blobs for the Console to show. [trigger on events](https://docs.netlify.com/build/functions/trigger-on-events/)
 
 ## 9. Plans & cost (credit-based, since 4 Sep 2025)
