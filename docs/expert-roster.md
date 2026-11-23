@@ -37,7 +37,7 @@ Revisit this if the app adds user accounts, push notifications, a native (Capaci
 
 ## 2. Agent profiles and skills
 
-Skill IDs refer to §3. Each agent's file should name these skills in its `skills:` frontmatter so their content is loaded at startup.
+Skill IDs refer to §3. These agents are implemented in `.claude/agents/<name>.md`, and each one preloads exactly these skills through its `skills:` frontmatter. The skills themselves are in `.claude/skills/<skill-id>/SKILL.md`. Experts have `disallowedTools: Agent`, so only the orchestrator delegates, and all handoffs go through it (see `CLAUDE.md`).
 
 ### 1. `orchestrator`
 **Job:** Runs the team: plans, delegates, sequences handoffs, enforces the definition of done, and reports to Dr. Lee.

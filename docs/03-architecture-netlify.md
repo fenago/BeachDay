@@ -193,6 +193,8 @@ await proposals.setJSON(id, { ...p, status: "approved" }, { onlyIfMatch: etag })
 
 Credit costs: **production deploy 15**, compute 10 / GB-hour, bandwidth 20 / GB, web requests 2 / 10k. [pricing](https://www.netlify.com/pricing/), [how credits work](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/)
 
+**Decided (ADR-0004): stay on the Free plan for now.** Revisit when the 300-credit cap gets close.
+
 **Important:** on Free, 300 credits ≈ **20 production deploys/month** with nothing else used. Every approved Agent Console change is a production deploy. Mitigations: batch several file changes into one commit (Git Database API, doc 04), use the ignore command for docs-only commits, consider Personal ($9) once the Console is in regular use, and enable auto-recharge or watch usage so the site doesn't pause.
 
 | Feature | Free | Pro+ |

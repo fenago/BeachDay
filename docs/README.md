@@ -29,9 +29,12 @@ Researched 2026-11-23. Each doc cites its sources inline and marks unverified it
 - **Claude API changes on current models:** `budget_tokens` and `thinking: disabled` are rejected, so is forced `tool_choice`, and assistant prefill is no longer allowed. Use adaptive thinking, an explicit effort level, `strict` tools, and handle refusals.
 - **Accessibility:** verdicts never rely on colour alone. Tap targets are 44 px, text over glass is checked for contrast, and the chat log uses `role="log"` with `aria-busy` while a reply streams.
 
-## Open decisions
+## Decisions (recorded in [adr/](adr/))
 
-1. Whether to add a cached proxy function for the NWS rip-current GeoJSON, which would be an exception to "functions only for Claude and GitHub". Check its CORS headers first.
-2. Whether Approve commits straight to `main` (the baseline) or uses the safer branch → PR → Deploy Preview → merge flow.
-3. Whether to stay on Netlify Free or move to Personal ($9/month) once the Console is used regularly.
-4. Fine-grained PAT (simple) or a GitHub App (tokens that expire after an hour, commits attributed to a bot).
+| ADR | Decision |
+|---|---|
+| [0001](adr/0001-static-site-plus-functions.md) | Static front end on Netlify + Netlify Functions for Claude and GitHub only; no other servers; browser calls Open-Meteo directly |
+| [0002](adr/0002-no-rip-current-proxy.md) | No rip-current proxy — link out to the National Weather Service |
+| [0003](adr/0003-approve-commits-to-main.md) | Approve commits straight to `main` (one atomic commit per proposal) |
+| [0004](adr/0004-netlify-free-plan.md) | Stay on the Netlify Free plan for now |
+| [0005](adr/0005-fine-grained-pat.md) | GitHub access via a fine-grained personal access token scoped to this repo |

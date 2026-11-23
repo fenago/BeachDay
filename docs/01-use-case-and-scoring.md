@@ -102,7 +102,7 @@ No authoritative public beach-score formula exists (commercial ones are propriet
 * `weather_code` ∈ {95, 96, 97, 99} → "Thunderstorms" (also mark the following hour per the 30-minute rule).
 * `wind_gusts_10m` ≥ 32 mph or `wind_speed_10m` ≥ 25 mph (Beaufort 6+) → "Too windy".
 * Heat index ≥ 103 °F → "Dangerous heat".
-* NWS rip risk **High** for the zone (if fetched, §5.4) → day capped at "Poor — rough surf, stay out of the water".
+* (Rip-current risk is **not** scored — ADR-0002. Every verdict shows "Check NWS rip-current risk and posted flags" with a link.)
 
 **Hourly score** = 100 minus penalties (floored at 0):
 
@@ -137,7 +137,7 @@ Forecast skill drops with lead time: label days 4+ as "Outlook" and show their v
 
 | Hazard | What to do |
 |---|---|
-| **Rip currents, surf, NWS UV** | NWS Miami publishes machine-readable beach forecasts: `https://www.weather.gov/source/mfl/beachforecast/MFL_GIS_day1.json` / `day2.json` (GeoJSON, zones Miami Beach, Fort Lauderdale, Palm Beach, Naples/Marco; properties `rip`, `uv`, `surf`, `tstorm`, `wtemp`, `srfprod`, `productDate`). **CORS unverified** — if the browser can't fetch it, either link out or add a tiny cached proxy function (an exception to the "functions only for Claude/GitHub" decision — architect must decide). Key West beaches are NWS Key West: link to https://www.weather.gov/key/. Text product: https://forecast.weather.gov/product.php?site=mfl&product=srf&issuedby=mfl |
+| **Rip currents, surf, NWS UV** | **Decided (ADR-0002): link out, no proxy.** Link each beach to its NWS office: Miami-area beaches → https://www.weather.gov/beach/mfl and the Surf Zone Forecast https://forecast.weather.gov/product.php?site=mfl&product=srf&issuedby=mfl ; Key West beaches → https://www.weather.gov/key/ . (NWS Miami also publishes `MFL_GIS_day1.json`/`day2.json` GeoJSON; not used, because a proxy function is out of scope and browser CORS is unverified.) |
 | **Beach flags** | Posted live by lifeguards; no API. Always say "Check posted flags." |
 | **Water quality** | Link to FL DOH Healthy Beaches map (bi-weekly samples, 30 counties). |
 | **Red tide** | Link to FWC status / daily map (https://gis.myfwc.com/redtidecurrentstatus/). As of 2026-11-20, not observed on the east coast. |

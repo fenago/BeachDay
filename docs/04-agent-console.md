@@ -64,6 +64,7 @@ Source: [fine-grained PATs](https://docs.github.com/en/authentication/keeping-yo
 * Fine-grained PATs **cannot be limited to paths or branches**. GitHub's "restrict file paths" **push rulesets** exist but only for private/internal repos on GitHub Team+ ([rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)). → The **allow-list must be enforced in our function**.
 * Still add a ruleset on `main` (available on Free public repos): block force pushes, restrict deletions.
 * Store as secret env var `GITHUB_TOKEN`, **Production context only**, Functions scope (scopes need Pro; on Free keep the build script from printing env).
+* **Decided (ADR-0005): fine-grained PAT.** A GitHub App remains the documented upgrade path:
 * Upgrade path: a **GitHub App** installed on just this repo, with installation tokens that **expire after 1 hour** and can be narrowed per request ([installation tokens](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)). Commits show as a bot, and the app can be a separate actor in rulesets. Cost: a private key in env + JWT minting (`@octokit/auth-app`).
 
 ## 6. Path allow-list
@@ -115,7 +116,9 @@ Headers: `Authorization: Bearer $GITHUB_TOKEN`, `Accept: application/vnd.github+
 
 Netlify auto-deploys the push to `main` ([deploy overview](https://docs.netlify.com/deploy/deploy-overview/)). Show deploy status via a `deploy-succeeded` event function writing to Blobs ([event triggers](https://docs.netlify.com/build/functions/trigger-on-events/)). Rollback = "Publish deploy" on the previous deploy in Netlify (instant), or a revert commit.
 
-**Optional safer mode — preview before production.** Step 6 becomes "create `refs/heads/agent/<id>` + open a PR"; Netlify builds a Deploy Preview; QA checks run there; Approve then merges with `PUT /pulls/{n}/merge` passing the reviewed head `sha` (409 if the head changed). Needs Pull requests: write. Note a PAT acts as you, so you can't "approve" your own PR in GitHub — use required status checks with 0 required approvals, or a GitHub App. Recommended once the app has real users.
+**Decided (ADR-0003): Approve commits straight to `main`** using the steps above. The PR flow below is recorded as a future option only.
+
+**Future option (not adopted) — preview before production.** Step 6 becomes "create `refs/heads/agent/<id>` + open a PR"; Netlify builds a Deploy Preview; QA checks run there; Approve then merges with `PUT /pulls/{n}/merge` passing the reviewed head `sha` (409 if the head changed). Needs Pull requests: write. Note a PAT acts as you, so you can't "approve" your own PR in GitHub — use required status checks with 0 required approvals, or a GitHub App. Recommended once the app has real users.
 
 ## 8. Long agent jobs vs Netlify time limits
 
