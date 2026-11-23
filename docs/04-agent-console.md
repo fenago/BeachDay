@@ -222,7 +222,7 @@ Why it is built this way:
 
 Browser flow (Wren owns the copy):
 - **Password users** re-enter their password in a dialog (`signInWithPassword`), plus a TOTP code if they have a factor. The Console then retries Approve with the new token.
-- **Google users** go through `signInWithOAuth` again, with `redirectTo` set to the Console. After the redirect the Console shows the same proposal and its hash, and the user must **click Approve again**. Nothing is ever approved automatically from a URL.
+- **Google users** go through `signInWithOAuth` again, with `redirectTo` set to exactly `<origin>/console` (no `#`; the proposal id to return to is kept in `sessionStorage`, id only). After the redirect the Console shows the same proposal and its hash, and the user must **click Approve again**. Nothing is ever approved automatically from a URL.
 - Allow paste and password managers (WCAG 3.3.8).
 
 **Pre-launch tests on the real project. Approve stays disabled until they pass** (supabase.com was blocked from the sandbox, so these are **UNVERIFIED**):
