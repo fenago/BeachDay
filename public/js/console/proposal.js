@@ -31,7 +31,7 @@ export function splitHidden(text) {
   const out = [];
   for (const part of String(text ?? "").split(HIDDEN_SPLIT_RE)) {
     if (!part) continue;
-    out.push(part.length === 1 && HIDDEN_RE.test(part) ? { hidden: hiddenLabel(part) } : { text: part });
+    out.push([...part].length === 1 && HIDDEN_RE.test(part) ? { hidden: hiddenLabel(part) } : { text: part });
   }
   return out;
 }
