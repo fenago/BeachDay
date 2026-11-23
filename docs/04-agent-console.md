@@ -72,9 +72,13 @@ Auth on **every** route (ADR-0006): `Authorization: Bearer <Supabase access toke
 
 Background functions can't answer the caller (they return `202` immediately), so the **sync** `/api/jobs` wrapper checks auth and limits and creates the job record, including a random 256-bit nonce. It then calls `/api/jobs-run`, forwarding the caller's `Authorization` header and `{jobId, nonce}`. The background function repeats the token and role check, consumes the nonce with a compare-and-swap, and does nothing if either check fails. No shared signing secret is needed. Deploy status needs no function: the Console polls `/version.json` (ADR-0006 §8, docs/03).
 
+**Shared modules** in `netlify/functions/lib/` (one owner per rule, so handlers stay thin): `guard.mts` (§4.1 check), `ratelimit.mts` (§9 counters, `site:approvals`, `site:compute`), `github.mts` (§7), `claude.mts` (§8), `allowlist.mts` (§6), **`deploys.mts`** (`DEPLOY_PATHS` and `deploysOnCommit(paths)`, §1), and the generated `agents.json` (§11). `DEPLOY_PATHS` is exactly the `ignore` path list in docs/03 §3.1: `public`, `netlify`, `netlify.toml`, `package.json`, `package-lock.json`, `scripts`, `.claude/agents`. So of the agent-writable paths, `docs/**`, `tests/**` and `.claude/skills/**` never deploy; `public/**` and `.claude/agents/*.md` do. A unit test fails if the two lists differ.
+
 ### 2.1 Shared contracts (builders code against these)
 
 **IDs:** `p_<ULID>` for proposals, `j_<ULID>` for jobs, matching `^[pj]_[0-9A-Z]{26}$`. Functions reject any other `:id` with `400` before touching Blobs.
+
+**Proposal field names (canonical):** `baseSha` is the `main` head SHA pinned for the turn (ADR-0007); each file's `readBlobSha` is the blob SHA the agent read, or `null` for a new or unread file. Not `baseCommitSha` or `baseBlobSha`. Skills, examples and code use these names (`proposal.schema.json`).
 
 **Proposal status:**
 
