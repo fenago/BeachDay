@@ -202,7 +202,7 @@ Links (`<a href>`) and prose don't count, so the guide and resources pages may l
 | D1 | Compute budget | 180 min / rolling 31 days | `netlify/functions/lib/settings.mts` `computeBudgetMinutes` (via `limits.mts` `COMPUTE_BUDGET`) |
 | D2 | ADR-0009 read token | not accepted (`GITHUB_TOKEN`, read-only module) | `settings.mts` `githubReadTokenEnv` |
 | D3 | Positive reasons on good days | off | `public/js/score-config.js` `SCORE_CONFIG.reasons.positiveOnGoodDays` |
-| D4 | 403 heading | "This account can't use Agents" | `public/js/copy/copy-deck.js` id `console.noAccess.title` |
+| D4 | 403 heading | "This account can't use Agents" | `public/js/copy/copy-deck.js` id `console.noaccess.title` (as built; lower-case) |
 | D5 | Server-side refusal fallback | none | `settings.mts` `serverRefusalFallback` |
 | D6 | Deny Console UI files to agents | not denied | `settings.mts` `denyConsoleUi` (read by `allowlist.mts`) |
 | D7 | Approve cap | 14 / 31 days, 5 / NY day | `settings.mts` `approveCap` (via `limits.mts` `APPROVE_CAP`) |
@@ -221,3 +221,42 @@ The contract test checks that the `settings.mts` keys exist and that D10 and D12
 2. Chat transcripts are capped at 64 KB per request, and the client drops the oldest pairs. If Dr. Lee wants long chats, the boring fix is a higher cap (functions allow 6 MB) reviewed by Vera, not server-side chat state.
 3. `diff@9.0.0` is a new runtime dependency in `package.json` (for `lib/diff.mts`). `secure-by-design` lists only four runtime packages, and no ADR covers it. Either accept it in the W1 review with Vera, or write the ~80-line diff in-house.
 4. The knowledge example 02 schemas (`forecast-hour`, `day-verdict`, `approvals` const) are stale against docs/01 §5 and this contract. `tests/contracts/` is the source of truth now. Juno should refresh the knowledge copy.
+
+## 11. As built: W3 sign-off (2026-11-23, commit b828c82)
+
+### 11.1 Corrections to this document
+
+| Item | As built | Contract |
+|---|---|---|
+| `approve_cap` 429 body | The server sends `approvals` **next to** `error` (`approve.mts`). `console/api.js` also accepts it **inside** `error` | Unchanged: `approvals` sits next to `error` (`api-error.schema.json`). The client's leniency is read-side only; the server must keep the contract shape, and the contract test enforces it |
+| Extra function libs | `lib/handler.mts` (the shared order of checks: `authorize` = guard then Origin, `isProduction`, `readJson` size-before-parse, `approvalsView`, `safe`); `lib/reconcile.mts` (the §7 reconciler, with the GitHub search injected, so the proposal GET passes the read-only module); `lib/jobs.mts` (job records, nonce hash, `continueFrom` claim) | Fits §2.2 and §5; no contract change |
+| D4 copy id | `console.noaccess.title` | §9 corrected |
+| Beach UI modules | `js/ui/{day,dom,format,install,picker,safety,storage,toast,today,verdict}.js` | Fits §2.1 and the import rule |
+
+### 11.2 Every ADR boundary, with its evidence
+
+| ADR | Boundary | Evidence in the tree |
+|---|---|---|
+| 0001 (superseded by 0006) | Static site; functions only for Claude and GitHub; browser → Open-Meteo | `public/js/api/openmeteo.js` (the only Open-Meteo caller, from the browser); `netlify/functions/*.mts` reach only `api.anthropic.com` (`lib/claude.mts`), `api.github.com` (`lib/github-read.mts`, `lib/github-write.mts`) and Supabase (`lib/guard.mts`) |
+| 0002 | No rip-current proxy; link out to NWS | NWS appears only as links: `public/js/data/beaches.js` (per-beach NWS office and surf-zone URLs), `public/js/ui/safety.js`; no function fetches `weather.gov` |
+| 0003 | Approve commits straight to `main`, one atomic commit | `lib/github-write.mts`: a Git Database tree on `base_tree`, one commit with one parent, `PATCH refs/heads/main {force:false}`; imported only by `approve.mts` |
+| 0004 | Netlify Free | `netlify.toml` (no scheduled functions; the build has no test runner); exactly 2 `rateLimit` rules (`chat.mts`, `jobs.mts`); `ignore` = `DEPLOY_PATHS` (`lib/deploys.mts`, parity test) |
+| 0005 | Fine-grained PAT, Contents R/W, no Workflows | `lib/github-write.mts` (reads `GITHUB_TOKEN`, Contents and Git DB endpoints only, never `.github/**`: `lib/allowlist.mts` denies it). The PAT's scope itself is set by hand (README Phase 0) |
+| 0006 | Supabase Auth; every function checks Bearer + `super_admin` and fails closed; publishable key only; vendored auth-js | `lib/guard.mts` via `lib/handler.mts` `authorize` in 7 handlers, and `guard.check` first in `job-run.mts`; `scripts/gen-config.mjs` (`sb_publishable_` check); `public/vendor/supabase-auth-js-2.119.2.mjs` + `tests/unit/vendor-version.test.mjs`; the beach app loads no auth (`tests/contracts` import rule, `tests/static/import-graph.test.mjs`); no `sb_secret`/`service_role` use anywhere (only the secret-scan rule names it) |
+| 0007 | Reads from `main`, one pinned SHA per turn | `lib/github-read.mts` (GET only; `readFile`/`listDir` refuse anything that isn't a pinned 40-hex SHA); `lib/tools.mts` `TurnState.baseSha` |
+| 0008 | Cap: 14 per rolling 31 days, 5 per NY day | `lib/limits.mts` `checkApproveCap`/`recordApproval` (values from `settings.mts`); `approve.mts` checks inside the lock, records only at `committed`; `lib/reconcile.mts` records reconciled commits |
+| 0009 (Proposed) | Separate read token | Not adopted, as designed: `settings.mts` `githubReadTokenEnv: "GITHUB_TOKEN"`, read through `github-read.mts`, which has no write methods. Switching is one value |
+| 0010 (Proposed) | `diff` runtime, `smol-toml` dev | `package.json`: `diff` 9.0.0 (used only by `lib/diff.mts`); `smol-toml` 1.9.1 (tests only) |
+
+### 11.3 Dependencies and services
+
+- **`package.json` since W0 (411b847):** `smol-toml` 1.9.1 was added (dev, ADR-0010), and an `overrides` entry pins `playwright-core` to 1.63.0 (already a dependency of `@playwright/test`). The lockfile gained exactly one package, `smol-toml`. `diff` 9.0.0 was already in W0 and is covered by ADR-0010. **No other dependency.**
+- **External services:** Open-Meteo (browser), Supabase Auth (Console browser + functions), Anthropic and GitHub (functions only), and NWS, Google and docs sites as links only. **No new service** beyond ADR-0006.
+
+### 11.4 Sign-off
+
+**Architecture: signed off** for the tree at b828c82, with three conditions, all tracked in docs/README.md "Build plan":
+1. ADR-0009 and ADR-0010 stay Proposed until Dr. Lee rules.
+2. Approve stays off until the pre-launch tests pass (D10).
+3. Phase 0 stays manual.
+

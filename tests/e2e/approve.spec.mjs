@@ -197,7 +197,7 @@ test.describe("limits and switches", () => {
     await loginAs(page, ADMIN);
     await proposeViaChat(page, h, T, DOC);
     await openSheet(page);
-    await page.route("**/api/proposals/*/approve", (r) => r.fulfill({ status: 429, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify({ error: { code: "approve_cap", message: "cap", retryAt: "2026-12-04T05:00:00.000Z", approvals: { used31: 14, usedToday: 1, per31Days: 14, perDay: 5, retryAt: "2026-12-04T05:00:00.000Z" } } }) }));
+    await page.route("**/api/proposals/*/approve", (r) => r.fulfill({ status: 429, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify({ error: { code: "approve_cap", message: "cap", retryAt: "2026-12-04T05:00:00.000Z" }, approvals: { used31: 14, usedToday: 1, per31Days: 14, perDay: 5, retryAt: "2026-12-04T05:00:00.000Z" } }) })); // approvals sit NEXT to error (api-error.schema)
     await confirmWithPassword(page);
     await sheet(page).getByTestId("sheet-approve").click();
     await expect(page.getByTestId("approve-cap")).toContainText(/14 of 14 approvals used in the last 31 days\. Next slot frees Dec 4\./);

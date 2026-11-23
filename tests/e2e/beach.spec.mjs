@@ -40,8 +40,9 @@ test.describe("picker to Today to Next days to day detail", () => {
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByTestId("hourly").getByRole("listitem").first()).toBeVisible();
-    await page.getByTestId("back").click();
-    await expect(page).toHaveURL(/#\/$/);
+    await expect(toggle).toHaveText(t("btn.hideHourly")); // Pip W2F2: the toggle names its next action
+    await page.getByTestId("back").click(); // history.back(): lands on the hashless Today entry
+    await expect(page).toHaveURL(/\/(#\/)?$/);
     expect(om.forecastCalls(), "Open-Meteo is called, and only a bounded number of times").toBeGreaterThan(0);
     expect(om.forecastCalls()).toBeLessThanOrEqual(2);
     guard.assertClean();

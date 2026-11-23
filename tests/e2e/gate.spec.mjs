@@ -145,7 +145,7 @@ test("deliberate Sign Out: no 'session ended' flash, and the chat transcript and
   await page.getByTestId("chat-send").click();
   await expect(page.getByTestId("msg-agent")).toContainText("An answer to forget.");
   await page.getByTestId("chat-input").fill("an unsent draft");
-  if (!(await page.getByRole("button", { name: STRINGS["btn.signOut"], exact: true }).isVisible())) await page.getByRole("link", { name: STRINGS["agents.back"] }).click(); // Sign Out lives on the list's account menu
+  await expect(page.getByRole("button", { name: STRINGS["btn.signOut"], exact: true }), "Sign Out is on the chat route's bar too").toBeVisible();
   const seen = [];
   await page.exposeFunction("__seen", (t) => seen.push(t));
   await page.evaluate(() => new MutationObserver(() => { const t = document.body.innerText; if (/Your session ended/.test(t)) window.__seen("S7"); }).observe(document.body, { subtree: true, childList: true, characterData: true }));
@@ -170,4 +170,15 @@ test("S7 moves focus once (showAuth('sessionExpired') must not fire twice)", asy
   await page.waitForTimeout(800);
   const n = await page.evaluate(() => window.__focusH1);
   expect(n, `h1 received focus ${n} times on the session-ended screen (the access check's own h1 counts once)`).toBeLessThanOrEqual(2);
+});
+
+test("S7 hides the app host: no second h1 and no app content is reachable behind the sign-in screen", async ({ page }) => {
+  await loginAs(page, ADMIN);
+  await expect(page.getByTestId("agent-list")).toBeVisible();
+  await page.route("**/api/agents", (r) => r.fulfill({ status: 401, headers: { "content-type": "application/json", "cache-control": "no-store", "www-authenticate": "Bearer" }, body: JSON.stringify({ error: { code: "unauthorized", message: "Sign in to continue." } }) }));
+  await page.reload();
+  await expect(page.getByText(STRINGS["console.session.expired"])).toBeVisible();
+  await expect(page.locator("h1:visible")).toHaveCount(1);
+  await expect(page.getByTestId("app-host")).toBeHidden();
+  await expect(page.getByTestId("agent-card")).toHaveCount(0);
 });
