@@ -1,5 +1,5 @@
 // Verdict card, reasons, advice, key numbers, day strip and hourly list. Pure functions that return elements.
-import { t, VERDICTS, verdictFor } from "../copy/copy-deck.js";
+import { t, STRINGS, VERDICTS, verdictFor } from "../copy/copy-deck.js";
 import { formatClock } from "../data/beach-window.js";
 import { h, icon, spoken } from "./dom.js";
 import { dayParts, num, roundHalf } from "./format.js";
@@ -8,7 +8,10 @@ const safeT = (id, params) => { try { return t(id, params ?? {}); } catch { retu
 
 export function VerdictChip(verdictKey, { large = true } = {}) {
   const v = VERDICTS[verdictKey];
-  if (!v) return h("span", { class: `verdict verdict--none${large ? " verdict--lg" : ""}` }, t("status.no.verdict"));
+  if (!v) {
+    const id = STRINGS["ui.verdict.none.short"] ? "ui.verdict.none.short" : "status.no.verdict"; // short chip id from Wren; full sentence until it exists
+    return h("span", { class: `verdict verdict--none${large ? " verdict--lg" : ""}` }, t(large ? "status.no.verdict" : id));
+  }
   return h("span", { class: `verdict verdict--${verdictKey}${large ? " verdict--lg" : ""}`, "data-verdict": verdictKey }, icon(v.icon), v.label);
 }
 
@@ -26,7 +29,7 @@ export function ReasonList(reasons) {
     const [mod, ic] = reasonKind(r.copyId);
     items.push(h("li", { class: `reason-list__item${mod ? " reason-list__item" + mod : ""}` }, icon(ic), text));
   }
-  return h("ul", { class: "reason-list", "data-testid": "reasons" }, items);
+  return items.length ? h("ul", { class: "reason-list", "data-testid": "reasons" }, items) : null; // a Great day may have none
 }
 
 export const dateLine = (day, beach) => {
@@ -49,7 +52,7 @@ export function VerdictCard({ day, beach, actions }) {
     h("p", { class: "verdict-card__date" }, dateLine(day, beach)),
     h("h2", { id, class: "verdict-card__title", "data-testid": "verdict-title" }, none ? VerdictChip(null) : VerdictChip(day.verdict)),
     outlook ? h("div", { class: "verdict-card__tags" }, h("span", { class: "tag tag--outlook" }, t("ui.outlook"))) : null,
-    h("p", { class: "verdict-card__best", "data-testid": "best-hours" }, none ? "" : bestHoursText(day)),
+    !none && day.bestWindow ? h("p", { class: "verdict-card__best", "data-testid": "best-hours" }, bestHoursText(day)) : null,
     none ? null : ReasonList(day.reasons),
     advice.map((a) => h("p", { class: "verdict-card__advice" }, a)),
     confidence ? h("p", { class: "verdict-card__confidence" }, confidence) : null,
@@ -67,7 +70,7 @@ export function KeyNumbers(n, day) {
     cell("feels", t("ui.key.feels"), "thermometer", temp(n.feelsF)),
     cell("wind", t("ui.key.wind"), "wind", n.windMph == null ? "–" : spoken(`${f(n.windMph)} mph`, `${f(n.windMph)} miles per hour`)),
     cell("rain", t("ui.key.rain"), "rain", n.rainChancePct == null ? "–" : spoken(`${f(n.rainChancePct)}%`, `${f(n.rainChancePct)} percent`)),
-    cell("waves", t("ui.key.waves"), "wave", n.waveFt == null || !day.marineAvailable ? t("status.waves.na") : spoken(`${roundHalf(n.waveFt)} ft`, `${roundHalf(n.waveFt)} feet`)),
+    cell("waves", t("ui.key.waves"), "wave", n.waveFt == null || !day.marineAvailable ? t("status.waves.na") : spoken(`${roundHalf(n.waveFt)} ft`, `${roundHalf(n.waveFt)} ${roundHalf(n.waveFt) === 1 ? "foot" : "feet"}`)),
     cell("water", t("ui.key.water"), "thermometer", n.seaTempF == null ? t("status.water.na") : temp(n.seaTempF)),
     cell("uv", t("ui.key.uv"), "uv", n.uv == null ? "–" : String(f(n.uv))));
 }
@@ -86,6 +89,8 @@ export function DayStrip(days) {
 }
 
 // ---- hourly ----
+const ORDER = ["skip", "fair", "good", "great"];
+const STOP_COPY = { thunderstorms: "reason.thunder", thunder_wait: "reason.thunder.wait", too_windy: "reason.wind.stop", dangerous_heat: "reason.heat.stop" };
 export function HourlyList(day, { id } = {}) {
   const best = day.bestWindow;
   const inBest = (time) => {
@@ -93,15 +98,18 @@ export function HourlyList(day, { id } = {}) {
     const hhmm = time.slice(11, 16);
     return hhmm >= best.start && hhmm < best.end;
   };
+  // A short window caps the day at Good, so no hour may read better than the card.
+  const capped = day.verdict && day.rawScore != null && day.score != null && day.score < day.rawScore;
   const rows = (day.hourScores ?? []).map((hs) => {
-    const stop = (hs.hardStops ?? []).length > 0;
-    const v = hs.score == null ? null : stop ? VERDICTS.skip : verdictFor(hs.score);
+    const stopId = (hs.hardStops ?? []).map((c) => STOP_COPY[c]).find(Boolean);
+    let v = hs.score == null ? null : stopId ? VERDICTS.skip : verdictFor(hs.score);
+    if (v && capped && ORDER.indexOf(v.id.split(".")[1]) > ORDER.indexOf(day.verdict)) v = VERDICTS[day.verdict];
     const isBest = inBest(hs.time);
-    const cls = `hourly-row${isBest ? " hourly-row--best" : stop ? " hourly-row--stop" : ""}`;
+    const cls = `hourly-row${isBest ? " hourly-row--best" : stopId ? " hourly-row--stop" : ""}`;
     return h("li", {}, h("div", { class: cls, "data-time": hs.time.slice(11, 16) },
       h("span", { class: "hourly-row__time" }, formatClock(hs.time)),
       v ? icon(v.icon) : icon("info"),
-      h("span", { class: "hourly-row__detail" }, isBest ? t("ui.hourly.best") : ""),
+      h("span", { class: "hourly-row__detail" }, stopId ? t(stopId) : isBest ? t("ui.hourly.best") : ""),
       h("span", { class: "hourly-row__label" }, v ? v.short : "–")));
   });
   return h("ul", { class: "hourly-list", id, "data-testid": "hourly", hidden: true }, rows);

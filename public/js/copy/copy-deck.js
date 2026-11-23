@@ -1061,6 +1061,10 @@ export const DECK = deepFreeze({
     {
       "id": "ui.hourly.best",
       "text": "Best"
+    },
+    {
+      "id": "ui.verdict.none.short",
+      "text": "No verdict"
     }
   ],
   "install": [

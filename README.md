@@ -61,7 +61,7 @@ On a machine without a preinstalled browser, run `npx playwright install chromiu
 | `netlify dev` | Did **not** work in the sandbox: it downloads the Edge Functions runtime, which the sandbox blocks. It may work on your machine, with `netlify link` first. UNVERIFIED for this repo |
 | `netlify deploy` | Makes a draft only. **Never add `--prod`**: `main` deploys automatically |
 
-`node scripts/build-agents.mjs` runs anywhere. `stamp-sw.mjs` and `gen-config.mjs` refuse to run outside Netlify unless you pass `--force`. `gen-config.mjs` fails until `public/_headers` names your real Supabase host (see Step 6).
+`node scripts/build-agents.mjs` runs anywhere. `stamp-sw.mjs` and `gen-config.mjs` refuse to run outside Netlify unless you pass `--force`. `gen-config.mjs` fails until `public/_headers` names your real Supabase host (see Step 5).
 
 Treat any agent-written test as untrusted code: run it in a shell with no real secrets in the environment.
 
@@ -96,26 +96,20 @@ No agent can do these steps; they hold credentials. Never paste a real value int
 
 In Google Cloud, create an OAuth client of type **Web application**. Use the callback URL shown on Supabase's Google provider page as the authorised redirect URI, and the production origin as the authorised origin. Enable the Google provider in Supabase with the client ID and secret. **The Google client secret lives only in Supabase**, never in Netlify or the repo.
 
-### 3. Make yourself super_admin
-
-1. After the first deploy (or on a throwaway deploy), sign up in the Console and confirm your email, signing in the way you will normally sign in. Google and email accounts may be separate users (UNVERIFIED).
-2. In the SQL editor, run STEP 1 of `supabase/manual/promote-super-admin.sql` with your address and read every check. Then run STEP 2 with the user id from STEP 1. Expect `1 row affected`.
-3. Nobody else can set this role. The role is read on every request, so the next Console call sees it.
-
-### 4. GitHub token and repository rules
+### 3. GitHub token and repository rules
 
 1. Create a **fine-grained personal access token** (ADR-0005): resource owner `fenago`, **only** `fenago/BeachDay`, **Contents: Read and write**, nothing else. **No Workflows permission.** Expiry 90 days, then rotate. A token cannot be limited to paths, so the allow-list in code is the control.
 2. Add a ruleset on `main` that blocks force pushes and blocks deletions (available on Free for public repos).
 
-### 5. Anthropic
+### 4. Anthropic
 
 Create a dedicated workspace with a **low spend limit**, and an API key in it. After the first chat, Anthropic's console should show the spend, and Netlify's Usage page should show no AI-inference credits (UNVERIFIED: the AI Gateway may inject its own variables; the code passes the endpoint and key explicitly).
 
-### 6. Put your Supabase host in `public/_headers`
+### 5. Put your Supabase host in `public/_headers`
 
 `public/_headers` ships with `https://<project-ref>.supabase.co` in the CSP `connect-src`. A headers file cannot read environment variables, so a human replaces `<project-ref>` with the real host. The build then **fails on purpose** (0 credits, the previous deploy stays live) unless this host equals `SUPABASE_URL` exactly. Never use a wildcard. This change needs security review.
 
-### 7. Netlify site and environment variables
+### 6. Netlify site and environment variables
 
 1. Add the site from the GitHub repo. Netlify reads `netlify.toml` (publish `public`, functions `netlify/functions`, Node 22).
 2. Set the variables (UI or CLI). **Never set the Supabase secret or `service_role` key.**
@@ -145,11 +139,27 @@ The two Supabase values are public by design and reach the browser through the b
 3. **Turn OFF Deploy Previews and branch deploys.** This is required, not optional. Per-context secret values on the Free plan are UNVERIFIED, so with no non-production deploy no function outside Production can read a token. Keep "Build without sensitive variables" for builds from forks. Check the setting's name and its Free availability; if you cannot turn it off, tell the team, because the in-code production check is then the only barrier left.
 4. Remember the four layers that keep secrets out of previews: Production-only values, previews off, a production-context check in code (503 `unavailable` otherwise), and nothing agent-writable running in the build.
 
-### 8. First deploy, pre-launch tests, and turning Approve on
+### 7. First deploy and smoke test
 
 - Every push to `main` is a production deploy and costs **15 of 300 Free credits a month** (ADR-0004), about 20 deploys. Batch changes. A failed build costs 0. A build skipped by the `ignore` rule is expected to cost 0 (UNVERIFIED; check the Usage page after the first skip). The site-wide Approve cap (ADR-0008) holds approvals to at most 210 credits in any cycle, which is 70%. Warn at about 70% and at 90% of 300.
+- **Post-deploy smoke test** after each deploy that builds (run by hand or by QA):
+
+```bash
+BASE_URL=https://<site>.netlify.app EXPECT_COMMIT=<full commit sha> node scripts/smoke.mjs
+```
+
+It checks that `sw.js` is stamped and `no-cache`, that `/version.json` matches, the manifest type, the CSP and COOP headers, and that every sync `/api` route answers 401 without a token. It does not test `/api/jobs-run`, because a background function always answers 202. "Live" in the Console means `/version.json` carries the approved commit.
+
+### 8. Make yourself super_admin
+
+1. After the first deploy, sign up in the Console and confirm your email, signing in the way you will normally sign in. Supabase links identities that share one email into a single user automatically, so a Google sign-in and an email sign-up with the same address should be one user (confirm on your project; STEP 1 of the script shows the providers on the account).
+2. In the SQL editor, run STEP 1 of `supabase/manual/promote-super-admin.sql` with your address and read every check. Then run STEP 2 with the user id from STEP 1. Expect `1 row affected`.
+3. Nobody else can set this role. The role is read on every request, so the next Console call sees it.
+
+### 9. Pre-launch tests on the real Supabase project
+
 - **Approve starts OFF** (D10). `approveEnabled` is `false` in `netlify/functions/lib/settings.mts`; `GET /api/proposals/:id` reports it and `approve` answers 503 `unavailable`. Reject still works.
-- Run the **pre-launch tests (a) to (i)** on the real Supabase project and record the results. The canonical list is docs/04 §4.2 (the build plan's "(a)-(g)" is the older, shorter list):
+- Run the **pre-launch tests (a) to (i)** on the real Supabase project and record the results. The canonical list is docs/04 §4.2:
 
 | Test | What it checks |
 |---|---|
@@ -163,17 +173,12 @@ The two Supabase values are public by design and reach the browser through the b
 | h | Netlify secret scanning does not flag the `sb_publishable_` key in `config.js` (fallback above) |
 | i | The Security Advisor shows no `profiles` warning, and a second throwaway user cannot read another row or change their own `role` through the REST API |
 
+### 10. Turn Approve on, and know the rollback
+
 - Approve is switched on only after (a) to (e), (g) and (i) pass: a human edits `approveEnabled` to `true` (D10), security review, then push (15 credits).
-- **Post-deploy smoke test** after each deploy that builds (run by hand or by QA):
-
-```bash
-BASE_URL=https://<site>.netlify.app EXPECT_COMMIT=<full commit sha> node scripts/smoke.mjs
-```
-
-It checks that `sw.js` is stamped and `no-cache`, that `/version.json` matches, the manifest type, the CSP and COOP headers, and that every sync `/api` route answers 401 without a token. It does not test `/api/jobs-run`, because a background function always answers 202. "Live" in the Console means `/version.json` carries the approved commit.
 - **Rollback:** `docs/runbooks/rollback.md`. In short: Deploys, pick the last good deploy, **Publish deploy** (instant, 0 credits), then **Lock to stop auto publishing**, or the next push overwrites it. Fix forward with `git revert` and unlock.
 
-### 9. Add the CI workflow (D11)
+### 11. Add the CI workflow (D11)
 
 The tests are not in the Netlify build on purpose (on Free the build can see every secret, and agents can write to `tests/`). They run in GitHub Actions instead. The workflow is **not added in this push**, because agents cannot write `.github/**` and the token has no Workflows permission, so a human adds it:
 
@@ -199,7 +204,7 @@ Each is one value in one place. Change the value, not the code, then get securit
 | D8 | What counts as measurable rain | Over 0.02 in | `public/js/score-config.js` `rain.amountInchOver` |
 | D9 | Knowledge and skills are bundled into each agent's prompt, so changes to them deploy (**confirmed by Dr. Lee**) | On: `knowledge` and `.claude/skills` are in the `ignore` list | `netlify.toml` `ignore` and `DEPLOY_PATHS` in `netlify/functions/lib/deploys.mts` (a test keeps the two equal). Changes to either deploy at 15 credits |
 | D10 | Approve pre-launch switch (**confirmed by Dr. Lee**) | `approveEnabled: false` until the pre-launch tests pass | `settings.mts` `approveEnabled` |
-| D11 | GitHub Actions workflow (**confirmed by Dr. Lee**) | Not added in this push | Step 9 above |
+| D11 | GitHub Actions workflow (**confirmed by Dr. Lee**) | Not added in this push | Step 11 above |
 | D12 | JWT header pre-check | Off until test (f) | `settings.mts` `jwtHeaderPrecheck` |
 | D13 | The `/guide/` page | Built as `public/guide/index.html` | that file |
 
