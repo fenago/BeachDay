@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://beachday.example/schemas/proposal.schema.json",
   "title": "ProposalRecord",
-  "description": "Record stored in the Netlify Blobs `proposals` store (strong consistency) and returned by GET /api/proposals/:id. Shape check only: the server-side allow-list in netlify/functions/lib/allowlist.mts (normalise, case-insensitive, DENY wins, text-only) and the secret scan remain the enforcement points, re-run at approve time (docs/04 §2.1, §6-7; ADR-0003, ADR-0005, ADR-0006, ADR-0007).",
+  "description": "Record stored in the Netlify Blobs `proposals` store (strong consistency) and returned by GET /api/proposals/:id. Shape check only: the server-side allow-list in netlify/functions/lib/allowlist.mts (normalise, case-insensitive, DENY wins, text-only) and the secret scan remain the enforcement points, re-run at approve time (docs/04 \u00a72.1, \u00a76-7; ADR-0003, ADR-0005, ADR-0006, ADR-0007).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -61,7 +61,7 @@
           }
         }
       ],
-      "description": "What, why, how tested (change-proposal-protocol). ONE line, 20-2000 code points: no control, format or line-break characters (\\p{Cc}, \\p{Cf} incl. bidi overrides/isolates and zero-width, \\p{Zl}, \\p{Zp}) and no 'Beach-Day-Proposal' text in any case, so it can never forge or disguise the commit trailer (docs/04 §6, §7). Lone surrogates are rejected in code (isWellFormed()); JSON Schema can't express that."
+      "description": "What, why, how tested (change-proposal-protocol). ONE line, 20-2000 code points: no control, format or line-break characters (\\p{Cc}, \\p{Cf} incl. bidi overrides/isolates and zero-width, \\p{Zl}, \\p{Zp}) and no 'Beach-Day-Proposal' text in any case, so it can never forge or disguise the commit trailer (docs/04 \u00a76, \u00a77). Lone surrogates are rejected in code (isWellFormed()); JSON Schema can't express that."
     },
     "files": {
       "type": "array",
@@ -77,7 +77,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Canonical list (docs/04 §6). ALLOW: public/** with a text extension (html, css, js, json, webmanifest, svg, txt, md), tests/**, docs/**, .claude/agents/*.md, .claude/skills/**/*.md. DENY wins: public/_headers, public/_redirects, public/sw.js, public/sw/**, public/vendor/**, public/generated/**, public/version.json, netlify/**, netlify.toml, .github/**, package*.json, scripts/**, .env*, .git/**, .gitmodules, .claude/settings*, *.pem, *.key. Case-insensitive matching is enforced server-side; JSON Schema regexes are case-sensitive. Exact string sent to GitHub, never normalised: 1-200 chars of [A-Za-z0-9._/-], no leading '/', no empty, '.' or '..' segment, no segment ending in '.'. propose_change cannot delete files.",
+            "description": "Canonical list (docs/04 \u00a76). ALLOW: public/** with a text extension (html, css, js, json, webmanifest, svg, txt, md), tests/**, docs/**, .claude/agents/*.md, .claude/skills/**/*.md. DENY wins: public/_headers, public/_redirects, public/sw.js, public/sw/**, public/vendor/**, public/generated/**, public/version.json, netlify/**, netlify.toml, .github/**, package*.json, scripts/**, .env*, .git/**, .gitmodules, .claude/settings*, *.pem, *.key. Case-insensitive matching is enforced server-side; JSON Schema regexes are case-sensitive. Exact string sent to GitHub, never normalised: 1-200 chars of [A-Za-z0-9._/-], no leading '/', no empty, '.' or '..' segment, no segment ending in '.'. propose_change cannot delete files.",
             "allOf": [
               {
                 "type": "string",
@@ -173,6 +173,36 @@
       "minLength": 1,
       "maxLength": 64,
       "description": "Supabase user id (sub) of the chat that proposed it. Optional for records written before W1."
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 100,
+      "description": "Optional review warnings shown on the proposal card (e.g. hidden_unicode). Shape is a slot until agent-console-engineer fixes the codes.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,39}$"
+          },
+          "path": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      }
     }
   },
   "allOf": [

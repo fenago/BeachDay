@@ -89,6 +89,7 @@
         "unauthorized",
         "step_up_required",
         "forbidden",
+        "bad_origin",
         "not_found",
         "conflict",
         "stale",

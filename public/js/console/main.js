@@ -253,6 +253,7 @@ async function boot() {
     takeStepUpProposal(); // a stale id from an abandoned step-up never acts
   }
   if (auth.pendingEmailLink() || !(await auth.getSession())) return showAuth();
+  redirectResult = { kind: "none" }; // signed in already: a failed OAuth return is not news at a later sign-out
   accountId = (await auth.getAccount())?.id ?? null;
   appHost.hidden = false;
   authHost.hidden = true;

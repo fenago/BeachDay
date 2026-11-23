@@ -73,7 +73,7 @@ Libraries in `lib/` (W1):
 | `deploys.mts` | Nell | `DEPLOY_PATHS` (D9 list), `deploysOnPath(path)`, `deploysOnCommit(paths)` |
 | `guard.mts` | Cass | `createGuard(opts) → Guard`, `guardFromEnv(opts)`, `denyResponse(GuardDeny)`, `precheckJwtHeader(token)`. `Guard = { check(req, {route, requestId}) → Promise<GuardAllow or GuardDeny>, getUser(token) }`. `GuardAllow = {ok: true, userId, claims, token}`, `GuardDeny = {ok: false, status: 401|403|503, code, reason}` (`reason` is for logs only) |
 | `stepup.mts` | Cass | `approveStepUp(token, claims, guard.getUser, nowS) → {ok:true} or {ok:false, status:401|503, code}`, `checkStepUp(...)` |
-| `origin.mts` | Cass | `checkOrigin(req, siteOrigin?) → {ok:true} or {ok:false, status:403, code:"forbidden"}`, `originDenyResponse(r)` |
+| `origin.mts` | Cass | `checkOrigin(req, siteOrigin?) → {ok:true} or {ok:false, status:403, code:"bad_origin"}`, `originDenyResponse(r)` |
 | `ids.mts` | (W1, see §8 R10) | `ID_RE`, `newProposalId()`, `newJobId()`, `isProposalId(v)`, `isJobId(v)`, `ulid()` |
 | `agents.mts` | Remy-A | `loadAgentRegistry() → Promise<AgentRegistry>`, `createAgentRegistry(raw)`, `AgentRegistry = {list() → PublicAgent[], get(name), names()}`, `isAllowedModel` |
 | `claude.mts` | Remy-A | `createAnthropicClient("chat"|"job", apiKey)` (baseURL hard-coded), `assertAllowedModel`, `buildParams`, `parseChatMessages(raw, maxUserBytes)`, `createDeadline(totalMs, startedAt, now)`, **`runTurn({client, agent, messages, runTool, emit, effort, deadline, usage?, maxRounds?, maxTokens?, log?}) → {outcome, messages, usage}`** |

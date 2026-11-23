@@ -117,7 +117,8 @@ Every transition is a Blobs compare-and-swap (`onlyIfMatch`). `committing` is th
 | `invalid_request` | 400 | all | Bad `:id` (§2.1 IDs), method, content type, size or body shape |
 | `unauthorized` | 401 | all | Missing, invalid or expired token (§4.1). Nothing was done |
 | `step_up_required` | 401 | approve | Token is valid but the sign-in isn't fresh enough (§4.2). Proposal stays `pending` |
-| `forbidden` | 403 | all | Not `super_admin` or no profile row (§4.1), or a cross-site `Sec-Fetch-Site` / foreign `Origin` on POST (§4.4) |
+| `forbidden` | 403 | all | Not `super_admin` or no profile row (§4.1) |
+| `bad_origin` | 403 | POST routes | A cross-site `Sec-Fetch-Site` or a foreign `Origin` (including `null`) on POST (§4.4). The client treats it as a bug, not as "no access": it never shows S6 |
 | `not_found` | 404 | jobs/:id, proposals/:id | No such record |
 | `conflict` | 409 | approve, reject | CAS lost, the proposal isn't `pending`, or `contentHash` doesn't match |
 | `stale` | 409 | approve | `main` moved under a file the agent read; proposal is now `stale` |

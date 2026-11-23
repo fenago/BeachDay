@@ -5,13 +5,13 @@ import { splitHidden, hasHiddenChars, hiddenLabel, parseDiff, diffLines, warning
 
 describe("splitHidden / hasHiddenChars", () => {
   it.each([
-    ["a‮b", [{ text: "a" }, { hidden: "⟨U+202E⟩" }, { text: "b" }]],             // RIGHT-TO-LEFT OVERRIDE
-    ["​x", [{ hidden: "⟨U+200B⟩" }, { text: "x" }]],                               // zero-width space
-    ["x﻿", [{ text: "x" }, { hidden: "⟨U+FEFF⟩" }]],                               // BOM
-    ["p q r", [{ text: "p" }, { hidden: "⟨U+2028⟩" }, { text: "q" }, { hidden: "⟨U+2029⟩" }, { text: "r" }]],
-    ["­", [{ hidden: "⟨U+00AD⟩" }]],                                               // soft hyphen, padded to 4
+    ["a\u202Eb", [{ text: "a" }, { hidden: "⟨U+202E⟩" }, { text: "b" }]],             // RIGHT-TO-LEFT OVERRIDE
+    ["\u200Bx", [{ hidden: "⟨U+200B⟩" }, { text: "x" }]],                               // zero-width space
+    ["x\uFEFF", [{ text: "x" }, { hidden: "⟨U+FEFF⟩" }]],                               // BOM
+    ["p\u2028q\u2029r", [{ text: "p" }, { hidden: "⟨U+2028⟩" }, { text: "q" }, { hidden: "⟨U+2029⟩" }, { text: "r" }]],
+    ["\u00AD", [{ hidden: "⟨U+00AD⟩" }]],                                               // soft hyphen, padded to 4
     ["a\u{E0041}b", [{ text: "a" }, { hidden: "⟨U+E0041⟩" }, { text: "b" }]],           // astral tag char, one token
-    ["⁦⁩", [{ hidden: "⟨U+2066⟩" }, { hidden: "⟨U+2069⟩" }]],                 // isolates, adjacent
+    ["\u2066\u2069", [{ hidden: "⟨U+2066⟩" }, { hidden: "⟨U+2069⟩" }]],                 // isolates, adjacent
     ["plain ascii only", [{ text: "plain ascii only" }]],
     ["", []],
   ])("%j", (input, want) => {
@@ -19,7 +19,7 @@ describe("splitHidden / hasHiddenChars", () => {
     expect(hasHiddenChars(input)).toBe(want.some((s) => s.hidden));
   });
   it("labels are uppercase hex, at least 4 digits", () => {
-    expect(hiddenLabel("‍")).toBe("⟨U+200D⟩");
+    expect(hiddenLabel("\u200D")).toBe("⟨U+200D⟩");
     expect(hiddenLabel("\u{1D173}")).toBe("⟨U+1D173⟩");
   });
   it("tabs, newlines and emoji are not hidden characters", () => {
@@ -29,8 +29,8 @@ describe("splitHidden / hasHiddenChars", () => {
 
 describe("parseDiff", () => {
   it("keeps U+2028 inside its line and classifies markers", () => {
-    expect(parseDiff("@@ -1 +1 @@\n-old\n+a b\n ctx\n")).toEqual([
-      { kind: "hunk", text: "@@ -1 +1 @@" }, { kind: "del", text: "old" }, { kind: "add", text: "a b" }, { kind: "ctx", text: "ctx" },
+    expect(parseDiff("@@ -1 +1 @@\n-old\n+a\u2028b\n ctx\n")).toEqual([
+      { kind: "hunk", text: "@@ -1 +1 @@" }, { kind: "del", text: "old" }, { kind: "add", text: "a\u2028b" }, { kind: "ctx", text: "ctx" },
     ]);
   });
 });
@@ -66,15 +66,15 @@ describe("diffLines (DOM)", () => {
   afterAll(() => { globalThis.document = saved.document; globalThis.Node = saved.Node; });
 
   it('"+a\\u202Eb" renders the override as a visible token in a .diff__hidden span, never raw', () => {
-    const [line] = diffLines("+a‮b");
+    const [line] = diffLines("+a\u202Eb");
     expect(line.className).toBe("diff__line diff__line--add");
     expect(line.textContent).toBe("+Added line: a⟨U+202E⟩b");
-    expect(line.textContent).not.toMatch(/[\p{Cf}  ]/u);
+    expect(line.textContent).not.toMatch(/[\p{Cf}\u2028\u2029]/u);
     const hidden = line.children.filter((c) => c instanceof El && c.className === "diff__hidden");
     expect(hidden.map((c) => c.textContent)).toEqual(["⟨U+202E⟩"]);
   });
   it("hunk headers and removed lines are covered too", () => {
-    const [hunk, del] = diffLines("@@ ​ @@\n-x y");
+    const [hunk, del] = diffLines("@@ \u200B @@\n-x\u2029y");
     expect(hunk.textContent).toBe("@@ ⟨U+200B⟩ @@");
     expect(del.textContent).toBe("−Removed line: x⟨U+2029⟩y");
   });
