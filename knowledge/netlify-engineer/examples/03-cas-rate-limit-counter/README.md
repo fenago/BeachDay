@@ -9,6 +9,7 @@
 - never increment past the limit;
 - the Approve cap is **one record**, key `site:approvals` in the `ratelimit` store, value `{ times: ["<ISO-8601 UTC>", ...] }`, pruned to the last 31 days on every write. `checkApproveCap()` is read-only and runs inside the approve lock before any GitHub call. `recordApproval()` is a CAS append that runs only when the proposal reaches `committed`, so `failed`, `stale` and `rejected` never count. A refused check returns `{ allowed: false, reason: "day" | "month", retryAt }` for the `429 approve_cap` body;
 - the day is the **New York calendar day** (`Intl.DateTimeFormat` with `America/New_York`, DST-safe; a day is 23 to 25 hours). The 31-day window is rolling: a time is live while `t > now - 31 days`;
+- **the site-wide compute budget (Vera, docs/04 §9) is a second one-record limit**: key `site:compute`, value `{ days: { "<New York YYYY-MM-DD>": <ms> } }`, **180 function-minutes per rolling 31 days (the number is pending Dr. Lee; one constant, `COMPUTE_BUDGET`)**. `checkComputeBudget(store, needMs)` is read-only and runs before a chat turn (needs 60 s left) or a job (needs 5 min left); `recordCompute(store, ms)` is a CAS add of the elapsed milliseconds when the turn or job ends and at each job progress write (pass only the new milliseconds). Day buckets keep the record to at most 32 keys however many turns run, and the window rounds outwards to whole New York days, so it is slightly conservative, never lenient. Over: `429 budget_exhausted` with `retryAt`;
 - per-user limits use one key per day (`chat/<user-id>/<YYYY-MM-DD>`), plus `pruneOlderThan()` for a daily scheduled cleanup using `list({ prefix })` and `delete(key)`.
 
 Why it exists: on the Free plan, Netlify's code-based `rateLimit` allows **2 rules per project**, and those go to `/api/chat` and `/api/jobs` (ADR-0004, [rate limiting](https://docs.netlify.com/manage/security/secure-access-to-sites/rate-limiting/)). Other limits are app counters. Blobs is last-write-wins unless writes are conditional ([Blobs](https://docs.netlify.com/build/data-and-storage/netlify-blobs/)). The test shows what goes wrong without CAS: 50 parallel requests against a limit of 20 all get through.
@@ -21,7 +22,7 @@ node --test ratelimit.test.mjs     # no dependencies; the fake store is inside t
 ```
 
 ## Verified
-Ran on 2026-11-23, Node v22.23.5, in this folder:
+Re-ran on 2026-11-23 (wave 3), Node v22, in this folder:
 ```
 $ node --test ratelimit.test.mjs
 ok 1 - key shape
@@ -39,10 +40,16 @@ ok 10 - approve cap: the window is rolling, not a calendar month, and a time exa
 ok 11 - approve cap: sequential check-then-record admits exactly 5 on one day
 ok 12 - approve cap: failed, stale and rejected approvals are never recorded (record only on committed)
 ok 13 - approve cap: 30 parallel recordApproval calls lose none (CAS), and old times are pruned on write
-# tests 13
-# pass 13
+ok 14 - compute budget: one fixed record, 180 minutes pending Dr. Lee, chat needs 60 s and a job 5 min
+ok 15 - compute budget: sequential records add up; a turn is refused when less than 60 s is left; a job when less than 5 min
+ok 16 - compute budget: the window rolls (31 days, whole New York days, rounded outwards) and old buckets are pruned on write
+ok 17 - compute budget: 30 parallel recordCompute calls lose nothing (CAS), and the record stays small
+# tests 17
+# pass 17
 # fail 0
 ```
+Compute-budget mutation check: writing the day map without pruning old buckets fails test 16.
+
 Mutation check: replacing the New York day with the UTC day fails test 7 (the 23:59 NY / 04:59Z case), because five approvals at 22:00 NY would otherwise be allowed a sixth.
 
 The fake store follows the documented `{ modified, etag }` contract. Real Blobs latency and contention were not measured. With 50 truly simultaneous callers, the default `maxAttempts: 20` could fail closed for some of them, which is acceptable for a personal Console.

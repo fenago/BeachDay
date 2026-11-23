@@ -8,9 +8,9 @@
 |---|---|---|
 | Surface | **Messages API** (`POST /v1/messages`) with **client-defined tools**, called only from Netlify Functions | The project requires the key to stay server-side and the loop to run in our own functions. (Anthropic's hosted *Managed Agents* is an alternative — see §9.) |
 | SDK | Official TypeScript SDK `@anthropic-ai/sdk` (works in plain JS too) | Never hand-roll `fetch` against the API in a JS project; the SDK gives typed errors, retries, streaming helpers. |
-| Auth | `ANTHROPIC_API_KEY` environment variable, Functions scope only | `new Anthropic()` reads it automatically. Never sent to the browser. |
+| Auth and endpoint | `ANTHROPIC_API_KEY` secret env var, Production context only (docs/04 §4.6; env-var scopes are Pro-only). The client passes it explicitly with `baseURL: "https://api.anthropic.com"` | Explicit values mean an injected `ANTHROPIC_BASE_URL` or Netlify AI-Gateway variable can't reroute calls or billing (docs/03 §5). Never sent to the browser. |
 | Default model | `claude-opus-5-5` | Current default Opus. |
-| Per-agent model | From the agent file's `model:` frontmatter (alias → ID map in §3) | Lets cheaper agents run on Sonnet/Haiku. |
+| Per-agent model | From the agent file's `model:` frontmatter (alias → ID map in §3). Console allow-list: Opus 5.5, Sonnet 5.5, Haiku 5.5 only | Lets cheaper agents run on Sonnet/Haiku; an approved agent edit can't pick an unlisted or pricier model. |
 | Thinking | `thinking: {type: "adaptive"}` (or omit) | `budget_tokens` and `{type:"disabled"}` return **400** on Opus 5.5 / Sonnet 5.5 / Fable 5.x. |
 | Effort | Set `output_config.effort` explicitly (`low` for chat, `high` for code-change jobs) | Opus 5.5 and Haiku 5.5 default to `medium`, not `high`. |
 | Streaming | Always stream chat replies (`client.messages.stream`) | Long outputs; avoids HTTP timeouts; lets the UI show text as it arrives. |
@@ -24,7 +24,7 @@
 | Claude Opus 5.5 | `claude-opus-5-5` | 1M | $4 / $20 | Default; code-change agents |
 | Claude Sonnet 5.5 | `claude-sonnet-5-5` | 1M | $2 / $10 | Everyday chat agents |
 | Claude Haiku 5.5 | `claude-haiku-5-5` | 1M | $0.10 / $0.50 (≤100K prompt) | Cheap triage / summaries |
-| Claude Fable 5.2 | `claude-fable-5-2` | 1M | $8 / $40 | Only if explicitly chosen |
+| Claude Fable 5.2 | `claude-fable-5-2` | 1M | $8 / $40 | Not on the Console allow-list (§3); Claude Code sessions only |
 
 Rules: use the exact ID strings (no date suffixes). The Models API (`client.models.list()` / `.retrieve(id)`) returns `max_input_tokens`, `max_tokens` and `capabilities` for live checks.
 
@@ -55,8 +55,9 @@ Alias → API ID map used by the Netlify Function (keep in one module):
 | `opus` / `inherit` / missing | `claude-opus-5-5` |
 | `sonnet` | `claude-sonnet-5-5` |
 | `haiku` | `claude-haiku-5-5` |
-| `fable` | `claude-fable-5-2` |
-| a full ID | pass through only if it is on an allow-list |
+| `fable`, a full ID, anything else | **build fails** (not on the Console allow-list) |
+
+The Console allow-list is exactly these three IDs (docs/04 §11). `scripts/build-agents.mjs` fails the build on any other `model:` value and names the file; the chat and job functions re-check the resolved ID before calling Claude. Claude Code itself still accepts `fable` and full IDs, so an agent that needs one in Claude Code must not be shown in the Console until a human widens the list (a `scripts/**` + `netlify/**` change).
 
 **How the deployed app gets the agent list.** Netlify Functions do not see the repo at runtime unless files are bundled. Two options:
 
@@ -67,16 +68,25 @@ Alias → API ID map used by the Netlify Function (keep in one module):
 
 ```ts
 import Anthropic from "@anthropic-ai/sdk";
-const client = new Anthropic(); // reads ANTHROPIC_API_KEY
+// Explicit endpoint and key: never let the environment choose them (docs/03 §5, docs/04 §8).
+const client = new Anthropic({
+  baseURL: "https://api.anthropic.com",
+  apiKey: process.env.ANTHROPIC_API_KEY,   // read only after the production-context check
+  timeout: 50_000,                          // ms; 840_000 in jobs-run
+  maxRetries: 1,                            // 2 in jobs-run
+});
 
+const startedAt = Date.now();             // per chat turn
+const signal = AbortSignal.timeout(Math.max(0, 55_000 - (Date.now() - startedAt)));
 const stream = client.messages.stream({
-  model: "claude-sonnet-5-5",
+  model: agent.model,                      // one of the three allow-listed IDs (§3)
   max_tokens: 64000,                       // streaming: give room; non-streaming ~16000
+  thinking: { type: "adaptive" },
   output_config: { effort: "low" },
   system: [{ type: "text", text: agent.systemPrompt, cache_control: { type: "ephemeral" } }],
   tools,                                   // see §5
   messages,                                // [{role:"user"|"assistant", content}]
-});
+}, { signal });                            // the turn's deadline also bounds SDK retries
 for await (const event of stream) {
   if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
     // forward event.delta.text to the browser (SSE / chunked response)

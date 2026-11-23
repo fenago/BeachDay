@@ -1,33 +1,40 @@
 // Run: node --test test/gen-config.test.mjs   (no dependencies)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { genConfig } from "../gen-config.mjs";
+import { randomBytes } from "node:crypto";
+import { genConfig, checkCspHost } from "../gen-config.mjs";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "..", "gen-config.mjs");
 const A = "a".repeat(40);
 const URL_OK = "https://abcdefghijklmnop.supabase.co";
-const KEY_OK = "sb_publishable_EXAMPLEexample0123456789"; // fake, shaped like the real thing
-const SECRET = "sb_secret_EXAMPLEexample0123456789";      // fake
-const LEGACY = "eyJhbGciOiJIUzI1NiJ9.EXAMPLE.EXAMPLE";      // fake JWT-looking legacy key
+// Fixtures are BUILT AT RUNTIME (Vera): no committed literal looks like a secret, so scanners and
+// push protection never see one. Each run gets a fresh random tail.
+const tail = () => randomBytes(12).toString("hex");
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+const KEY_OK = ["sb", "publishable", tail()].join("_");                       // shaped like the real thing
+const SECRET = ["sb", "secret", tail()].join("_");                            // rejected: a secret key
+const LEGACY = [b64({ alg: "HS256", typ: "JWT" }), b64({ role: "service" + "_role" }), tail()].join("."); // rejected: legacy JWT key
+const OTHER = ["sk", "ant", tail()].join("-");                                // some other variable's value
+const HEADERS_OK = `/*\n  Content-Security-Policy: default-src 'self'; connect-src 'self' https://api.open-meteo.com ${URL_OK}; form-action 'self'\n`;
 const run = (env, extra = []) => {
   const out = mkdtempSync(join(tmpdir(), "bd-cfg-"));
-  const r = spawnSync(process.execPath, [script, "--out", out, ...extra], { env: { PATH: process.env.PATH, ...env }, encoding: "utf8" });
+  const r = spawnSync(process.execPath, [script, "--out", out, "--no-headers-check", ...extra], { env: { PATH: process.env.PATH, ...env }, encoding: "utf8" });
   return { out, r, file: join(out, "config.js") };
 };
 
 test("writes config.js from the three named variables only", () => {
   const out = mkdtempSync(join(tmpdir(), "bd-cfg-"));
-  const r = genConfig({ outDir: out, env: { SUPABASE_URL: URL_OK, SUPABASE_PUBLISHABLE_KEY: KEY_OK, COMMIT_REF: A, ANTHROPIC_API_KEY: "sk-ant-EXAMPLE" }, git: () => null });
+  const r = genConfig({ outDir: out, env: { SUPABASE_URL: URL_OK, SUPABASE_PUBLISHABLE_KEY: KEY_OK, COMMIT_REF: A, ANTHROPIC_API_KEY: OTHER }, git: () => null });
   const text = readFileSync(r.file, "utf8");
   assert.match(text, /export const SUPABASE_URL = "https:\/\/abcdefghijklmnop\.supabase\.co";/);
-  assert.match(text, /export const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_EXAMPLEexample0123456789";/);
+  assert.ok(text.includes(`export const SUPABASE_PUBLISHABLE_KEY = ${JSON.stringify(KEY_OK)};`));
   assert.match(text, /export const BUILD_VERSION = "aaaaaaaaaaaa";/);
-  assert.ok(!text.includes("sk-ant"), "no other variable leaks into the file");
+  assert.ok(!text.includes(OTHER), "no other variable leaks into the file");
   rmSync(out, { recursive: true });
 });
 
@@ -36,7 +43,7 @@ test("rejects a secret key, a legacy JWT key, a missing key; the log never shows
     const { r, file, out } = run({ SUPABASE_URL: URL_OK, ...(bad === undefined ? {} : { SUPABASE_PUBLISHABLE_KEY: bad }), NETLIFY: "true", COMMIT_REF: A });
     assert.equal(r.status, 1, `key ${JSON.stringify(bad)?.slice(0, 20)} must fail the build`);
     assert.ok(!existsSync(file), "no config.js is written on failure");
-    assert.ok(!(r.stdout + r.stderr).includes("EXAMPLE"), "the rejected value is never echoed");
+    assert.ok(bad === undefined || bad === "" || !(r.stdout + r.stderr).includes(bad.slice(-12)), "the rejected value is never echoed");
     rmSync(out, { recursive: true });
   }
 });
@@ -62,4 +69,24 @@ test("CLI: succeeds on Netlify with valid values, prints one line, refuses outsi
   const forced = run({ SUPABASE_URL: URL_OK, SUPABASE_PUBLISHABLE_KEY: KEY_OK, COMMIT_REF: A }, ["--force"]);
   assert.equal(forced.r.status, 0);
   [ok, no, forced].forEach((x) => rmSync(x.out, { recursive: true }));
+});
+
+test("CSP host check: the build fails unless public/_headers names exactly the SUPABASE_URL origin (no wildcard, no other host)", () => {
+  assert.doesNotThrow(() => checkCspHost(HEADERS_OK, URL_OK));
+  assert.throws(() => checkCspHost(HEADERS_OK.replace(URL_OK, "https://zzzzzzzzzzzzzzzz.supabase.co"), URL_OK), /does not list/);
+  assert.throws(() => checkCspHost(HEADERS_OK.replace(URL_OK, "https://<project-ref>.supabase.co"), URL_OK), /does not list/);
+  assert.throws(() => checkCspHost(HEADERS_OK.replace(URL_OK, "https://*.supabase.co"), URL_OK), /does not list/);
+  assert.throws(() => checkCspHost(HEADERS_OK.replace("form-action", `https://zzzzzzzzzzzzzzzz.supabase.co; form-action`), URL_OK), /other than/);
+  assert.throws(() => checkCspHost("/*\n  X-Content-Type-Options: nosniff\n", URL_OK), /no Content-Security-Policy/);
+  const out = mkdtempSync(join(tmpdir(), "bd-cfg-"));
+  const hf = join(out, "_headers");
+  writeFileSync(hf, HEADERS_OK);
+  assert.ok(genConfig({ outDir: join(out, "g"), env: { SUPABASE_URL: URL_OK, SUPABASE_PUBLISHABLE_KEY: KEY_OK, COMMIT_REF: A }, git: () => null, headersFile: hf }).file);
+  writeFileSync(hf, HEADERS_OK.replace(URL_OK, "https://zzzzzzzzzzzzzzzz.supabase.co"));
+  assert.throws(() => genConfig({ outDir: join(out, "h"), env: { SUPABASE_URL: URL_OK, SUPABASE_PUBLISHABLE_KEY: KEY_OK, COMMIT_REF: A }, git: () => null, headersFile: hf }));
+  assert.ok(!existsSync(join(out, "h", "config.js")), "nothing written on a mismatch");
+  // CLI default: the check is ON and public/_headers is read relative to the working directory
+  const cli = spawnSync(process.execPath, [script, "--out", join(out, "c")], { cwd: out, env: { PATH: process.env.PATH, SUPABASE_URL: URL_OK, SUPABASE_PUBLISHABLE_KEY: KEY_OK, NETLIFY: "true", COMMIT_REF: A }, encoding: "utf8" });
+  assert.equal(cli.status, 1, "no public/_headers in cwd -> the build fails closed");
+  rmSync(out, { recursive: true });
 });

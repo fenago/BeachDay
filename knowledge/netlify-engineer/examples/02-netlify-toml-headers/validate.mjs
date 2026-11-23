@@ -81,6 +81,14 @@ const csp = get("/", "content-security-policy");
 check(/connect-src[^;]*https:\/\/api\.open-meteo\.com/.test(csp) && csp.includes("https://marine-api.open-meteo.com"),
   "CSP connect-src allows both Open-Meteo hosts (browser calls them directly, ADR-0001)");
 check(!/anthropic|github/.test(csp), "CSP does not let the browser call Claude or GitHub (functions do)");
+// Vera's final CSP (docs/04 §10): exact Supabase host, no wildcard, same directive set.
+const supaHosts = csp.match(/https?:\/\/[^\s;]*supabase\.co/g) ?? [];
+check(supaHosts.length === 1 && /connect-src[^;]*https:\/\/<project-ref>\.supabase\.co/.test(csp), "CSP connect-src names exactly one Supabase host (placeholder <project-ref> until the project exists)");
+check(!/\*/.test(csp), "CSP has no wildcard at all (no *.supabase.co)");
+const directives = csp.split(";").map((d) => d.trim().split(/\s+/)[0]).sort().join(",");
+check(directives === ["base-uri", "connect-src", "default-src", "form-action", "frame-ancestors", "img-src", "manifest-src", "object-src", "script-src", "style-src", "worker-src"].join(","), "CSP has exactly the agreed directives");
+check(/script-src 'self'(;|$)/.test(csp) && /style-src 'self'(;|$)/.test(csp), "script-src and style-src are 'self' only (vendored auth bundle, no CDN)");
+check(get("/", "cross-origin-opener-policy") === "same-origin", "Cross-Origin-Opener-Policy: same-origin (sign-in uses redirects, not pop-ups)");
 check(/frame-ancestors 'none'/.test(csp) && !/unsafe-inline|unsafe-eval/.test(csp), "CSP: no framing, no unsafe-inline/eval");
 check(get("/sw.js", "cache-control") === "no-cache", "/sw.js is Cache-Control: no-cache");
 check(get("/manifest.webmanifest", "content-type") === "application/manifest+json", "manifest content type");

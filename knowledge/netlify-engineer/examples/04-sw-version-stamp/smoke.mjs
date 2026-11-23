@@ -23,9 +23,14 @@ export async function smoke(base, expectCommit, fetchImpl = fetch) {
   const home = await get("/");
   const csp = home.headers.get("content-security-policy") ?? "";
   check(csp.includes("default-src 'self'") && csp.includes("form-action 'self'"), "CSP present on / with form-action");
+  check(!/unsafe-inline|unsafe-eval|\*/.test(csp), "CSP has no unsafe-inline, unsafe-eval or wildcard");
+  check((home.headers.get("cross-origin-opener-policy") ?? "") === "same-origin", "COOP same-origin on /");
 
-  // Fail-closed check: every /api route must refuse a request with no token.
-  for (const [method, path] of [["GET", "/api/agents"], ["POST", "/api/chat"], ["POST", "/api/proposals/p_00000000000000000000000000/approve"]]) {
+  // Fail-closed check: every SYNC /api route must refuse a request with no token.
+  // /api/jobs-run is deliberately NOT here: a background function always answers
+  // 202 (it cannot say 401), so a 202 there proves nothing and a 401 is impossible.
+  // Its guard is covered by the unit tests (example 01, test 10), not by smoke.
+  for (const [method, path] of [["GET", "/api/agents"], ["POST", "/api/chat"], ["POST", "/api/jobs"], ["GET", "/api/jobs/j_00000000000000000000000000"], ["GET", "/api/proposals/p_00000000000000000000000000"], ["POST", "/api/proposals/p_00000000000000000000000000/reject"], ["POST", "/api/proposals/p_00000000000000000000000000/approve"]]) {
     const r = await get(path, { method });
     check(r.status === 401, `${method} ${path} without a token -> 401 (got ${r.status})`);
     check((r.headers.get("cache-control") ?? "") === "no-store", `${path} sets its own cache-control: no-store`);

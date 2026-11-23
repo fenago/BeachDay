@@ -4,13 +4,13 @@
 A complete, minimal platform config for Beach Day and a validator that checks it.
 
 - `netlify.toml`: build command (`build-agents`, `stamp-sw`, then `gen-config`; no tests), `publish = "public"`, `NODE_VERSION` pin, functions directory **outside** the publish dir, `esbuild` bundler, `included_files` for `agents.json`, and an `ignore` command that skips commits that change nothing that ships. There is **no `netlify.toml` in the repo yet**; this is the spec for it.
-- `public/_headers`: site-wide CSP and security headers (including `form-action 'self'`), `sw.js` revalidation, manifest content type, `version.json` no-store, `noindex` + `no-store` on the Console page. The Supabase host in `connect-src` is not added yet (project not created; security-engineer owns the final CSP).
+- `public/_headers`: site-wide CSP and security headers (including `form-action 'self'`), `sw.js` revalidation, manifest content type, `version.json` no-store, `noindex` + `no-store` on the Console page. The CSP is security-engineer's **final policy** (docs/04 §10): one site-wide policy, the exact Supabase host in `connect-src` as the placeholder `https://<project-ref>.supabase.co` (a human replaces it when the project exists; no wildcard), `script-src 'self'` and `style-src 'self'`, plus `Cross-Origin-Opener-Policy: same-origin`. `gen-config.mjs` (example 04) fails the build if that host differs from `SUPABASE_URL`.
 - `validate.mjs`: parses the TOML (smol-toml), parses `_headers` with the documented syntax, checks Beach Day rules, and **runs the ignore command** in a throwaway git repo to prove its exit codes.
 
 Why this is "what good looks like":
 - **Credits (ADR-0004):** a production deploy is 15 credits; failed deploys and rollbacks cost 0 ([how credits work](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/)). The `ignore` command returns `0` (skip) for commits that touch only `docs/`, `knowledge/`, `tests/`, `.claude/skills/` or root Markdown ([ignore builds](https://docs.netlify.com/build/configure-builds/ignore-builds/)). It watches `.claude/agents` and `scripts`, because `agents.json` is generated from them. **It builds when `CACHED_COMMIT_REF` is empty**: the older form without that guard skips a first build (control check below). Whether a skipped build costs 0 credits is not stated on the pages read **[UNVERIFIED]**.
 - **One source for headers.** Headers are in `_headers` only, and each header name is set by exactly one rule for any path, so no response gets two CSPs.
-- **CSP matches ADR-0001:** `connect-src` allows `'self'` plus the two Open-Meteo hosts. The browser never talks to Claude or GitHub; functions do.
+- **CSP matches ADR-0001 as amended by ADR-0006:** `connect-src` allows `'self'`, the two Open-Meteo hosts and the one Supabase project host. The browser never talks to Claude or GitHub; functions do.
 - **No secrets in the file.** Variables in `netlify.toml` are not visible to functions anyway ([functions env vars](https://docs.netlify.com/build/functions/environment-variables/)), and function rate limits cannot be declared in `netlify.toml` ([rate limiting](https://docs.netlify.com/manage/security/secure-access-to-sites/rate-limiting/)).
 - Function responses (`/api/*`) are **not** covered by `_headers`; see example 01 for headers set in code.
 
@@ -21,7 +21,7 @@ node validate.mjs      # needs git and bash on PATH
 ```
 
 ## Verified
-Ran on 2026-11-23, Node v22.23.5, smol-toml 1.9.1, from a scratch copy (node_modules outside the repo). 52 checks pass. The ones that matter, trimmed:
+Ran on 2026-11-23, Node v22.23.5, smol-toml 1.9.1, from a scratch copy (node_modules outside the repo). Re-run in wave 3 with the final CSP and COOP: 57 checks pass (was 52). The ones that matter, trimmed:
 ```
 $ node validate.mjs
 PASS  build command runs build-agents, stamp-sw, then gen-config (ADR-0006)
@@ -29,6 +29,10 @@ PASS  build command does not run tests (agent-writable tests/** would see build 
 PASS  no [[headers]] in toml (single source: public/_headers)
 PASS  /sw.js: each header set once (6 headers)
 PASS  CSP has form-action 'self'
+PASS  CSP connect-src names exactly one Supabase host (placeholder <project-ref> until the project exists)
+PASS  CSP has no wildcard at all (no *.supabase.co)
+PASS  CSP has exactly the agreed directives
+PASS  Cross-Origin-Opener-Policy: same-origin (sign-in uses redirects, not pop-ups)
 PASS  /version.json is Cache-Control: no-store
 PASS  ignore: docs/notes.md only -> exit 0 (build skipped, 0 credits)
 PASS  ignore: knowledge/x/README.md only -> exit 0 (build skipped, 0 credits)

@@ -71,15 +71,17 @@ test("CLI refuses outside Netlify unless --force, and never prints env", () => {
 });
 
 // ---- smoke test against a local fake deploy -------------------------------
+const seen = [];
 function fakeSite({ stamped, withAuth }) {
   const version = "aaaaaaaaaaaa";
   return createServer((req, res) => {
+    seen.push(req.url);
     const send = (code, headers, body = "") => { res.writeHead(code, headers); res.end(body); };
-    const csp = "default-src 'self'; form-action 'self'";
+    const csp = "default-src 'self'; connect-src 'self'; form-action 'self'";
     if (req.url === "/sw.js") return send(200, { "cache-control": "no-cache" }, `const VERSION="${stamped ? version : PLACEHOLDER}";`);
     if (req.url === "/version.json") return send(200, { "content-type": "application/json" }, JSON.stringify({ version, commit: A }));
     if (req.url === "/manifest.webmanifest") return send(200, { "content-type": "application/manifest+json" }, "{}");
-    if (req.url === "/") return send(200, { "content-security-policy": csp }, "<html></html>");
+    if (req.url === "/") return send(200, { "content-security-policy": csp, "cross-origin-opener-policy": "same-origin" }, "<html></html>");
     if (req.url.startsWith("/api/")) return withAuth ? send(401, { "cache-control": "no-store" }) : send(200, { "cache-control": "no-store" }, "{}");
     send(404, {});
   });
@@ -93,6 +95,8 @@ test("smoke: a correct deploy passes every check", async () => {
   const r = await runSmoke({ stamped: true, withAuth: true });
   assert.deepEqual(r.filter((x) => !x.ok), []);
   assert.ok(r.length >= 12);
+  assert.ok(!seen.some((u) => u.startsWith("/api/jobs-run")), "smoke never calls the background route (always 202)");
+  assert.ok(seen.includes("/api/jobs") && seen.some((u) => u.endsWith("/reject")), "every sync route is probed");
 });
 test("smoke: catches an unstamped sw.js and an open /api route", async () => {
   const r = await runSmoke({ stamped: false, withAuth: false });

@@ -1,7 +1,7 @@
 // Run: node --test ratelimit.test.mjs   (no dependencies)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hit, windowKey, pruneOlderThan, APPROVE_CAP, APPROVE_KEY, checkApproveCap, recordApproval } from "./ratelimit.mjs";
+import { hit, windowKey, pruneOlderThan, APPROVE_CAP, APPROVE_KEY, checkApproveCap, recordApproval, COMPUTE_BUDGET, COMPUTE_KEY, checkComputeBudget, recordCompute } from "./ratelimit.mjs";
 
 // Fake Blobs store with the documented conditional-write semantics.
 // Each call yields to the event loop so parallel callers interleave.
@@ -158,4 +158,47 @@ test("approve cap: 30 parallel recordApproval calls lose none (CAS), and old tim
   assert.equal(data.times.length, 31);
   assert.ok(!data.times.includes("2026-09-01T00:00:00Z"));
   assert.ok(data.times.includes("2026-10-30T00:00:00Z"));
+});
+
+// ---- site-wide compute budget (site:compute) -------------------------------
+const MIN = 60_000;
+test("compute budget: one fixed record, 180 minutes pending Dr. Lee, chat needs 60 s and a job 5 min", () => {
+  assert.equal(COMPUTE_KEY, "site:compute");
+  assert.deepEqual(COMPUTE_BUDGET, { windowMinutes: 180, chatNeedMs: 60_000, jobNeedMs: 300_000 });
+});
+
+test("compute budget: sequential records add up; a turn is refused when less than 60 s is left; a job when less than 5 min", async () => {
+  const store = createFakeStore();
+  const now = new Date("2026-11-23T15:00:00Z");
+  assert.equal((await checkComputeBudget(store, COMPUTE_BUDGET.chatNeedMs, now)).allowed, true);
+  await recordCompute(store, 170 * MIN, now);
+  const job = await checkComputeBudget(store, COMPUTE_BUDGET.jobNeedMs, now);
+  assert.deepEqual(job, { allowed: true, usedMs: 170 * MIN, remainingMs: 10 * MIN }, "10 minutes left: a 5-minute job may start");
+  await recordCompute(store, 6 * MIN, now); // 176 used, 4 min left
+  assert.equal((await checkComputeBudget(store, COMPUTE_BUDGET.jobNeedMs, now)).allowed, false, "a job needs 5 min");
+  assert.equal((await checkComputeBudget(store, COMPUTE_BUDGET.chatNeedMs, now)).allowed, true, "a chat turn needs only 60 s");
+  await recordCompute(store, 3.5 * MIN, now); // 179.5 used, 30 s left
+  const chat = await checkComputeBudget(store, COMPUTE_BUDGET.chatNeedMs, now);
+  assert.equal(chat.allowed, false);
+  assert.ok(chat.retryAt > now.toISOString(), "retryAt is in the future (for the 429 budget_exhausted body)");
+});
+
+test("compute budget: the window rolls (31 days, whole New York days, rounded outwards) and old buckets are pruned on write", async () => {
+  const store = createFakeStore();
+  const t0 = new Date("2026-10-01T16:00:00Z");
+  await recordCompute(store, 180 * MIN, t0);
+  assert.equal((await checkComputeBudget(store, MIN, new Date("2026-10-31T16:00:00Z"))).allowed, false, "30 days later: still spent");
+  assert.equal((await checkComputeBudget(store, MIN, new Date("2026-11-02T16:00:00Z"))).allowed, true, "32 days later: bucket expired");
+  await recordCompute(store, MIN, new Date("2026-11-02T16:00:00Z"));
+  const rec = (await store.getWithMetadata(COMPUTE_KEY, { type: "json" })).data;
+  assert.deepEqual(Object.keys(rec.days), ["2026-11-02"], "the October bucket was pruned by the write");
+});
+
+test("compute budget: 30 parallel recordCompute calls lose nothing (CAS), and the record stays small", async () => {
+  const store = createFakeStore();
+  const now = new Date("2026-11-23T15:00:00Z");
+  await Promise.all(Array.from({ length: 30 }, () => recordCompute(store, 30_000, now, { maxAttempts: 100 })));
+  const rec = (await store.getWithMetadata(COMPUTE_KEY, { type: "json" })).data;
+  assert.equal(rec.days["2026-11-23"], 30 * 30_000);
+  assert.equal(await recordCompute(store, 0, now).then((r) => r.recorded), false, "zero or negative is ignored");
 });

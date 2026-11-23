@@ -68,7 +68,7 @@ Retrieved: 2026-11-23
 - **Rough compute:**
   - A 60 s chat turn at 1 GB is about 0.017 GB-hour, or about 0.17 credits.
   - A 15-minute job is 0.25 GB-hour, or 2.5 credits.
-  - So 100 chat turns a day is about 17 credits a day, over 500 a month, **more than the whole Free budget**. Real turns are usually much shorter than 60 s, but **measure it**. Per-session daily caps (docs/04 §9) are what keep this inside 300.
+  - So 100 chat turns a day is about 17 credits a day, over 500 a month, **more than the whole Free budget**. Real turns are usually much shorter than 60 s, but **measure it**. Per-user daily caps alone do not bound it (200 chat turns and 20 jobs a day could be about 50 credits a day), so Vera added a **site-wide compute budget: 180 function-minutes of `/api/chat` + `/api/jobs-run` per rolling 31 days, about 30 credits at 1024 MB** (docs/04 §9, record `site:compute`, example 03; **the number is pending Dr. Lee**). That leaves room under 300: 210 for Approves, about 30 for compute, 60 for human pushes and bandwidth.
   - The compute arithmetic is ours, from the published rate. Actual billed duration is not verified.
 - **Rollback runbook** (`docs/runbooks/rollback.md`, owned by netlify-engineer; **not written yet**, it sits outside this round's scope and is listed in the HANDOFF):
   1. Open Deploys and pick the last good deploy.

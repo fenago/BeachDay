@@ -49,6 +49,8 @@ export const config = {
 - **Everything else is counted in the app**, in Blobs, with CAS (example 03), per Supabase user id (sign-in throttling is Supabase's job, not ours):
   - 200 chat turns per day, 20 jobs per day (security-engineer's numbers, docs/04 §9)
   - **Approve, site-wide: 14 in a rolling 31 days and 5 per America/New_York day** (Dr. Lee, ADR-0008). One Blobs record, `site:approvals`; `checkApproveCap()` and `recordApproval()` in example 03. Over the cap the approve function answers `429` with `approve_cap` and a `retryAt`.
+  - **Site-wide compute budget (Vera, docs/04 §9): 180 function-minutes of `/api/chat` + `/api/jobs-run` wall time per rolling 31 days**, one Blobs record `site:compute` (`checkComputeBudget()` / `recordCompute()` in example 03). **The number is pending Dr. Lee.** Over it: `429 budget_exhausted`. A chat turn needs at least 60 s left, a job at least 5 min.
+  - The two Netlify rules and the per-user limits cannot bound credits on their own: this budget does.
 - The platform rule is **per IP** and **eventually enforced** (up to about 10 s lag), so it is a coarse shield. The app counters are the precise limits.
 - Show a friendly UI message on `429`, and test it with a mocked `429` in Playwright.
 - After the first deploy with these functions, check the deploy log for both rules under post-processing. Record the result in the HANDOFF.

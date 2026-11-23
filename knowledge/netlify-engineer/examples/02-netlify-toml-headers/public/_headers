@@ -1,18 +1,22 @@
 # Beach Day — public/_headers (example; the real file is public/_headers).
-# CSP connect-src for the Supabase project host (and anything else the
-# browser needs) is added by security-engineer / supabase-auth-engineer once
-# Dr. Lee has created the project; the value is not known yet.
+# The CSP is security-engineer's final policy (docs/04 §10): ONE site-wide
+# policy with the EXACT Supabase project host in connect-src, never a
+# wildcard. <project-ref> is a placeholder: a human replaces it with the
+# real project host when Dr. Lee creates the project (a _headers file cannot
+# read env vars). scripts/gen-config.mjs then FAILS the build if this host
+# differs from SUPABASE_URL (example 04), so a typo cannot ship.
 # Applies ONLY to static files Netlify serves. Function responses (/api/*)
 # must set their own headers in code.
 # Each header name is set by exactly one rule per path, so no CSP is ever
 # sent twice for the same response.
 
 /*
-  Content-Security-Policy: default-src 'self'; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com; img-src 'self' data:; style-src 'self'; script-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://<project-ref>.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(self), camera=(), microphone=()
   Strict-Transport-Security: max-age=31536000
+  Cross-Origin-Opener-Policy: same-origin
 
 # The service worker must always be revalidated so updates reach phones.
 /sw.js

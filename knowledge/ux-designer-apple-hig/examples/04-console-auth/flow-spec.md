@@ -63,9 +63,7 @@ All strings live in `../02-copy-deck/copy-deck.json` (ids in brackets). Mechanis
 ```
 ┌──────────────────────────────────────┐
 │ ‹ Sign in      Create a Console account │  back 44px, h1
-│ New accounts can't use the Console   │
-│ until the project lead turns on      │
-│ access.                              │  set expectations before they invest effort
+│ Use your email or Google.            │  [auth.signup.sub]. Open sign-up: no warning about access
 │ [ Continue with Google ]             │
 │ ─────────── Or ───────────           │
 │ Email   [                    ]       │  autocomplete=email
@@ -106,7 +104,7 @@ S4                                       S5
 │ [ Send Reset Link ]             │
 ```
 - After S4 submit, always show [auth.forgot.sent] "If an account uses {email}, a reset link is on its way." as `role="status"` on the same screen, with Back to Sign In. Same words whether or not the account exists.
-- S5 success: the person is signed in (Supabase recovery session). Status [auth.reset.done] "Password changed. You're signed in." then go to `#/console`. If they have no access, S6 follows.
+- S5 success: the person is signed in (Supabase recovery session). Status [auth.reset.done] "Password changed. You're signed in." then go to `#/console`. If they open the Agents page without access, S6 follows there.
 - Expired link: [auth.reset.expired] and Send Reset Link.
 - A Google-only account that asks for a reset gets the same S4 message. We don't say "this account uses Google" because that would reveal that the account exists.
 
@@ -116,6 +114,7 @@ S4                                       S5
 - Unsent chat text is kept in memory only until the page closes; it is not written to storage (it could contain sensitive text). **[UNVERIFIED]** whether Remy keeps any draft; the S7 copy "Your draft and proposal are saved" is only shown if drafts are kept in memory for that session. Remy decides.
 
 ### S6 No access (a 403 from `/api/agents`)
+Sign-up is open (Dr. Lee, 2026-11-23): anyone can create an account and use Beach Day. Only the Agents page, chat and Approve say no access, and only S6 says it. Sign-up, sign-in and reset never hint at it, and S6 appears only when the person opens an Agents route.
 ```
 ┌──────────────────────────────────────┐
 │ This account can't use the Console   │  h1
@@ -138,7 +137,7 @@ S4                                       S5
 - Mid-Approve: the approval did not happen. The proposal stays `pending`. After sign-in they return to the proposal card, not the sheet; they open the sheet again.
 
 ### S8 Confirm it's you (step-up before Approve, in the confirm sheet)
-The mechanism is generic: either path counts, and both give the same result, "Confirmed. Approve within {minutes} minutes." How recent and how it's proven is security-engineer's decision (docs/04 §4). **[UNVERIFIED]** whether Google re-prompts for a fresh sign-in; if it can't, the Google path is only offered where it can.
+Mechanism (security-engineer, docs/04 §4.2): the server accepts a password or Google sign-in no more than **10 minutes (600 s)** old; `{minutes}` = 10. Password users re-sign in inside the sheet. Google users leave for Google and return, and **nothing approves automatically**: the person must choose Approve and Deploy again. A `401 step_up_required` reopens this sheet. **[UNVERIFIED]** whether Google forces a fresh login (Vera's pre-launch tests a-e); until they pass, Approve stays disabled (see S10).
 ```
 ┌──────────────────────────────────────┐
 │ (Cancel)                             │
@@ -160,8 +159,9 @@ The mechanism is generic: either path counts, and both give the same result, "Co
 │                [ Approve and Deploy ]│  prominent, not auto-focused
 └──────────────────────────────────────┘
 ```
-- **Password path:** typing the password and pressing Approve and Deploy is both the proof and the approval. One sheet, one tap. Same field rules as sign-in: paste, password managers, no CAPTCHA, never prefilled.
-- **Google path:** tapping Confirm with Google leaves the page and returns to the same proposal. The sheet reopens with "Confirmed. Approve within {minutes} minutes." and focus on Approve and Deploy. Then one more tap approves. (Two taps, because the redirect breaks the flow; the person never has to find the proposal again.)
+- **Password path:** typing the password and pressing Approve and Deploy signs in again (the client calls `signInWithPassword`), then sends Approve with the new token. One sheet, one tap. While it runs the button reads "Committing…". Same field rules as sign-in: paste, password managers, no CAPTCHA, never prefilled.
+- **Google path:** the line [console.stepup.google.note] "After Google, you'll return here. Choose Approve and Deploy again." sits under the button, so nobody expects the redirect to approve. The page leaves for Google (no popup) and returns to the same proposal with the sheet reopened. Status [console.stepup.done] "Confirmed. Nothing is approved yet. Choose Approve and Deploy within 10 minutes." and focus on Approve and Deploy. One more tap approves. No URL parameter ever approves. Copy never says "click" (tap and choose work on phone and desktop).
+- **`401 step_up_required`** (the 10 minutes ran out, or the server disagreed): the sheet reopens or stays open, back to unconfirmed, with [console.stepup.required] "Confirm it's you to approve. Your last sign-in was over 10 minutes ago." (`role="status"`). The proposal stays pending. Focus goes to the password field, or the Google button for a Google-only account. This is not S7: the session is fine; only the fresh proof is missing.
 - **Google-only account:** no password field and no "Or". Only the Google button.
 - **Password-only account:** no Google button and no "Or".
 - **Wrong password:** [console.error.password], inline, `role="alert"`, `aria-invalid`, focus stays in the field. Throttled: [console.error.throttle].
@@ -183,6 +183,27 @@ The mechanism is generic: either path counts, and both give the same result, "Co
 - Why the numbers: the cap protects the Netlify credit budget (ADR-0004), shared by everyone with access. The screen shows the counts and the date, but does not explain credits; the confirm sheet does.
 - The usage line [console.cap.usage] on the sheet needs the server to return counts before Approve. **Needs: agent-console-engineer / software-architect** (see HANDOFF). Without it, people only learn at 429.
 - A failed, stale or rejected proposal never uses a slot (ADR-0008), so the copy never says "used" for those.
+
+### S10 Approve is off (pre-launch tests not passed)
+```
+┌──────────────────────────────────────┐
+│ Update UV wording                    │
+│ [ Review and Approve ]  aria-disabled│  stays visible, 44px, dimmed, focusable
+│ Approve is off until the launch      │  [console.approve.disabled], always visible text,
+│ checks pass. You can still read and  │  linked by aria-describedby
+│ reject.                              │
+│ [ Reject ]                           │
+└──────────────────────────────────────┘
+```
+- It is a temporary system state with one cause, so the button is shown with the reason, not hidden (unlike the cap, where nothing can be done until a date). The reason is plain text under the button, not a tooltip.
+- `aria-disabled="true"`, not the `disabled` attribute, so keyboard and screen-reader users can reach it and hear why. Activating it does nothing and opens no sheet. Reject, the diff and chat all work.
+- Not color-only: dimmed plus the sentence. Needs the server to say so in the proposal payload (`approveEnabled: false`). **Needs: agent-console-engineer** (see HANDOFF).
+
+### S11 Console usage limit (`429 budget_exhausted`)
+- The site-wide compute budget is spent (180 function-minutes per rolling 31 days at the time of writing; Vera says the number may change, so no number appears on screen). It is shared by everyone, like the Approve cap.
+- Chat: the composer's alert [console.error.budget] "The Console has hit its usage limit for now. Chat and jobs resume {date}." (`role="alert"`). `{date}` is the day enough budget frees, in America/New_York, like the cap. If the server gives no date, use [console.error.budget.nodate] "The Console has hit its usage limit for now. Try again later."
+- The unsent draft stays in the composer, focus stays there, Send is `aria-disabled` with the message as its description. Reading proposals, Reject and the beach app are unaffected.
+- Different from S9: S9 is about Approve slots, S11 about chat and jobs. Never reuse one message for the other. **[UNVERIFIED]** whether Approve itself counts against compute; the copy doesn't promise either.
 
 ### Outcome copy: committed and live
 | Outcome | Copy | Region |
@@ -213,6 +234,9 @@ The mechanism is generic: either path counts, and both give the same result, "Co
 | Session ended | 401 | S1 + [console.session.expired] | status | h1 |
 | Step-up needed | Approve sheet opens | S8 | — | password field, or Google button if Google-only |
 | Cap reached | 429 `approve_cap` | S9 | alert | the alert text region |
+| Step-up required | 401 `step_up_required` | S8 + [console.stepup.required] | status | password field, or Google button |
+| Usage limit | 429 `budget_exhausted` | S11 | alert | composer |
+| Approve off | pre-launch tests pending | S10 | text under button | Review and Approve (reachable) |
 
 "Checking your access…" is written as a specific task, not "Loading" or "Authenticating" (HIG Progress indicators); it is in the copy deck as `console.checking`.
 
@@ -233,6 +257,6 @@ The mechanism is generic: either path counts, and both give the same result, "Co
 2. Stating "no access" on a 503 would send a real super_admin to the wrong person. **Fix:** 403 and 503 are separate screens.
 3. A sign-up that says "email already used" reveals who has an account. **Fix:** S3 for all.
 4. A confirm-password field doubles typing on a phone. **Fix:** one field plus Show Password.
-5. New accounts will land on "no access" every time. **Fix:** S2 says so before they sign up, and S6 says what to do.
+5. New accounts reach "no access" when they open Agents. Dr. Lee keeps sign-up open, so S2 says nothing about it and the message lives only on the Agents page (S6), where it says what to do.
 6. The cap message at the moment of failure gives a person no action. **Fix:** hide Review and Approve, keep Reject, show the date, show the usage count earlier in the sheet.
 7. On iPhone, the email confirmation link may open in Safari while the PWA is installed. The person lands on S1 in the other context. **Fix:** S1's status "Email confirmed. Sign in to continue." works anywhere. **[UNVERIFIED]** how Supabase redirect URLs behave in a standalone PWA; Pip and Cass to confirm.

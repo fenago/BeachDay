@@ -41,6 +41,7 @@ Researched 2026-11-23. Each doc cites its sources inline and marks unverified it
 | [0006](adr/0006-supabase-auth-for-console.md) | Supabase Auth for the Console: browser → Supabase Auth directly; every function checks Bearer token + `super_admin` role and fails closed; publishable key only; vendored `@supabase/auth-js`; restates the 0001 boundary | Accepted |
 | [0007](adr/0007-agent-reads-from-github-main.md) | Agents' `read_file` / `list_files` read from GitHub `main`, pinned to one SHA per turn | Accepted |
 | [0008](adr/0008-site-wide-approve-cap.md) | Approve cap, site-wide: 14 per rolling 31 days, 5 per day | Accepted |
+| [0009](adr/0009-public-read-token-for-agent-reads.md) | Agent read tools use a separate public-read token, `GITHUB_READ_TOKEN`; only Approve loads the write token (would supersede 0007) | **Proposed**, awaiting Dr. Lee |
 
 ## Build plan
 
@@ -54,7 +55,7 @@ Nothing is built yet. This round changed only docs, ADRs, agents, skills and kno
 5. **Run the profiles SQL** from `knowledge/supabase-auth-engineer/`: the `profiles` table (`id` references `auth.users` on delete cascade, `role` defaults to `'user'`), the trigger that creates the row on sign-up, and RLS that lets a user read only their own row and never change `role`.
 6. **Sign up once in the Console, then make yourself admin** in the Supabase SQL editor: `update public.profiles set role = 'super_admin' where id = '<your auth user id>';`. Nobody else can set this.
 7. **Netlify env:** `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `GITHUB_REPO` as plain values. `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` as secrets (`GITHUB_TOKEN` Production-only if Free allows it; see docs/03). Delete the two old Console-password variables listed in ADR-0006 §7, if they were ever set.
-8. Create the fine-grained PAT (ADR-0005), the Anthropic workspace with a spend limit, and the `main` ruleset (no force push, no deletion).
+8. Create the fine-grained PAT (ADR-0005), the Anthropic workspace with a spend limit, and the `main` ruleset (no force push, no deletion). If you accept ADR-0009, also create the public-read token and set it as the secret `GITHUB_READ_TOKEN` (Production), then run its pre-launch read/write test.
 
 **Phase 1: platform skeleton** (netlify-engineer, then security-engineer review)
 - `netlify.toml`, `public/_headers` (CSP including the Supabase origin for `connect-src`), and the `ignore` rule.

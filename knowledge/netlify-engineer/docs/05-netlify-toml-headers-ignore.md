@@ -83,8 +83,8 @@ Retrieved: 2026-11-23
 
 ## Beach Day notes
 - **Use one headers source: `public/_headers`.** Example 02 has the file and a validator.
-  - **CSP:** `default-src 'self'`, and `connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com`. That is ADR-0001: the browser calls Open-Meteo directly, while Claude and GitHub are reached only from functions.
-  - Also: no `unsafe-inline`, and `frame-ancestors 'none'`.
+  - **CSP: security-engineer's final policy (docs/04 §10), one site-wide policy:** `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://<project-ref>.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`. The browser calls Open-Meteo directly (ADR-0001) and Supabase Auth directly (ADR-0006); Claude and GitHub are reached only from functions. The Supabase host is exact, never `*.supabase.co`. `<project-ref>` is a placeholder a human replaces, because `_headers` cannot read env vars; **`scripts/gen-config.mjs` fails the build if that host differs from `SUPABASE_URL`** (example 04).
+  - Also: `Cross-Origin-Opener-Policy: same-origin` (sign-in uses redirects, not pop-ups), no `unsafe-inline`, no `unsafe-eval`, and `frame-ancestors 'none'`.
   - `/sw.js` gets `Cache-Control: no-cache`, and `/manifest.webmanifest` gets `Content-Type: application/manifest+json`.
 - **`/api/*` responses get none of these.** Every function sets `cache-control: no-store` and its own headers (example 01).
 - **Ignore command:**

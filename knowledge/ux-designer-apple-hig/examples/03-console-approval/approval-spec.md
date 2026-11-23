@@ -51,11 +51,12 @@ Approve ships code to production. It is rare, deliberate and **not undoable in p
 └──────────────────────────────────────────────┘
 ```
 - **Opening:** focus goes to the password field (or to the Google button if the account has no password). Those are the only inputs the task needs. **Cancel**, **Esc** or a backdrop tap closes it with no side effects, and focus returns to "Review and Approve".
-- **Step-up ("Confirm it's you"):** two paths, and either one counts. The mechanism and the window (`{minutes}`) are security-engineer's decision (docs/04 §4); this spec only fixes what the person sees.
-  - **Password path:** typing it and pressing Approve and Deploy is the proof and the approval in one tap. Never prefilled (HIG Entering data). Paste and password managers work (WCAG 3.3.8): `autocomplete="current-password"`, no paste blocking, no CAPTCHA. The label says "password", never "passcode" (HIG Managing accounts).
-  - **Google path:** "Confirm with Google" leaves the page and returns to the same proposal with the sheet reopened and "Confirmed. Approve within {minutes} minutes." Focus lands on Approve and Deploy. A second tap approves.
+- **Step-up ("Confirm it's you"):** two paths, and either one counts. The mechanism and the window (`{minutes}`) are security-engineer's decision (docs/04 §4); this spec only fixes what the person sees. Decision (docs/04 §4.2): a password or Google sign-in no more than 10 minutes old, so `{minutes}` = 10.
+  - **Password path:** typing it and pressing Approve and Deploy re-signs in, then approves, in one tap. Never prefilled (HIG Entering data). Paste and password managers work (WCAG 3.3.8): `autocomplete="current-password"`, no paste blocking, no CAPTCHA. The label says "password", never "passcode" (HIG Managing accounts).
+  - **Google path:** under the button: "After Google, you'll return here. Choose Approve and Deploy again." It leaves the page (redirect) and returns to the same proposal with the sheet reopened and "Confirmed. Nothing is approved yet. Choose Approve and Deploy within 10 minutes." Focus lands on Approve and Deploy. A second tap approves. Nothing approves automatically, and no URL parameter approves.
   - A Google-only account sees only the Google button; a password-only account sees only the password field. No "Or" is shown when there is one path.
   - Timed out: "Time ran out. Confirm it's you again." (status).
+  - Server says `401 step_up_required`: the sheet reopens unconfirmed with "Confirm it's you to approve. Your last sign-in was over 10 minutes ago." (status); the proposal stays pending.
 - **Wrong password:** "That password didn't match. Try again." appears under the field (`role="alert"`) with `aria-invalid="true"`. Focus stays in the field with the text selected. After too many wrong tries the error is "Too many tries. Wait a minute, then try again." The real limit comes from Supabase and the Approve function. **[UNVERIFIED]** the count; the copy states none.
 - **Approve and Deploy** is prominent but not auto-focused, and Enter only submits from inside the field after the user has typed. No default-button accident.
 - **Double submit:** the button becomes "Committing…" with `aria-disabled="true"` and ignores further clicks. The server also refuses with a CAS status lock.
@@ -68,6 +69,9 @@ Approve ships code to production. It is rare, deliberate and **not undoable in p
 | **Committed, no deploy needed** | 200 + SHA, and the paths are all ones Netlify's ignore rule skips | "Committed abc1234. No deploy needed." + "Only docs or agent files changed, so the site stays as it is." The sheet said so before Approve: "This commits to main. The live site doesn't change, so no deploy runs." | status | — |
 | Live | Console polls `/version.json` until the new build shows | "Live. The change is on the site." + "View commit abc1234" | status | — |
 | **Cap reached** | 429 `approve_cap` (ADR-0008) | "14 of 14 approvals used in the last 31 days. Next slot frees Dec 4." (or "5 of 5 approvals used today. More open up at midnight Eastern.") + "The proposal is still waiting." | alert | Reject; Review and Approve hidden until `retryAt` |
+| **Confirm needed** | 401 `step_up_required` | Sheet reopens: "Confirm it's you to approve. Your last sign-in was over 10 minutes ago." | status | Password field or Google button |
+| **Usage limit** | 429 `budget_exhausted` (chat/jobs) | "The Console has hit its usage limit for now. Chat and jobs resume {date}." | alert | Composer (draft kept) |
+| **Approve off** | pre-launch tests not passed | "Approve is off until the launch checks pass. You can still read and reject." under a dimmed, `aria-disabled` Review and Approve | text (describedby) | Reject |
 | Stale base | 409 (main moved) | "Main changed since this proposal. Ask the agent to redo it." | alert | Ask agent (chat) |
 | Path not allowed | 422/403 from the allow-list re-check | "This proposal edits a file agents can't change. Nothing was committed." | alert | — |
 | Commit failed | 5xx / GitHub error | "The commit failed. Nothing was deployed. Try again in a minute." | alert | **Try Again** (focused) |

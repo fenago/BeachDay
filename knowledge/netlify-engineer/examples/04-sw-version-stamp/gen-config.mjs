@@ -9,10 +9,13 @@
 // Fails  : exit 1 (previous deploy stays live, 0 credits) unless
 //          * SUPABASE_PUBLISHABLE_KEY starts with "sb_publishable_" (catches a pasted
 //            sb_secret_ key and the legacy JWT-style anon/service_role keys), and
-//          * SUPABASE_URL is a plain https origin (no path, query, credentials).
+//          * SUPABASE_URL is a plain https origin (no path, query, credentials), and
+//          * the CSP `connect-src` in public/_headers names exactly that origin and no
+//            wildcard *.supabase.co (docs/04 §10: the host in _headers is a literal,
+//            because _headers cannot read env vars, so the build compares them).
 // Safety : prints ONE line, and never prints a variable's value, not even in an
 //          error: a rejected key may be a secret key, and build logs are not private.
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pickVersion } from "./stamp-sw.mjs";
 
@@ -36,9 +39,28 @@ export function checkKey(raw) {
   return raw;
 }
 
+// The CSP host check. `headersText` is the content of public/_headers.
+// Every Content-Security-Policy line's connect-src must list `origin`, and no
+// supabase.co wildcard or other *.supabase.co host may appear anywhere in it.
+export function checkCspHost(headersText, origin) {
+  const csp = headersText.split("\n").map((l) => l.trim()).filter((l) => /^content-security-policy:/i.test(l));
+  if (csp.length === 0) throw new Error("public/_headers has no Content-Security-Policy line");
+  for (const line of csp) {
+    const connect = /(?:^|;\s*|:\s*)connect-src\s+([^;]*)/i.exec(line)?.[1]?.split(/\s+/) ?? [];
+    if (!connect.includes(origin)) throw new Error("CSP connect-src in public/_headers does not list the SUPABASE_URL origin (values not shown)");
+    const hosts = line.match(/https?:\/\/[^\s;]*supabase\.co/gi) ?? [];
+    if (hosts.some((h) => h !== origin)) throw new Error("CSP names a supabase.co host other than SUPABASE_URL, or a wildcard (values not shown)");
+  }
+}
+
 // Returns { file, source }; throws on any problem (caller exits 1).
-export function genConfig({ outDir, env, git, now }) {
+// `headersFile` (optional): path to public/_headers; when given, the CSP host check runs.
+export function genConfig({ outDir, env, git, now, headersFile }) {
   const url = checkUrl(env.SUPABASE_URL);
+  if (headersFile) {
+    if (!existsSync(headersFile)) throw new Error("headers file not found");
+    checkCspHost(readFileSync(headersFile, "utf8"), url);
+  }
   const key = checkKey(env.SUPABASE_PUBLISHABLE_KEY);
   const { version, source } = pickVersion(env, git, now);
   const body =
@@ -52,17 +74,20 @@ export function genConfig({ outDir, env, git, now }) {
   return { file, source };
 }
 
-// CLI: node scripts/gen-config.mjs [--out public/generated] [--force]
+// CLI: node scripts/gen-config.mjs [--out public/generated] [--headers public/_headers] [--force]
+// In the real build the headers check is always on (default public/_headers); --no-headers-check exists only for tests.
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = process.argv.slice(2);
   const oi = args.indexOf("--out");
   const outDir = oi >= 0 ? args[oi + 1] : "public/generated";
+  const hi = args.indexOf("--headers");
+  const headersFile = args.includes("--no-headers-check") ? undefined : hi >= 0 ? args[hi + 1] : "public/_headers";
   if (process.env.NETLIFY !== "true" && !args.includes("--force")) {
     console.error("gen-config: refusing to write files outside a Netlify build (use --force)");
     process.exit(1);
   }
   try {
-    const r = genConfig({ outDir, env: process.env });
+    const r = genConfig({ outDir, env: process.env, headersFile });
     console.log(`gen-config: wrote ${r.file} (version source=${r.source})`);
   } catch (e) {
     console.error(`gen-config: ${e.message}`);

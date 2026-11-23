@@ -5,11 +5,12 @@ description: Claude API facts for the Agent Console Netlify Functions — model 
 # Claude API (summary of docs/05-claude-api.md — read it for details)
 
 ## Defaults
-- **SDK:** `@anthropic-ai/sdk` with `new Anthropic()`, which reads `ANTHROPIC_API_KEY`. Call it only from Netlify Functions, never from the browser.
+- **SDK:** `@anthropic-ai/sdk`, only from Netlify Functions, never from the browser. Always pass the endpoint and key explicitly: `new Anthropic({ baseURL: "https://api.anthropic.com", apiKey: process.env.ANTHROPIC_API_KEY, timeout, maxRetries })`, so an injected `ANTHROPIC_BASE_URL` or AI-Gateway variable can't reroute calls (docs/03 §5).
 - **Model:** `claude-opus-5-5`. Per agent, map `model:` aliases to IDs:
+  - `opus` / `inherit` / missing → `claude-opus-5-5`
   - `sonnet` → `claude-sonnet-5-5`
   - `haiku` → `claude-haiku-5-5`
-  - `fable` → `claude-fable-5-2`
+  - **Console allow-list is these three only.** `fable`, full IDs and anything else fail `build-agents`, and functions re-check the ID (docs/04 §11). Fable 5.2 (`claude-fable-5-2`) is for Claude Code sessions only.
   - Use exact IDs; never add date suffixes.
 - **Thinking:** `thinking: {type: "adaptive"}`, or omit it.
   - `budget_tokens` and `{type: "disabled"}` return **400** on current models.
@@ -43,7 +44,7 @@ description: Claude API facts for the Agent Console Netlify Functions — model 
   - Opt into fallbacks with `client.beta.messages.create({..., betas: ["server-side-fallback-2026-07-01"], fallbacks: "default"})`. The streaming variant takes the same parameters.
 - **Error classes,** most specific first: `Anthropic.NotFoundError`, `Anthropic.RateLimitError`, `Anthropic.APIError`, `Anthropic.APIConnectionError`.
 - **SDK retries:** 408/409/429/5xx are retried twice by default.
-- **TypeScript timeout is in ms.** Keep it under the Netlify limit: about 50_000 for chat, 840_000 in background functions.
+- **TypeScript timeout is in ms.** Keep it under the Netlify limit: about 50_000 for chat, 840_000 in background functions. In chat also pass a per-turn deadline as the request option `{ signal }` (55 s from the turn's start), so retries can't overrun 60 s (docs/04 §8).
 
 ## Caching
 - Put the stable system prompt and tools first, with `cache_control: {type: "ephemeral"}`.

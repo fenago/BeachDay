@@ -106,6 +106,10 @@
       "text": "Rain likely, {pct}% chance"
     },
     {
+      "id": "reason.rain.chance",
+      "text": "{pct}% chance of rain"
+    },
+    {
       "id": "reason.rain.code",
       "text": "Rain in the forecast"
     },
@@ -124,6 +128,10 @@
     {
       "id": "reason.cloudy",
       "text": "Mostly cloudy"
+    },
+    {
+      "id": "reason.cloudy.part",
+      "text": "Partly cloudy"
     },
     {
       "id": "reason.sunny",
@@ -155,7 +163,7 @@
     },
     {
       "id": "reason.waves.rough",
-      "text": "Rough, waves over 5 ft offshore"
+      "text": "Rough, waves {ft} ft offshore"
     },
     {
       "id": "reason.water.warm",
@@ -243,7 +251,8 @@
     },
     {
       "id": "status.after.hours",
-      "text": "Beach hours are over for today. Here is tomorrow."
+      "text": "Beach hours are over for today. Here is tomorrow.",
+      "code": "no_beach_window"
     },
     {
       "id": "status.beach.selected",
@@ -255,7 +264,8 @@
     },
     {
       "id": "status.no.verdict",
-      "text": "No verdict yet. Some forecast data is missing."
+      "text": "No verdict yet. Some forecast data is missing.",
+      "code": "data_unavailable"
     },
     {
       "id": "status.waves.na",
@@ -406,16 +416,24 @@
       "text": "Confirm with Google to approve."
     },
     {
+      "id": "console.stepup.google.note",
+      "text": "After Google, you'll return here. Choose Approve and Deploy again."
+    },
+    {
       "id": "console.stepup.or",
       "text": "Or"
     },
     {
       "id": "console.stepup.done",
-      "text": "Confirmed. Approve within {minutes} minutes."
+      "text": "Confirmed. Nothing is approved yet. Choose Approve and Deploy within {minutes} minutes."
     },
     {
       "id": "console.stepup.expired",
       "text": "Time ran out. Confirm it's you again."
+    },
+    {
+      "id": "console.stepup.required",
+      "text": "Confirm it's you to approve. Your last sign-in was over {minutes} minutes ago."
     },
     {
       "id": "console.status.ready",
@@ -460,6 +478,18 @@
     {
       "id": "console.cap.waiting",
       "text": "The proposal is still waiting."
+    },
+    {
+      "id": "console.error.budget",
+      "text": "The Console has hit its usage limit for now. Chat and jobs resume {date}."
+    },
+    {
+      "id": "console.error.budget.nodate",
+      "text": "The Console has hit its usage limit for now. Try again later."
+    },
+    {
+      "id": "console.approve.disabled",
+      "text": "Approve is off until the launch checks pass. You can still read and reject."
     },
     {
       "id": "console.error.password",
@@ -575,7 +605,7 @@
     },
     {
       "id": "auth.signup.sub",
-      "text": "New accounts can't use the Console until the project lead turns on access."
+      "text": "Use your email or Google."
     },
     {
       "id": "auth.or",
@@ -649,5 +679,23 @@
       "id": "auth.redirecting",
       "text": "Taking you to Google…"
     }
-  ]
+  ],
+  "placeholders": {
+    "$comment": "Values behind each {placeholder}, proposed by open-meteo-integrator and confirmed by Wren. All are taken over the best window.",
+    "{temp}": "mean over the best window (feels-like for air, sea surface temperature for water), whole degrees F",
+    "{mph}": "mean wind speed over the best window, whole mph",
+    "{ft}": "maximum offshore wave height inside the best window, one decimal only if under 10",
+    "{pct}": "maximum rain chance inside the best window, integer %",
+    "{in}": "total precipitation over the best window, two decimals",
+    "{time}": "start of the first hour concerned, like 2 pm, local time",
+    "{hours}": "number of usable beach hours, integer"
+  },
+  "reasonBands": {
+    "reason.rain.chance": "rain chance [21,61)",
+    "reason.rain": "rain chance [61,100]",
+    "reason.cloudy.part": "cloud cover [41,71)",
+    "reason.cloudy": "cloud cover [71,100]",
+    "reason.waves.rough": "waves >= 5 ft",
+    "reason.waves.choppy": "waves [2,5) ft"
+  }
 }

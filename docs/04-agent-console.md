@@ -6,12 +6,52 @@
 
 ## 1. User flow
 
-1. Open `/console` → password screen → session cookie.
-2. Agent list (cards): name, `personality` (or `description`), model badge, color.
-3. Pick an agent → chat. Replies stream in. The agent can read repo files (read-only tools).
-4. The agent calls `propose_change` → the Console shows a **proposal card**: summary, file list, unified diff per file, "allowed path" checks, size.
-5. User clicks **Approve** (or Reject). Approve re-validates on the server, commits to `main` as **one atomic commit**, shows the commit link, then "Deploying…" → "Live" (from a deploy-succeeded event or polling).
-6. Every action lands in an audit log.
+Owner: agent-console-engineer. Screens, copy and focus rules: Wren's spec, `knowledge/ux-designer-apple-hig/examples/04-console-auth/flow-spec.md` (S1–S9; string ids in its copy deck). Security mechanisms: §4 (this section only says what the browser does with them). The wording is **"Sign in"**, never "log in".
+
+**Who gets in (Dr. Lee, 2026-11-23).** Sign-up stays open: anyone can create an account, and everyone can use the beach app with or without one. A signed-in account without `super_admin` sees "no access" only on the Console's Agents page; chat, jobs, proposals and Approve are refused with `403` by the functions (§2, §4.1). The browser never reads `profiles` (ADR-0006 point 6).
+
+1. **Sign in.** `/console` with no Supabase session shows S1 (email and password, or "Continue with Google"; sign up, confirm email, reset password are S2–S5). Sessions are Supabase's (§4.3). There is no password of ours, no cookie and no `/api/login`.
+2. **Checking your access.** With a session, the Console calls `GET /api/agents`, which is the access check. While it runs, the Agents page shows skeleton cards with `aria-busy="true"` on the list and the status line "Checking your access…" (`role="status"`, copy id `console.checking`). The call has a 10 s `AbortController` timeout; a timeout is treated like `503`.
+   - `200` → agent cards: name, persona, `personality` (or `description`), model badge, colour (§11).
+   - `401` → S7 "Session ended" (see the response table below).
+   - `403` → S6 "This account can't use the Console". The browser makes no more `/api/*` calls from that screen.
+   - `503` → "Couldn't check your access. Try again in a minute." with Try Again (`role="alert"`). A `503` never shows S6.
+3. **Chat.** Pick an agent; replies stream into a `role="log"` list, and the streaming bubble has `aria-busy="true"` until `done` or `error`. Tool activity shows as one-line `tool` events, never raw input. A `refusal` removes the partial bubble and shows a plain message. On `handoff` the UI polls `GET /api/jobs/:id` every 2–3 s (§8).
+   - **Draft and transcript are memory-only.** The composer text and the chat transcript live in JS memory and the DOM. They are never written to `localStorage`, `sessionStorage`, IndexedDB, the service worker or a URL, because they may hold sensitive text. They survive in-page screens (S7 with email sign-in, the Approve sheet) but not a full-page navigation. Before a Google redirect (sign-in or step-up) with text in the composer, the Console says the unsent message will be cleared (Wren owns the copy). After any redirect, an open proposal is restored from the server by its id in the hash route (`#/console/proposals/p_…`); the hash only navigates, it never acts (§4.4).
+   - **Fresh token before long calls.** Before `POST /api/chat` and `POST /api/jobs` the client refreshes the session if the access token has less than 120 s left (rule in §4.1). It applies the same rule before every other `/api/*` call, because it costs nothing and avoids a needless S7.
+4. **Proposal card.** When the agent calls `propose_change`, the card shows: a heading with the summary; the file list with sizes; a unified text diff per file with `+`/`−` markers as well as colour; the first 8 characters of `contentHash`; the §6 warnings (`public/**/*.js` and `*.html`, `.claude/**`, `tests/**`); and whether the change deploys (below). Buttons have explicit names ("Approve proposal: …", "Reject proposal: …"). Model output, file contents, diffs and Supabase errors are rendered with `textContent` only (§10).
+5. **Approve sheet** (S8, a `<dialog>` opened with `showModal()`). It shows the consequence line, the approval usage "{used} of 14 approvals used in the last 31 days" when the server supplies it (needs `GET /api/proposals/:id` to return the read-only cap check: `approvals: {used31, usedToday, per31Days, perDay, retryAt?}`; §2.1 owner), and "Confirm it's you" (§4.2). Approve sends `{contentHash}` with the current token.
+   - `401 step_up_required` → the sheet stays open in the unconfirmed state. Password path: `signInWithPassword` then Approve again in the same sheet. Google path: `signInWithOAuth` back to the proposal's hash route; the sheet reopens confirmed and the person clicks Approve again. Nothing approves from a URL.
+   - **Approve off before launch** (S10): until the §4.2 pre-launch tests pass, `GET /api/proposals/:id` returns `approveEnabled: false`, the approve function refuses with `503 unavailable` whatever the client does, and the card shows Review and Approve with `aria-disabled="true"` plus the reason. Reject still works. The switch is a server constant reviewed by security-engineer, not a client flag.
+   - `429 approve_cap` → S9: the cap message (`role="alert"`), "The proposal is still waiting.", Review and Approve hidden until `retryAt`, Reject kept.
+   - `409 conflict` (hash mismatch or a second Approve) → reload the proposal and show its current status. `stale` → "Main changed under this change. Ask the agent to propose again."
+6. **Outcome** (all `role="status"`):
+   - "Committing to main…" while the request runs.
+   - **Deploys:** "Committed {sha}. Deploying…" plus the commit link, then **Live**: the Console polls `GET /version.json` with `cache: "no-store"` every 10 s (paused while the tab is hidden) and shows "Live. The change is on the site." when `commit` equals the full `commitSha`. After 10 minutes it shows "Still deploying. Check Netlify." and stops polling (§7). A 404 or bad JSON from `/version.json` counts as "not yet".
+   - **No deploy needed:** "Committed {sha}. No deploy needed." and no Live step (finished state).
+7. **Reject** marks the proposal `rejected` (CAS). Every proposal, approve, step-up failure, reject and commit result lands in the audit log (actor = Supabase user id).
+
+**"No deploy needed" uses the build's own path list.** A commit deploys if any changed path is under one of the paths in Nell's `ignore` command (docs/03 §3.1): `public`, `netlify`, `netlify.toml`, `package.json`, `package-lock.json`, `scripts`, `.claude/agents`. Of the agent-writable paths, only `public/**` and `.claude/agents/*.md` deploy; a proposal that touches only `docs/**`, `tests/**` or `.claude/skills/**` does not.
+- One constant, `DEPLOY_PATHS`, in `netlify/functions/lib/deploys.mts`, with `deploysOnCommit(paths)`. A unit test parses the `ignore` line in `netlify.toml` and fails if its path list differs from `DEPLOY_PATHS`, so the two can't drift.
+- The server computes `deploys: true|false` and returns it with the proposal and the Approve result. The sheet then says before Approve "This commits to main. The live site doesn't change, so no deploy runs." and drops the credits line.
+- **A no-deploy approval still uses one of the 14 slots** (ADR-0008 point 4), and the sheet says so next to the usage line (Wren to word it).
+- If `deploys` is missing or unknown, the UI uses the deploy wording, which is the safe one. Whether Netlify charges 0 credits for a build skipped by `ignore` is UNVERIFIED (docs/03 §8.2).
+
+**If recording the approval fails after the commit succeeded.** Once the ref update has moved `main` (§7 step 6), the commit is real and Netlify will deploy it, so the Approve response is **success** (`200`, `committed`, `commitSha`) whatever happens next, and the UI shows the normal outcome. If `recordApproval()` (the CAS append to `site:approvals`, ADR-0008) still fails after its retries:
+- write an audit record `{action: "approve_cap_unrecorded", actor, proposalId, commitSha, at}` and a structured error log line (no body, no token);
+- also try to write a marker `site:approvals-unrecorded/<commitSha>` `{at}` with `onlyIfNew` in the `ratelimit` store. The next `checkApproveCap()` counts these markers as used slots and folds them into `times` on its next write, so the cap does not undercount a commit that deployed (§9);
+- never turn the response into an error, never retry the commit, and never roll back `main`.
+
+**How the Console handles `/api/*` responses** (one fetch wrapper in `public/js/console/api.js`; SSE `error` events with the same `code` are handled the same way):
+
+| Response | What the Console does |
+|---|---|
+| `401` (`unauthorized`) | Auth runs before any work (§4.1), so nothing happened. Refresh the session once and resend the same request once. If the refresh fails or the second answer is `401` again: S7 "Your session ended. Sign in to pick up where you left off.", keeping the route, draft and transcript in memory |
+| `401 step_up_required` | Only from Approve: keep the sheet open, unconfirmed (step 5). No refresh, no retry |
+| `403` | S6. Stop all Console calls and polling. Never retried |
+| `503` (`unavailable`) | "Couldn't check your access. Try again in a minute." with Try Again. Keep the draft, the transcript and any open proposal. Never S6 |
+| `429` | `rate_limited`: say when to try again from `retryAt`; `budget_exhausted`: S11, keep the draft, Send `aria-disabled`; `approve_cap`: S9. Never retried automatically |
+| network error or timeout | Same as `503`, with the offline wording if `navigator.onLine` is false |
 
 ## 2. Endpoints (Netlify Functions)
 
@@ -24,8 +64,8 @@ Auth on **every** route (ADR-0006): `Authorization: Bearer <Supabase access toke
 | `POST /api/jobs` | sync | Bearer + super_admin | Check limits, create job `j_…` with a single-use nonce, trigger `/api/jobs-run`; returns `202 {jobId}` |
 | `POST /api/jobs-run` | **background** (≤15 min) | Bearer + super_admin + job nonce | Internal: called only by `/api/jobs` and the `/api/chat` handoff. Re-checks token and role, consumes the nonce (CAS), runs the job, writes progress to Blobs |
 | `GET /api/jobs/:id` | sync | Bearer + super_admin | Poll job status/events |
-| `GET /api/proposals/:id` | sync | Bearer + super_admin | Proposal + diff |
-| `POST /api/proposals/:id/approve` | sync | Bearer + super_admin + step-up (§4) | Body `{contentHash}`; re-validate, cap check (ADR-0008), commit to GitHub |
+| `GET /api/proposals/:id` | sync | Bearer + super_admin | Proposal + diff, plus `deploys`, `approveEnabled` and the read-only `approvals` usage (§2.1). Also runs the `committing` reconciler (§7) |
+| `POST /api/proposals/:id/approve` | sync | Bearer + super_admin + step-up (§4) | Body `{contentHash}`. Under the site-wide approve lock: re-validate, **check** the cap (read-only, ADR-0008), commit to GitHub, then **record** the approval only once `main` has moved (§7) |
 | `POST /api/proposals/:id/reject` | sync | Bearer + super_admin | Mark rejected |
 
 Background functions can't answer the caller (they return `202` immediately), so the **sync** `/api/jobs` wrapper checks auth and limits and creates the job record, including a random 256-bit nonce. It then calls `/api/jobs-run`, forwarding the caller's `Authorization` header and `{jobId, nonce}`. The background function repeats the token and role check, consumes the nonce with a compare-and-swap, and does nothing if either check fails. No shared signing secret is needed. Deploy status needs no function: the Console polls `/version.json` (ADR-0006 §8, docs/03).
@@ -44,7 +84,9 @@ pending ──approve──► committing ──► committed
    └──reject──► rejected
 ```
 
-Every transition is a Blobs compare-and-swap (`onlyIfMatch`). `committing` is the per-proposal lock. A record stuck in `committing` for more than 120 s is reconciled by the next GET or approve: if a commit on `main` carries the trailer `Beach-Day-Proposal: p_…`, the record becomes `committed`; otherwise it becomes `failed`. `failed`, `stale` and `rejected` are terminal. The agent proposes again to retry.
+Every transition is a Blobs compare-and-swap (`onlyIfMatch`). `committing` is the per-proposal lock. A record stuck in `committing` for more than 120 s is reconciled by the next GET or approve, under the approve lock (§7 "Reconciler"): if `main` carries a commit with the trailer `Beach-Day-Proposal: p_…`, the approval is recorded in `site:approvals` and the record becomes `committed`; only if `main` was re-read successfully and has no such commit does it become `failed`. `failed`, `stale` and `rejected` are terminal. The agent proposes again to retry.
+
+**Invariant (ADR-0008): `committed` ⇒ counted.** A proposal is moved to `committed` only after its timestamp is in `site:approvals`. The cap may overcount by one in a rare crash (safe); it never undercounts a commit that reached `main`.
 
 **SSE events** (`POST /api/chat`; each message is `event: <type>` plus one `data:` JSON line; the stream ends with exactly one `done` or `error`):
 
@@ -54,10 +96,47 @@ Every transition is a Blobs compare-and-swap (`onlyIfMatch`). `committing` is th
 | `tool` | `name` ∈ `read_file`/`list_files`/`propose_change`, `phase` ∈ `start`/`end`, `summary?` (≤200 chars, never raw input) |
 | `proposal` | `proposalId` (`p_…`), `summary`, `files: [{path, bytes}]` (≤20) |
 | `handoff` | `jobId` (`j_…`); followed by `done` with `stopReason: "handoff"` |
-| `error` | `code` ∈ `unauthorized` (401), `forbidden` (403), `rate_limited`, `refusal`, `upstream`, `timeout`, `invalid_request`, `internal`; `message` (user-safe, ≤500 chars); `retryable` (bool) |
+| `error` | `code` from the error table below; `message` (user-safe, ≤500 chars); `retryable` (bool) |
 | `done` | `stopReason?` ∈ `end_turn`, `max_tokens`, `refusal`, `handoff`, `tool_rounds_exhausted` |
 
-**JSON errors** from non-streaming routes: `{"error": {"code", "message", "retryAt?"}}`. Codes are the SSE `error.code` list plus `not_found`, `conflict` (CAS lost), `stale`, `approve_cap` (429, ADR-0008) and `unavailable` (503, Supabase down). Never include stack traces, env values or tokens.
+**Errors: one code list for JSON and SSE.** A JSON error body is `{"error": {"code", "message", "retryAt?"}}` (`retryAt` is ISO-8601 UTC, sent with every 429). `message` is user-safe and ≤500 chars. Never include stack traces, env values, tokens or upstream error bodies.
+
+`/api/chat` rule: a check that fails **before the stream opens** (auth, role, Origin, body, per-user limits, compute budget) answers with the HTTP status and the JSON body below, with `content-type: application/json`. The client checks `res.ok` and the content type before parsing SSE. Once `200 text/event-stream` has been sent, failures arrive as one SSE `error` event with the same `code`.
+
+| `code` | HTTP | Sent by | Meaning |
+|---|---|---|---|
+| `invalid_request` | 400 | all | Bad `:id` (§2.1 IDs), method, content type, size or body shape |
+| `unauthorized` | 401 | all | Missing, invalid or expired token (§4.1). Nothing was done |
+| `step_up_required` | 401 | approve | Token is valid but the sign-in isn't fresh enough (§4.2). Proposal stays `pending` |
+| `forbidden` | 403 | all | Not `super_admin` or no profile row (§4.1), or a cross-site `Sec-Fetch-Site` / foreign `Origin` on POST (§4.4) |
+| `not_found` | 404 | jobs/:id, proposals/:id | No such record |
+| `conflict` | 409 | approve, reject | CAS lost, the proposal isn't `pending`, or `contentHash` doesn't match |
+| `stale` | 409 | approve | `main` moved under a file the agent read; proposal is now `stale` |
+| `rate_limited` | 429 | chat, jobs | Per-user daily counter (§9). Netlify's own rate-limit rule also answers 429, with its own body: the client treats any 429 without our JSON as `rate_limited` |
+| `budget_exhausted` | 429 | chat, jobs (and a chat `handoff` that can't start its job) | Site-wide compute budget `site:compute` has too little left (§9) |
+| `approve_cap` | 429 | approve | ADR-0008 cap reached; proposal stays `pending`; body also carries `approvals` (below) |
+| `refusal` | — | SSE only | Claude refused; discard the partial reply |
+| `upstream` | 502 | chat, jobs, approve | Claude or GitHub failed. For approve, the proposal is `failed` (or still `committing`, §7) |
+| `timeout` | 504 | chat, approve | Our own time budget ran out before a result |
+| `unavailable` | 503 | all | Supabase unreachable (§4.1), not the production context (§4.6), or Approve switched off before launch |
+| `internal` | 500 | all | Anything else |
+
+**Proposal payload for the Approve sheet.** `GET /api/proposals/:id` returns:
+
+```json
+{
+  "proposal": { "...": "the stored record (proposal.schema.json) plus a unified diff per file" },
+  "deploys": true,
+  "approveEnabled": true,
+  "approvals": { "used31": 3, "usedToday": 1, "per31Days": 14, "perDay": 5, "retryAt": null }
+}
+```
+
+- **`approvals`** is the read-only cap check (`checkApproveCap()`, ADR-0008; netlify-engineer example 03) run **outside** the approve lock. It is advisory, for display only; the check inside the lock at Approve is the one that counts. `retryAt` is `null` when a slot is free now, otherwise the same ISO time a `429 approve_cap` would return. If the Blobs read fails, `approvals` is `null` and the sheet omits the usage line; it does not block Approve.
+- **`deploys`** is `deploysOnCommit(paths)` from `netlify/functions/lib/deploys.mts` (§1, which mirrors the `ignore` path list in docs/03 §3.1).
+- **`approveEnabled`** is the server-side pre-launch switch (§1 step 5, §4.2).
+- The approve `200` returns `{ "proposal": {"id", "status": "committed", "commitSha", "decidedAt"}, "deploys", "approvals" }`, with `approvals` read after recording. A `429 approve_cap` body carries `approvals` next to `error`.
+- **A no-deploy approval still uses a cap slot.** `deploys: false` changes the outcome copy only, never the accounting: every `committed` approval counts (ADR-0008 point 4, decided). Excluding no-deploy approvals would need a new ADR superseding 0008, and only after the first skipped build shows 0 credits on the Usage page (ADR-0008 "Revisit when"; docs/03 §8.2, UNVERIFIED today).
 
 Machine-checkable JSON Schemas for these shapes are in `knowledge/software-architect/examples/02-interface-contracts/`.
 
@@ -221,7 +300,7 @@ Source: [fine-grained PATs](https://docs.github.com/en/authentication/keeping-yo
 * Expiration: GitHub now allows no-expiry tokens unless an org policy forbids it; set **90 days** anyway and rotate (calendar reminder; `netlify env:set GITHUB_TOKEN … --secret`).
 * Fine-grained PATs **cannot be limited to paths or branches**. GitHub's "restrict file paths" **push rulesets** exist but only for private/internal repos on GitHub Team+ ([rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)). → The **allow-list must be enforced in our function**.
 * Still add a ruleset on `main` (available on Free public repos): block force pushes, restrict deletions.
-* Store as secret env var `GITHUB_TOKEN`, **Production context only**, Functions scope (scopes need Pro; on Free keep the build script from printing env).
+* Store as secret env var `GITHUB_TOKEN`, **Production context only**. Env-var scopes (Builds/Functions/Runtime) are Pro-only, so on Free the build can read it too; how that is contained (production context, previews and branch deploys off, the in-code production check, a build that never prints env) is §4.6. Approve is the only writer; `chat` and `jobs-run` use the same token for reads only, through a module with no write methods (ADR-0007), unless Dr. Lee accepts the separate `GITHUB_READ_TOKEN` (§4.6).
 * **Decided (ADR-0005): fine-grained PAT.** A GitHub App remains the documented upgrade path:
 * Upgrade path: a **GitHub App** installed on just this repo, with installation tokens that **expire after 1 hour** and can be narrowed per request ([installation tokens](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app)). Commits show as a bot, and the app can be a separate actor in rulesets. Cost: a private key in env + JWT minting (`@octokit/auth-app`).
 
@@ -269,7 +348,10 @@ Rules:
 - DENY wins over ALLOW.
 - At most 20 files, and at most 200 KB per file.
 - **Text only:** contents must decode as UTF-8 with no NUL bytes, whatever the path.
-- Run a **secret scan** on new contents. Patterns: `sk-ant-`, `github_pat_`, `ghp_`, `sb_secret_`, `service_role`, JWT-shaped `eyJ…` strings and private-key blocks.
+- Run a **secret scan** on new contents, at proposal time and again at Approve. The exact rules are owned by security-engineer and live in the `agent-console-security` skill ("Proposal integrity"), with a runnable copy in `knowledge/security-engineer/examples/03-secret-scan-and-review/`. In summary it flags: Anthropic keys (`sk-ant-…`), GitHub tokens (`github_pat_…`, `gh[pousr]_…`), Supabase secret keys (`sb_secret_…`), any **full three-part JWT** (which covers legacy `service_role`/`anon` keys and access tokens), private-key blocks, assignments to `ANTHROPIC_API_KEY`, `GITHUB_TOKEN` or `GITHUB_READ_TOKEN`, and high-entropy strings of 40+ characters next to key, token or secret (lower-case slash paths excluded).
+  - It does **not** match the bare word `service_role`, so docs that explain the key stay proposable.
+  - There is no `EXAMPLE` exemption. Test fixtures build fake secrets at runtime instead of committing literal strings (`secure-by-design`).
+  - Findings are redacted to 6 characters plus the length in the UI, logs and audit.
 - Changes to denied paths are made by a human in a normal git workflow.
 - GitHub **push protection** applies to REST API commits and may reject a commit that contains a secret. Show that error in the UI ([push protection](https://docs.github.com/en/code-security/concepts/secret-security/push-protection)).
 
@@ -313,21 +395,24 @@ Netlify auto-deploys the push to `main` ([deploy overview](https://docs.netlify.
 
 ## 8. Long agent jobs vs Netlify time limits
 
-Netlify: synchronous and **streaming** functions stop at **60 s**; **background** functions run up to **15 min**, return `202` immediately, can't stream, are retried after 1 and 2 min on failure ([limits](https://docs.netlify.com/build/functions/configuration/#default-values), [background](https://docs.netlify.com/build/functions/background-functions/)).
+Netlify: synchronous and **streaming** functions stop at **60 s**; **background** functions run up to **15 min**, return `202` immediately, can't stream, are retried after 1 and 2 min on failure ([limits](https://docs.netlify.com/build/functions/configuration/#default-values), [background](https://docs.netlify.com/build/functions/background-functions/)). Routes and the job nonce: §2. Limits that apply before any of this starts (per-user counts, the compute budget): §9.
 
 | Job | Where it runs | How the UI gets output |
 |---|---|---|
-| Chat turn (most messages) | `/api/chat` streaming function | SSE events directly |
-| Turn that needs many tool rounds / multi-file proposal | `/api/jobs` background function | Poll `/api/jobs/:id` every 2–3 s; Blobs holds an append-only event list |
+| Chat turn (most messages) | `POST /api/chat`, streaming | SSE events directly (§2.1) |
+| Turn that needs many tool rounds, or a multi-file proposal | `POST /api/jobs` (sync: auth, limits, job record, nonce) starts `POST /api/jobs-run` (background) | Poll `GET /api/jobs/:id` every 2–3 s; Blobs holds an append-only event list in the same shapes as the SSE events |
+| A chat turn that runs out of time | `/api/chat` hands off to `/api/jobs-run` | `handoff` event, then polling as above |
 | Anything > 15 min | Split into steps, or move to Claude Managed Agents (doc 05 §9) | Poll |
 
 Patterns:
 
-* **Time budget in code:** `/api/chat` tracks elapsed time; at ~45 s with work remaining it saves the conversation state (full `messages`, including tool_use/tool_result blocks) to Blobs, emits `{type:"handoff", jobId}`, and kicks off the background function to continue. The UI switches to polling seamlessly.
-* **Anthropic SDK timeout** under the platform limit (`timeout: 50_000` ms in chat; `840_000` in background) and `maxRetries` low so retries don't overrun.
-* **Idempotency:** background functions may be retried — key each job by ID, check status before doing work, write step results with `onlyIfNew`, never commit from a job (commits only happen in Approve).
-* **Caps per job:** max tool rounds (e.g. 15), `max_tokens`, optional Claude task budget; job wall-clock check at 14 min → save partial state + "paused, continue?".
-* **Streaming format to the browser:** simplified SSE events (`text`, `tool`, `proposal`, `handoff`, `error`, `done`). Set `content-type: text/event-stream`, `cache-control: no-store`. Netlify's streaming limit is 20 MB per response.
+* **One deadline per chat turn.** `/api/chat` notes its start time. Every Claude call gets an `AbortSignal` for the time left before **55 s**, passed as the SDK request option `signal`, so a retry can't run past the deadline either. The client-level `timeout: 50_000` stays as the per-attempt ceiling. A new tool round starts only if at least 15 s are left; otherwise the turn hands off.
+* **Hand-off.** With work remaining, `/api/chat` saves the conversation state (the full `messages`, including `tool_use`, `tool_result` and `thinking` blocks, and the pinned `baseSha`, ADR-0007) to the job record, emits `handoff {jobId}` then `done {stopReason: "handoff"}`, and starts `/api/jobs-run` the same way `/api/jobs` does (forwarded `Authorization`, single-use nonce). The hand-off counts as one of the user's daily jobs (§9). The browser refreshes its token beforehand when it has less than 120 s left (§4.1), because `/api/jobs-run` checks the token only at its start.
+* **Anthropic SDK client.** Created once per function instance, after the production-context check (§4.6), as `new Anthropic({ baseURL: "https://api.anthropic.com", apiKey: process.env.ANTHROPIC_API_KEY, timeout, maxRetries })`. Both `baseURL` and `apiKey` are explicit, so an injected `ANTHROPIC_BASE_URL` or AI-Gateway variable can't reroute the calls (docs/03 §5). `timeout: 50_000` and `maxRetries: 1` in chat; `timeout: 840_000` and `maxRetries: 2` in `jobs-run`.
+* **Model.** The model ID comes from `agents.json` and must be one of `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` (§11). Anything else is a `500 internal` that never reaches Claude.
+* **Idempotency:** `jobs-run` may be retried. It claims the job with a CAS (`queued` → `running`), so a retry finds it taken and exits; step results are written with `onlyIfNew`. **Never commit from a job**: commits happen only in Approve.
+* **Caps per job:** ≤ 15 tool rounds, the token cap and the wall clock from §9. At about 14 min (or the compute-budget limit, if lower) the job saves its state and becomes `paused`; the UI offers "Continue", which is a new `POST /api/jobs` and counts as a new job.
+* **Streaming format to the browser:** only the §2.1 events (`text`, `tool`, `proposal`, `handoff`, `error`, `done`), never raw Anthropic events, thinking or signatures. Headers: `content-type: text/event-stream`, `cache-control: no-store`, `x-content-type-options: nosniff`. A refusal drops the partial reply and ends with `error {code: "refusal"}`. Netlify's streaming limit is 20 MB per response. Worked example: `knowledge/agent-console-engineer/examples/01-streaming-chat-function/`.
 * **Blobs consistency:** use `strong` for job and proposal records (eventual can lag up to 60 s).
 
 ## 9. Rate limits & cost controls
@@ -395,7 +480,13 @@ Recommended addition: `Cross-Origin-Opener-Policy: same-origin`. It is safe beca
 
 ## 11. Agent list & personality
 
-`scripts/build-agents.mjs` parses `.claude/agents/*.md` (YAML frontmatter + body) into `agents.json` at build time. `/api/agents` returns `name`, `persona` (first name), `description`, `personality` (custom field — Claude Code ignores unknown fields), `model` (alias → resolved ID), `color`. System prompts stay server-side. Because approved commits redeploy, edits to agent files appear in the Console after the next deploy. Details: doc 05 §3.
+`scripts/build-agents.mjs` parses `.claude/agents/*.md` (YAML frontmatter + body) into the git-ignored `netlify/functions/lib/agents.json` at build time (docs/03). Per agent it records `name`, `persona` (first name), `description`, `personality` (custom field; Claude Code ignores unknown fields), `model` (alias resolved to an ID), `color`, `skills` (names) and `systemPrompt`.
+
+- **System prompt** = the agent body, then the full `SKILL.md` of each `skills:` entry in listed order (the Console's equivalent of Claude Code's preload). It contains no timestamps or build ids, so it stays cacheable (doc 05 §4). A `skills:` entry without a matching folder fails the build.
+- **Model allow-list.** `opus`, `inherit` or a missing `model:` → `claude-opus-5-5`; `sonnet` → `claude-sonnet-5-5`; `haiku` → `claude-haiku-5-5`. Any other value, including `fable` or a full model ID, **fails the build** with the file name, so an approved agent edit can't switch the Console to an unlisted or pricier model. The functions re-check the resolved ID against the same three IDs (§8). Widening the list is a human change to `scripts/**` and `netlify/**`.
+- **`GET /api/agents`** returns everything except `systemPrompt`, after the §4.1 check. It is also the Console's access check (§1 step 2): `403` there is the "no access" screen.
+- `personality` falls back to `description` when missing. Cards show name, persona, personality, a model badge with text ("Opus", "Sonnet", "Haiku"), and the colour as decoration only.
+- `.claude/agents/*.md` is in the deploy path list (§1), so an approved edit to an agent file appears in the Console after that deploy. Details: doc 05 §3.
 
 ## 12. Build checklist for `agent-console-engineer` + `security-engineer`
 

@@ -70,7 +70,7 @@ Source for every line: [Blobs § Requirements and limitations](https://docs.netl
 - **Stores** (docs/03 §7):
   - `proposals`: key `p_<ULID>`
   - `jobs`: key `j_<ULID>`
-  - `ratelimit`: key `<action>/<user id>/<YYYY-MM-DD>`, plus the single record `site:approvals` (value `{ times: [<ISO-8601 UTC>, ...] }`, pruned to 31 days on every write) for the site-wide Approve cap of ADR-0008: 14 in a rolling 31 days, 5 per America/New_York day (example 03)
+  - `ratelimit`: key `<action>/<user id>/<YYYY-MM-DD>`, plus the single record `site:approvals` (value `{ times: [<ISO-8601 UTC>, ...] }`, pruned to 31 days on every write) for the site-wide Approve cap of ADR-0008: 14 in a rolling 31 days, 5 per America/New_York day (example 03); and the single record `site:compute` (value `{ days: { "<New York YYYY-MM-DD>": <ms> } }`, at most 32 day buckets, pruned on every write) for the site-wide compute budget, 180 function-minutes per rolling 31 days (docs/04 §9; **number pending Dr. Lee**; `checkComputeBudget()` and `recordCompute()` in example 03)
   - `audit`: key `<ISO time>_<id>`
   - All are opened with **`consistency: "strong"`**, because approval state and counters must not read data that is up to 60 s stale.
 - Use `getStore`, not `getDeployStore`. Proposals and jobs must survive the deploy that an approval itself triggers.

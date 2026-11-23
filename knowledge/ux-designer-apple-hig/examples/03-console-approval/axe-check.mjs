@@ -99,6 +99,36 @@ for (const colorScheme of ['light', 'dark']) {
   assert(await page.locator('legend', { hasText: "Confirm it\u2019s you" }).count() === 1, `${s('both')}: step-up legend missing`);
   await page.keyboard.press('Escape');
 
+  // 4g. Step-up required (401): sheet stays open, unconfirmed, message, focus on the first path
+  await page.goto(base + '?outcome=stepup&account=google');
+  await page.click('#review');
+  assert((await page.locator('#google-note').innerText()).includes('Choose Approve and Deploy again'), `${s('stepup')}: Google note missing`);
+  await page.click('#google');
+  assert((await page.locator('#confirmed').innerText()).includes('Nothing is approved yet'), `${s('stepup')}: confirmed text must say nothing is approved`);
+  assert(await page.locator('#status', { hasText: 'Live.' }).count() === 0, `${s('stepup')}: approved automatically after Google`);
+  await page.click('#approve');
+  await page.locator('#sheet-status', { hasText: 'Your last sign-in was over 10 minutes ago' }).waitFor();
+  assert(await active(page) === 'google' && await page.locator('dialog#confirm[open]').count() === 1, `${s('stepup')}: sheet closed or focus lost`);
+  await axe(page, s('step-up required (401)'));
+
+  // 4h. Usage limit 429 budget_exhausted: alert, proposal untouched
+  await page.goto(base + '?outcome=budget');
+  assert((await alertText(page)).includes('usage limit'), `${s('budget')}: alert text missing`);
+  assert(await page.locator('#review').isVisible(), `${s('budget')}: Approve must stay (chat budget only)`);
+  await axe(page, s('usage limit (429)'));
+
+  // 4i. Approve off: visible, aria-disabled, reachable, reason shown, sheet does not open, 44px
+  await page.goto(base + '?outcome=disabled');
+  assert(await page.getAttribute('#review', 'aria-disabled') === 'true', `${s('disabled')}: not aria-disabled`);
+  assert(await page.locator('#disabled-note').isVisible(), `${s('disabled')}: reason not visible`);
+  await page.click('#review', { force: true });
+  assert(await page.locator('dialog#confirm[open]').count() === 0, `${s('disabled')}: sheet opened`);
+  await page.focus('#review');
+  assert(await active(page) === 'review', `${s('disabled')}: button not focusable`);
+  const box = await page.locator('#review').boundingBox();
+  assert(box.height >= 44, `${s('disabled')}: target under 44px`);
+  await axe(page, s('approve off'));
+
   // 4d. Approve cap reached: alert names the numbers and the date, proposal stays, Review hidden
   await page.goto(base + '?outcome=cap');
   await page.click('#review'); await page.fill('#pw', 'demo-password'); await page.click('#approve');

@@ -102,6 +102,68 @@ export async function recordApproval(store, now = new Date(), { maxAttempts = 20
   throw new Error("recordApproval: contended"); // caller marks the audit log; the commit already happened
 }
 
+/**
+ * Site-wide compute budget (Vera, docs/04 §9): 180 function-minutes of
+ * /api/chat + /api/jobs-run wall time per rolling 31 days, about 30 credits at
+ * 1024 MB (10 credits per GB-hour; billed duration UNVERIFIED). THE NUMBER IS
+ * PENDING DR. LEE: it lives in one constant. Over the budget -> 429 budget_exhausted.
+ *
+ * ONE record, key "site:compute" in the "ratelimit" store (strong), value
+ * { days: { "<New York YYYY-MM-DD>": <milliseconds>, ... } }. Day buckets
+ * keep the record small (at most 32 keys, however many turns run), unlike a
+ * list with one entry per turn (200 chat turns a day would be 6,000+ entries).
+ * Buckets whose day is before localDay(now - 31 days) are pruned on every
+ * write, so the window is "31 days, rounded outwards to whole New York days":
+ * slightly conservative, never lenient.
+ *   checkComputeBudget()  read-only, BEFORE a chat turn (needs >= 60 s left)
+ *                         or a job (needs >= 5 min left); no lock needed.
+ *   recordCompute()       CAS add of the elapsed milliseconds when the turn or
+ *                         job ends, and at each job progress write (pass only
+ *                         the NEW milliseconds each time).
+ */
+export const COMPUTE_BUDGET = { windowMinutes: 180, chatNeedMs: 60_000, jobNeedMs: 5 * 60_000 }; // number pending Dr. Lee
+export const COMPUTE_KEY = "site:compute";
+
+const liveDays = (days, now) => {
+  const first = localDay(new Date(now.getTime() - WINDOW_MS));
+  return Object.entries(days ?? {}).filter(([d]) => d >= first).sort(([a], [b]) => (a < b ? -1 : 1));
+};
+
+export function evaluateCompute(days, now, needMs, budget = COMPUTE_BUDGET) {
+  const live = liveDays(days, now);
+  const limitMs = budget.windowMinutes * 60_000;
+  const usedMs = live.reduce((n, [, ms]) => n + ms, 0);
+  const remainingMs = Math.max(0, limitMs - usedMs);
+  if (remainingMs >= needMs) return { allowed: true, usedMs, remainingMs };
+  // Earliest moment enough oldest buckets have expired (conservative: a bucket leaves 32 days after its day starts).
+  let freed = 0, retryAt = null;
+  for (const [d, ms] of live) {
+    freed += ms;
+    if (remainingMs + freed >= needMs) { retryAt = new Date(Date.parse(`${d}T00:00:00Z`) + 32 * 86400_000).toISOString(); break; }
+  }
+  return { allowed: false, usedMs, remainingMs, retryAt };
+}
+
+export async function checkComputeBudget(store, needMs, now = new Date(), budget = COMPUTE_BUDGET) {
+  const cur = await store.getWithMetadata(COMPUTE_KEY, { type: "json" });
+  return evaluateCompute(cur?.data?.days, now, needMs, budget);
+}
+
+export async function recordCompute(store, ms, now = new Date(), { maxAttempts = 20 } = {}) {
+  if (!Number.isFinite(ms) || ms <= 0) return { recorded: false };
+  const today = localDay(now);
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const cur = await store.getWithMetadata(COMPUTE_KEY, { type: "json" });
+    const days = Object.fromEntries(liveDays(cur?.data?.days, now));
+    days[today] = Math.round((days[today] ?? 0) + ms);
+    const r = cur === null
+      ? await store.setJSON(COMPUTE_KEY, { days }, { onlyIfNew: true })
+      : await store.setJSON(COMPUTE_KEY, { days }, { onlyIfMatch: cur.etag });
+    if (r.modified) return { recorded: true, totalMs: Object.values(days).reduce((n, v) => n + v, 0) };
+  }
+  throw new Error("recordCompute: contended"); // the work already ran; log it, never block the response on it
+}
+
 // Pruning: keys are per day, so a daily scheduled function can delete
 // keys whose date part is older than N days via store.list({ prefix }).
 export async function pruneOlderThan(store, action, keepDays, now = new Date()) {
