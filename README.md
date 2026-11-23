@@ -52,14 +52,34 @@ On a machine without a preinstalled browser, run `npx playwright install chromiu
 
 **The harness is the local proof.** `tests/harness/server.mjs` serves `public/` with the real `_headers` rules (so CSP violations show up), runs the real function code from `netlify/functions/`, and fakes Supabase, Anthropic and GitHub in-process. It never reaches a real host and reads no real secret. A route whose handler file is missing answers 501.
 
-**Netlify CLI** (install it yourself; it is not a project dependency). Checked with netlify-cli 27.20.1 in a scratch site, on 2026-11-23:
+### Run it locally: what was proven, and how to repeat it
 
-| Command | Result |
-|---|---|
-| `netlify build --offline` | Works. Proves the build command and the esbuild bundling of `.mts` functions |
-| `netlify functions:serve --offline --port 9780 --functions netlify/functions` | Works (unset `NODE_OPTIONS`, and pass `--functions`). Serves only `/.netlify/functions/<name>`; routes set by `config.path` such as `/api/chat` return 404 here |
-| `netlify dev` | Did **not** work in the sandbox: it downloads the Edge Functions runtime, which the sandbox blocks. It may work on your machine, with `netlify link` first. UNVERIFIED for this repo |
-| `netlify deploy` | Makes a draft only. **Never add `--prod`**: `main` deploys automatically |
+Checked on 2026-11-23 at commit `b828c82`, in a scratch copy of the repo, with netlify-cli 27.20.1 (install it yourself; it is not a project dependency). Every run used fake values only: `SUPABASE_URL=https://bdlocaltest.supabase.co`, `SUPABASE_PUBLISHABLE_KEY=sb_publishable_bdlocaltest_0000000000000000`, and `COMMIT_REF` set to the commit.
+
+| | What | Result |
+|---|---|---|
+| **L1** | Netlify build, offline: `netlify build --offline` | **Proven.** The build command ran. 12 agents and 25 skills went into `agents.json` (biggest prompt 124.3 KB of 350 KB). `sw.js` was stamped with `b828c82d7228`, no placeholder is left, and `version.json` agrees. `public/generated/config.js` was written. All 8 functions bundled (`agents`, `approve`, `chat`, `job-run`, `job-status`, `jobs`, `proposal`, `reject`). Exit 0 |
+| **L1, negative** | Same build with the `<project-ref>` placeholder left in `public/_headers` | **Proven.** The build fails at `gen-config` (exit 2, "CSP connect-src ... does not list every required source", value not shown) and writes no `config.js`. This is the guard working |
+| **L2** | `netlify dev --offline --port 8899` | **Could not run here.** The static server and all 8 functions load, then the CLI stops with "fetch failed" in its Edge Functions set-up (`prepareServer`): it downloads the Edge Functions runtime and the sandbox blocks that download. We use no edge functions. It may work on your machine, after `netlify link`. UNVERIFIED for this repo |
+| **L2, substitute** | `netlify functions:serve --offline --port 8899 --functions netlify/functions` | **Proven** (it needs `NODE_OPTIONS` unset). The real bundled function code answers on its `config.path` URLs. With no token, all 7 sync routes answer 401 with `cache-control: no-store`, `nosniff` and the JSON CSP. A well-formed but fake bearer token answers 503 (Supabase unreachable, fail closed), never 200. `POST /api/jobs-run` answers 202, as a background function always does. With no Supabase variables set, a route answers 503 `misconfigured`. This serves no static files, so headers from `_headers` are not covered here |
+| **L3** | Full stack through the harness: real function code, fake Supabase, Anthropic and GitHub, in a real browser | Tess's W3 run of `approve.spec.mjs`: **pending Tess W3** (counts to be filled in from her HANDOFF). Before that, `scripts/smoke.mjs` run against the harness passed every `/api` check (7 routes, 401, `no-store`, `nosniff`, no CORS or cookie) and the `sw.js`, manifest, CSP and COOP checks. It reported one FAIL, "sw.js contains the version in /version.json", because the harness serves a fixture `version.json` (not the build's) while it stamps `sw.js` in memory. That is a harness quirk, not a product bug; on a real deploy both come from one build |
+
+Repeat L1 (bash, from a scratch copy so your tree stays clean):
+
+```bash
+export COMMIT_REF=$(git rev-parse HEAD)
+export NETLIFY=true CI=true SUPABASE_URL=https://bdlocaltest.supabase.co \
+  SUPABASE_PUBLISHABLE_KEY=sb_publishable_bdlocaltest_0000000000000000
+fresh() { rm -rf /tmp/bd-proof && mkdir /tmp/bd-proof && git archive HEAD | tar -x -C /tmp/bd-proof && (cd /tmp/bd-proof && npm ci); }
+
+fresh && cd /tmp/bd-proof && netlify build --offline        # negative check: expect exit 2 (placeholder guard)
+cd - && fresh && cd /tmp/bd-proof \
+  && sed -i 's/<project-ref>/bdlocaltest/g' public/_headers \
+  && netlify build --offline                                # expect exit 0 (edits the COPY only)
+```
+
+
+`NETLIFY=true` is needed because `--offline` builds do not set it, and `stamp-sw.mjs` refuses to run without it. Repeat the L2 substitute with `unset NODE_OPTIONS; netlify functions:serve --offline --port 8899 --functions netlify/functions`, then `curl -i http://localhost:8899/api/agents` (expect 401). Use `deploy` only for drafts, never `--prod`.
 
 `node scripts/build-agents.mjs` runs anywhere. `stamp-sw.mjs` and `gen-config.mjs` refuse to run outside Netlify unless you pass `--force`. `gen-config.mjs` fails until `public/_headers` names your real Supabase host (see Step 5).
 
