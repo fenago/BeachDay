@@ -381,7 +381,9 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
    CAS status "pending" → "committing" {decidedAt: now, decidedBy: sub}.
 1. GET  /repos/fenago/BeachDay/git/ref/heads/main             → headSha
 2. If headSha ≠ proposal.baseSha: for each file, compare the current blob SHA on main with
-   readBlobSha (null = the file must still not exist). Any difference → CAS "stale"; 409 stale.
+   readBlobSha. null means a new file or one the agent never read (ADR-0007); either way it must
+   not exist on main now, so an unread file that exists goes stale (conservative, never unsafe).
+   Any difference → CAS "stale"; 409 stale.
 3. GET  /repos/.../git/commits/{headSha}                       → baseTreeSha
 4. POST /repos/.../git/trees  { base_tree: baseTreeSha,
         tree: [{path, mode:"100644", type:"blob", content}, …] }   → treeSha
