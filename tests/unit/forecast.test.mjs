@@ -54,18 +54,18 @@ describe('derived fixtures are labelled and well formed', () => {
 // Reason snapshots: day 0 of every scenario. Expectations were worked out by hand from the scoring table
 // (docs/01 5.2), not copied from the output: good = 100-25(rain 45%)-5(cloud 50%) = 70, and so on.
 const SNAP = {
-  great: { verdict: 'great', score: 100, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: [], advice: ['uv_moderate'], confidence: 'high' },
-  good: { verdict: 'good', score: 70, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['rain_chance', 'clouds'], advice: ['uv_moderate'], confidence: 'high' },
+  great: { verdict: 'great', score: 100, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['dry', 'sunny_sky', 'comfortable', 'light_wind'], advice: ['uv_moderate'], confidence: 'high' },
+  good: { verdict: 'good', score: 70, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['rain_chance', 'clouds', 'comfortable', 'light_wind'], advice: ['uv_moderate'], confidence: 'high' },
   fair: { verdict: 'fair', score: 55, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['rain_chance', 'clouds'], advice: ['uv_moderate'], confidence: 'high' },
   skip: { verdict: 'skip', score: 0, bestWindow: null, reasons: ['thunderstorms'], advice: ['lightning', 'uv_moderate'], confidence: 'high' },
-  'short-window': { verdict: 'good', score: 79, bestWindow: { start: '15:00', end: '17:00', hours: 2 }, reasons: ['short_window'], advice: [], confidence: 'medium' },
+  'short-window': { verdict: 'good', score: 79, bestWindow: { start: '15:00', end: '17:00', hours: 2 }, reasons: ['short_window', 'dry', 'sunny_sky', 'comfortable'], advice: [], confidence: 'medium' },
   'window-over': { verdict: null, score: null, bestWindow: null, reasons: ['no_beach_window'], advice: [], confidence: 'low' },
   'no-verdict': { verdict: null, score: null, bestWindow: null, reasons: ['data_unavailable'], advice: [], confidence: 'low' },
-  'marine-missing': { verdict: 'great', score: 100, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: [], advice: ['marine_missing', 'uv_moderate'], confidence: 'medium' },
-  'thunder-afternoon': { verdict: 'great', score: 100, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['storm_outside_window'], advice: ['lightning', 'uv_moderate'], confidence: 'high' },
-  outlook: { verdict: 'great', score: 100, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: [], advice: ['uv_moderate'], confidence: 'high' },
+  'marine-missing': { verdict: 'great', score: 100, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['dry', 'sunny_sky', 'comfortable', 'light_wind'], advice: ['marine_missing', 'uv_moderate'], confidence: 'medium' },
+  'thunder-afternoon': { verdict: 'great', score: 100, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['storm_outside_window', 'dry', 'sunny_sky', 'comfortable'], advice: ['lightning', 'uv_moderate'], confidence: 'high' },
+  outlook: { verdict: 'great', score: 100, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['dry', 'sunny_sky', 'comfortable', 'light_wind'], advice: ['uv_moderate'], confidence: 'high' },
   'windy-front': { verdict: 'fair', score: 50, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['wind', 'rain_chance', 'feels_like', 'clouds'], advice: ['uv_moderate'], confidence: 'high' },
-  'high-uv': { verdict: 'great', score: 100, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: [], advice: ['uv_very_high'], confidence: 'high' },
+  'high-uv': { verdict: 'great', score: 100, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['dry', 'sunny_sky', 'comfortable', 'light_wind'], advice: ['uv_very_high'], confidence: 'high' },
   'rough-seas': { verdict: 'fair', score: 55, bestWindow: { start: '08:00', end: '11:00', hours: 3 }, reasons: ['waves', 'rain_chance'], advice: ['uv_moderate'], confidence: 'high' },
 };
 

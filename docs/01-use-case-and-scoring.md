@@ -189,7 +189,7 @@ Verdict text is final (Wren, 2026-11-23): the label is the accessible name of th
 | `marine_missing` | No wave or water data for this day. (and the two lines "Waves unavailable", "Water temperature unavailable" replace the numbers) |
 | `marine_partial` | Some wave or water data is missing. |
 
-**Positive reasons (D3, off by default: `SCORE_CONFIG.reasons.positiveOnGoodDays`).** When on, Great and Good days also list what is going well, after the driver reasons and inside the 4-item cap. A code is emitted only when its data is present and its factor has no penalty in any best-window hour.
+**Positive reasons (D3, on: `SCORE_CONFIG.reasons.positiveOnGoodDays`, decided by Dr. Lee 2026-11-23).** Great and Good days also list what is going well, after the driver reasons and inside the 4-item cap. A code is emitted only when its data is present and its factor has no penalty in any best-window hour.
 
 | Code | Text (copy id) | Condition |
 |---|---|---|

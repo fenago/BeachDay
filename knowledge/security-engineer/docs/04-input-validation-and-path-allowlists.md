@@ -91,4 +91,4 @@ Our tests include `public/index.html.php` and the NUL and `%` cases.
 - Run the same `checkPath`/`checkProposal` at `propose_change` **and** at Approve. The approve function must not trust anything stored in Blobs.
 - Do not let the browser send `tool_result`, `thinking` or `tool_use` blocks in `/api/chat`. Those exist only in the server-side conversation state. Otherwise a user could forge "tool output" (thought/observation injection).
 - **Resolved:** `png` is off the allow-list (docs/04 §6); binary files are human commits.
-- **Still open for Dr. Lee:** deny `public/console.html` and `public/js/console/**` too. They hold the Console's own code, next to the tokens.
+- **Decided (D6, Dr. Lee 2026-11-23):** `public/console.html` and `public/js/console/**` are denied too. They hold the Console's own code, next to the tokens.

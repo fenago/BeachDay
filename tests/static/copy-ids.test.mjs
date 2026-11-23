@@ -41,7 +41,7 @@ describe("every emitted copyId is in the deck and fills", () => {
     expect(SAFETY.text).toBe("Beach Day is not a safety service — check NWS rip-current risk and posted beach flags.");
     expect(DECK.safety.linkText).toBe("NWS rip-current risk");
   });
-  it("D3 positive reason strings exist even while the flag is off", () => {
+  it("D3 positive reason strings exist (D3 is on)", () => {
     for (const id of ["reason.pos.dry", "reason.pos.sunny", "reason.pos.comfortable", "reason.pos.wind", "reason.pos.waves", "reason.pos.water"]) expect(STRINGS[id], id).toBeTruthy();
   });
   it("every string with a {placeholder} uses a simple word (t() can fill it)", () => {

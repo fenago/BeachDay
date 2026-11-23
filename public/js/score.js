@@ -282,7 +282,7 @@ function describeFactor(factor, win, winRes, formatTime) {
 }
 
 /**
- * D3 (off by default): what is going well. Deck codes dry, sunny_sky, comfortable, light_wind, calm_waves,
+ * D3 (on; Dr. Lee 2026-11-23): what is going well. Deck codes dry, sunny_sky, comfortable, light_wind, calm_waves,
  * warm_water (copy ids reason.pos.*). Only factors with data and no penalty anywhere in the window.
  */
 function positiveReasons(win, winRes) {
