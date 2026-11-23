@@ -44,3 +44,14 @@ Run log for the Beach Day v1 build. Numbers here are copied from runs; anything 
 | Screenshots | 32 PNGs, 5.7 MB (over the 4 MB budget), DPR 2, in `docs/qa/screenshots/` |
 
 Not run: WebKit, real devices, VoiceOver/TalkBack, reduced-transparency emulation, post-deploy smoke, @prod specs, Lighthouse, Supabase pre-launch tests (a)-(i), the CI workflow (D11).
+
+## W4 final gate run (docs-only changes since W3; no edits during the run)
+
+| Run | Result |
+|---|---|
+| `npm test` | 50 files, 1459 passed, 1 skipped, 0 failed |
+| `npx playwright test --project=pixel --project=iphone-chromium --trace off` | 273 passed, 1 skipped (the Android install case, skipped on the iPhone user agent), 0 failed |
+| `approve.spec.mjs` alone (the L3 evidence: real handlers, fake Supabase, Anthropic and GitHub) | pixel 19/19, iphone-chromium 19/19 |
+| `npx playwright test --project=offline-sw --trace off` | 14 passed, 0 failed |
+
+Screenshots unchanged (32 PNGs, 5.7 MB). Still not run: WebKit, real devices and screen readers, reduced-transparency emulation, post-deploy smoke, @prod specs, Lighthouse, Supabase pre-launch tests (a)-(i), the CI workflow (D11).

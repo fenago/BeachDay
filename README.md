@@ -58,7 +58,7 @@ Checked on 2026-11-23 at commit `b828c82` with fake values only. Full commands, 
 
 - **Build (proven):** `netlify build --offline` in a scratch copy builds the site, stamps `sw.js`, writes the browser config and bundles all 8 functions. Leaving the `<project-ref>` placeholder in `public/_headers` makes it fail on purpose.
 - **`netlify dev` (could not run in the sandbox):** it stops at "fetch failed" while setting up Edge Functions, most likely a blocked download of the Edge Functions runtime. A substitute, `netlify functions:serve`, ran the real function code: no token gives 401, a fake token gives 503 or fails closed, never 200.
-- **Full stack in a browser (pending Tess W3):** the harness with fake Supabase, Anthropic and GitHub is the end-to-end proof.
+- **Full stack in a browser:** the harness with fake Supabase, Anthropic and GitHub is the end-to-end proof. The chat → propose → diff → Approve flow (`approve.spec.mjs`) passed 19/19 on the Pixel layout and 19/19 on the iPhone 15 layout (Chromium, not Safari). The whole browser suite passed 273 with 1 skipped (Pixel and iPhone layouts) and 14/14 offline. Details: `docs/qa/README.md`.
 
 `node scripts/build-agents.mjs` runs anywhere. `stamp-sw.mjs` and `gen-config.mjs` refuse to run outside Netlify unless you pass `--force`. `gen-config.mjs` fails until `public/_headers` names your real Supabase host (see Step 5).
 

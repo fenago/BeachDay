@@ -18,7 +18,7 @@ Not covered: the headers from `_headers` (functions:serve serves no static files
 
 ## L3: full stack in a browser
 
-The end-to-end proof is Tess's run of `approve.spec.mjs` through the harness (real function code, fake upstreams). Counts: pending Tess W3.
+The end-to-end proof is Tess's run of `approve.spec.mjs` through the harness (real function code, fake upstreams). Counts from the W4 final gate run: pixel 19/19 passed, iphone-chromium 19/19 passed (Chromium with the iPhone 15 viewport, not WebKit). Full browser suite: 273 passed, 1 skipped, 0 failed; offline-sw 14/14. See `docs/qa/README.md`.
 
 ## Repeat it
 
