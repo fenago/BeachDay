@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/version.schema.json",
+  "title": "VersionJson",
+  "description": "/version.json written by scripts/stamp-sw.mjs (docs/03 §9) -> Console 'Live' poll (console/live.js) and scripts/smoke.mjs. Live = commit equals the approved full commitSha. Served no-store, never cached by the service worker.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "commit", "builtAt"],
+  "properties": {
+    "version": { "type": "string", "pattern": "^[0-9a-f]{12}$|^t[0-9]{10,14}$", "description": "First 12 hex of the commit, or a timestamp fallback" },
+    "commit": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+    "builtAt": { "type": "string", "format": "date-time" }
+  }
+}

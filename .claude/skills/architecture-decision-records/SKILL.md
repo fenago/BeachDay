@@ -34,6 +34,7 @@ description: How Beach Day records architecture decisions in docs/adr/ — templ
 | 0007 | Agent `read_file`/`list_files` read from GitHub `main`, pinned to one SHA per turn |
 | 0008 | Approve cap, site-wide: 14 per rolling 31 days, 5 per day |
 | 0009 | **Proposed**, awaiting Dr. Lee: agent read tools use a separate public-read token `GITHUB_READ_TOKEN`; only Approve loads the write `GITHUB_TOKEN` (would supersede 0007) |
+| 0010 | **Proposed**, awaiting Dr. Lee: new dependencies `diff@9.0.0` (runtime, `lib/diff.mts` only) and `smol-toml@1.9.1` (dev, tests only), exact pins |
 
 Exception on record: when Dr. Lee states a decision himself (as with 0006–0008), the ADR can be written straight as `Accepted` with `Deciders: Dr. Lee`. ADR-0004's "password gate" consequence is outdated since 0006 but stays unedited, because accepted ADRs are immutable.
 

@@ -1,0 +1,291 @@
+[
+  {
+    "expect": "valid",
+    "why": "pending proposal with usage, deploys",
+    "data": {
+      "proposal": {
+        "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+        "agent": "open-meteo-integrator",
+        "status": "pending",
+        "createdAt": "2026-11-23T15:04:05Z",
+        "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+        "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+        "files": [
+          {
+            "path": "public/js/score.js",
+            "content": "export function scoreHour() {}\n",
+            "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+          },
+          {
+            "path": "tests/fixtures/openmeteo/marine-nulls.json",
+            "content": "{}\n",
+            "readBlobSha": null
+          }
+        ],
+        "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      },
+      "diffs": [
+        {
+          "path": "public/js/score.js",
+          "diff": "@@ -1 +1 @@\n-a\n+b\n"
+        }
+      ],
+      "deploys": true,
+      "approveEnabled": true,
+      "approvals": {
+        "used31": 3,
+        "usedToday": 1,
+        "per31Days": 14,
+        "perDay": 5,
+        "retryAt": null
+      },
+      "warnings": []
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "docs-only proposal: no deploy, still shows usage; usage read failed \u2192 null",
+    "data": {
+      "proposal": {
+        "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+        "agent": "open-meteo-integrator",
+        "status": "pending",
+        "createdAt": "2026-11-23T15:04:05Z",
+        "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+        "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+        "files": [
+          {
+            "path": "public/js/score.js",
+            "content": "export function scoreHour() {}\n",
+            "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+          },
+          {
+            "path": "tests/fixtures/openmeteo/marine-nulls.json",
+            "content": "{}\n",
+            "readBlobSha": null
+          }
+        ],
+        "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      },
+      "diffs": [],
+      "deploys": false,
+      "approveEnabled": false,
+      "approvals": null,
+      "warnings": []
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "deploys missing (UI must not guess; it would fall back to deploy wording)",
+    "data": {
+      "proposal": {
+        "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+        "agent": "open-meteo-integrator",
+        "status": "pending",
+        "createdAt": "2026-11-23T15:04:05Z",
+        "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+        "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+        "files": [
+          {
+            "path": "public/js/score.js",
+            "content": "export function scoreHour() {}\n",
+            "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+          },
+          {
+            "path": "tests/fixtures/openmeteo/marine-nulls.json",
+            "content": "{}\n",
+            "readBlobSha": null
+          }
+        ],
+        "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      },
+      "diffs": [],
+      "approveEnabled": true,
+      "approvals": {
+        "used31": 3,
+        "usedToday": 1,
+        "per31Days": 14,
+        "perDay": 5,
+        "retryAt": null
+      },
+      "warnings": []
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "diff inlined into the stored record instead of diffs[]",
+    "data": {
+      "proposal": {
+        "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+        "agent": "open-meteo-integrator",
+        "status": "pending",
+        "createdAt": "2026-11-23T15:04:05Z",
+        "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+        "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+        "files": [
+          {
+            "path": "public/js/score.js",
+            "content": "export function scoreHour() {}\n",
+            "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+          },
+          {
+            "path": "tests/fixtures/openmeteo/marine-nulls.json",
+            "content": "{}\n",
+            "readBlobSha": null
+          }
+        ],
+        "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+        "diff": "x"
+      },
+      "diffs": [],
+      "deploys": true,
+      "approveEnabled": true,
+      "approvals": {
+        "used31": 3,
+        "usedToday": 1,
+        "per31Days": 14,
+        "perDay": 5,
+        "retryAt": null
+      },
+      "warnings": []
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "hidden Unicode found on read: one warning per file",
+    "data": {
+      "proposal": {
+        "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+        "agent": "open-meteo-integrator",
+        "status": "pending",
+        "createdAt": "2026-11-23T15:04:05Z",
+        "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+        "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+        "files": [
+          {
+            "path": "public/js/score.js",
+            "content": "export function scoreHour() {}\n",
+            "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+          },
+          {
+            "path": "tests/fixtures/openmeteo/marine-nulls.json",
+            "content": "{}\n",
+            "readBlobSha": null
+          }
+        ],
+        "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      },
+      "diffs": [
+        {
+          "path": "public/js/score.js",
+          "diff": "@@ -1 +1 @@\n-a\n+b\n"
+        }
+      ],
+      "deploys": true,
+      "approveEnabled": true,
+      "approvals": {
+        "used31": 3,
+        "usedToday": 1,
+        "per31Days": 14,
+        "perDay": 5,
+        "retryAt": null
+      },
+      "warnings": [
+        {
+          "path": "public/js/score.js",
+          "code": "hidden_unicode"
+        }
+      ]
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "warnings missing (UI must not guess; send [] when clean)",
+    "data": {
+      "proposal": {
+        "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+        "agent": "open-meteo-integrator",
+        "status": "pending",
+        "createdAt": "2026-11-23T15:04:05Z",
+        "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+        "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+        "files": [
+          {
+            "path": "public/js/score.js",
+            "content": "export function scoreHour() {}\n",
+            "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+          },
+          {
+            "path": "tests/fixtures/openmeteo/marine-nulls.json",
+            "content": "{}\n",
+            "readBlobSha": null
+          }
+        ],
+        "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      },
+      "diffs": [
+        {
+          "path": "public/js/score.js",
+          "diff": "@@ -1 +1 @@\n-a\n+b\n"
+        }
+      ],
+      "deploys": true,
+      "approveEnabled": true,
+      "approvals": {
+        "used31": 3,
+        "usedToday": 1,
+        "per31Days": 14,
+        "perDay": 5,
+        "retryAt": null
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "unknown warning code",
+    "data": {
+      "proposal": {
+        "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+        "agent": "open-meteo-integrator",
+        "status": "pending",
+        "createdAt": "2026-11-23T15:04:05Z",
+        "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+        "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+        "files": [
+          {
+            "path": "public/js/score.js",
+            "content": "export function scoreHour() {}\n",
+            "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+          },
+          {
+            "path": "tests/fixtures/openmeteo/marine-nulls.json",
+            "content": "{}\n",
+            "readBlobSha": null
+          }
+        ],
+        "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+      },
+      "diffs": [
+        {
+          "path": "public/js/score.js",
+          "diff": "@@ -1 +1 @@\n-a\n+b\n"
+        }
+      ],
+      "deploys": true,
+      "approveEnabled": true,
+      "approvals": {
+        "used31": 3,
+        "usedToday": 1,
+        "per31Days": 14,
+        "perDay": 5,
+        "retryAt": null
+      },
+      "warnings": [
+        {
+          "path": "public/js/score.js",
+          "code": "looks_odd"
+        }
+      ]
+    }
+  }
+]

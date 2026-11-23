@@ -26,6 +26,7 @@ Lead: **Dr. Lee** (human). Dr. Lee makes all product decisions.
 | 0007 | Agents' `read_file` / `list_files` read from GitHub `main`, pinned to one SHA per turn. |
 | 0008 | Approve cap, site-wide: at most 14 per rolling 31 days and 5 per day. |
 | 0009 | **Proposed, not decided:** agent read tools would use a separate public-read token, `GITHUB_READ_TOKEN`, and only Approve would load the write `GITHUB_TOKEN`. Until Dr. Lee accepts it, ADR-0007 stands. |
+| 0010 | **Proposed, not decided:** keep `diff@9.0.0` (runtime, used only by `lib/diff.mts`) and `smol-toml@1.9.1` (dev, tests only), pinned exactly. |
 
 If a task seems to need breaking a decision, stop and tell the orchestrator. Do not work around it.
 

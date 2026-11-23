@@ -1,0 +1,93 @@
+[
+  {
+    "expect": "valid",
+    "why": "step-up needed at Approve (401)",
+    "data": {
+      "error": {
+        "code": "step_up_required",
+        "message": "Confirm it's you to approve."
+      }
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "compute budget used up (429) with retryAt",
+    "data": {
+      "error": {
+        "code": "budget_exhausted",
+        "message": "The Console has used its compute for now.",
+        "retryAt": "2026-11-30T12:00:00Z"
+      }
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "approve cap (429) carries approvals",
+    "data": {
+      "error": {
+        "code": "approve_cap",
+        "message": "5 of 5 approvals used today.",
+        "retryAt": "2026-11-24T05:00:00.000Z"
+      },
+      "approvals": {
+        "used31": 7,
+        "usedToday": 5,
+        "per31Days": 14,
+        "perDay": 5,
+        "retryAt": "2026-11-24T05:00:00.000Z"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "budget_exhausted without retryAt",
+    "data": {
+      "error": {
+        "code": "budget_exhausted",
+        "message": "Out of budget."
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "approve_cap without approvals",
+    "data": {
+      "error": {
+        "code": "approve_cap",
+        "message": "Cap reached.",
+        "retryAt": "2026-11-24T05:00:00.000Z"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "unknown code (old password-era code)",
+    "data": {
+      "error": {
+        "code": "bad_password",
+        "message": "x"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "error leaks a stack field",
+    "data": {
+      "error": {
+        "code": "internal",
+        "message": "Something failed",
+        "stack": "at approve.mts:42"
+      }
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "Origin check failed on POST (403 bad_origin)",
+    "data": {
+      "error": {
+        "code": "bad_origin",
+        "message": "This request must come from the Beach Day site."
+      }
+    }
+  }
+]

@@ -1,0 +1,83 @@
+/* Beach Day content pages (Sable): How it works, Resources, Guide, offline.
+   Load after components.css. Text lives in .panel; the sky only shows in gaps. */
+
+.content-page { display: grid; gap: var(--space-4); min-inline-size: 0; }
+.page-title { display: grid; gap: var(--space-2); }
+.lead { font-size: var(--fs-title-3); line-height: 1.35; font-weight: 500; color: var(--text); max-inline-size: 36rem; }
+.page-meta { font-size: var(--fs-footnote); color: var(--text-2); }
+
+/* In-page contents list: real links, 44 px rows. */
+.toc { display: grid; gap: var(--space-1); list-style: none; margin: 0; padding: 0; }
+.toc a { display: flex; align-items: center; min-block-size: var(--target-min); padding-inline: var(--space-3); border-radius: var(--radius-s); font-weight: 600; text-decoration: none; }
+.toc a:hover { background: var(--surface-2); text-decoration: underline; }
+.toc-panel > h2 { font-size: var(--fs-headline); }
+
+/* Prose helpers beyond components.css. Headings keep their ids; anchors clear the sticky header. */
+.prose :is(h2, h3)[id] { scroll-margin-block-start: 6.5rem; }
+.prose a { font-weight: 500; }
+.prose dl { display: grid; gap: var(--space-2); }
+.prose dt { font-weight: 700; }
+.prose dd { margin: 0 0 var(--space-2); }
+.prose img, .prose svg:not(.icon) { max-inline-size: 100%; block-size: auto; }
+.prose kbd { padding: 0.1em 0.4em; border: 1px solid var(--control-border); border-bottom-width: 2px; border-radius: var(--radius-xs); background: var(--surface-2); }
+.callout--warn { border-inline-start-color: var(--banner-warn-icon); background: var(--banner-warn-bg); }
+.callout--ok { border-inline-start-color: var(--banner-ok-icon); background: var(--banner-ok-bg); }
+.callout--error { border-inline-start-color: var(--banner-error-icon); background: var(--banner-error-bg); }
+.callout > :first-child { margin-block-start: 0; }
+.callout > :last-child { margin-block-end: 0; }
+.callout { display: grid; gap: var(--space-2); }
+.callout__title { font-weight: 700; }
+
+/* "How it works" pipeline: numbered boxes with an arrow glyph between; stacks on phones. */
+.pipeline { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); counter-reset: pipe; }
+.pipeline > li { counter-increment: pipe; display: grid; grid-template-columns: 2rem 1fr; gap: var(--space-3); align-items: start; padding: var(--space-3) var(--space-4); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-s); }
+.pipeline > li::before { content: counter(pipe); display: grid; place-items: center; inline-size: 2rem; block-size: 2rem; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: var(--fs-subhead); }
+.pipeline__title { font-weight: 700; }
+@media (min-width: 48em) { .pipeline--row { grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); } .pipeline--row > li { grid-template-columns: 1fr; } }
+
+/* Verdict legend on How it works: chip + the plain meaning. */
+.verdict-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.verdict-legend > li { display: grid; gap: var(--space-1); justify-items: start; }
+
+/* Scoring table (thresholds): scrollable region, never a page-wide scroll. */
+.table-scroll { max-inline-size: 100%; border: 1px solid var(--border); border-radius: var(--radius-s); }
+.table-scroll table { min-inline-size: 30rem; }
+.table-scroll:focus-visible { outline-offset: -3px; }
+
+/* Resources */
+.resources-nav { display: flex; flex-wrap: wrap; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
+.resources-nav a { display: inline-flex; align-items: center; min-block-size: var(--target-min); padding-inline: var(--space-4); border: 1.5px solid var(--control-border); border-radius: 999px; background: var(--surface-solid); font-weight: 600; text-decoration: none; }
+.resources-nav a:hover { background: var(--surface-2); }
+.link-group > h2 { padding-inline: var(--space-1); scroll-margin-block-start: 6.5rem; }
+.link-group > .section-note { padding-inline: var(--space-1); font-size: var(--fs-subhead); color: var(--text-2); }
+.link-list__link .icon { color: var(--text-2); }
+.link-list__link { text-decoration-thickness: 0.08em; }
+.link-list__meta { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+
+/* Guide: numbered steps, each a solid panel; code is a scrollable block. */
+.steps__body { background: var(--surface-solid); border: 1px solid var(--border); border-radius: var(--radius-m); padding: var(--space-4); align-content: start; }
+.steps__body > h2, .steps__body > h3 { font-size: var(--fs-title-3); }
+.steps__body :where(ul, ol) { padding-inline-start: 1.4em; display: grid; gap: var(--space-2); }
+.steps__body pre { padding: var(--space-3) var(--space-4); overflow-x: auto; border-radius: var(--radius-s); background: var(--surface-2); border: 1px solid var(--border); }
+.steps__body code { overflow-wrap: anywhere; }
+.steps__body :where(p, li) code { padding: 0.1em 0.35em; border-radius: var(--radius-xs); background: var(--surface-2); border: 1px solid var(--border); }
+.steps__body pre code { padding: 0; border: 0; background: none; overflow-wrap: normal; }
+.steps__body pre:focus-visible { outline-offset: -3px; }
+.step-status { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--fs-footnote); font-weight: 600; }
+@media (max-width: 24em) {
+  .steps > li { grid-template-columns: 1fr; }
+  .steps > li::before { inline-size: 2rem; block-size: 2rem; }
+}
+
+/* Offline page and other minimal shells */
+.state-screen { display: grid; justify-items: start; gap: var(--space-3); padding: var(--space-6) var(--space-5); background: var(--surface-solid); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-l); }
+.state-screen .icon--xl { color: var(--accent); }
+.state-screen > h1 { font-size: var(--fs-title-1); }
+.state-screen__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.offline-page { max-inline-size: var(--content-max); margin-inline: auto; padding: var(--space-4); }
+
+@media (forced-colors: active) {
+  .pipeline > li::before, .install-steps > li::before { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+  .hourly-row--best { border-inline-start-color: Highlight; }
+}
+@media print { .site-nav, .toc-panel, .resources-nav { display: none; } }

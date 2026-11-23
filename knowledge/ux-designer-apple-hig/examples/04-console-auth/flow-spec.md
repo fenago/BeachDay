@@ -206,7 +206,7 @@ Mechanism (security-engineer, docs/04 §4.2): the server accepts a password or G
 │ ‹ Console     Set up two-step sign in│  h1 [auth.totp.setup.title]; back 44px
 │ Scan this QR code with your          │  [auth.totp.setup.scan]
 │ authenticator app.                   │
-│ ┌────────┐                           │  QR image, alt="QR code for your authenticator app"
+│ ┌────────┐                           │  QR image, alt="QR code to set up your authenticator app" [auth.totp.qr.alt]
 │ │ ▓▓  ▓▓ │                           │  at least 200 px, white quiet zone, in dark mode too
 │ └────────┘                           │
 │ Can't scan? Enter this key in the    │  [auth.totp.setup.key]

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/approvals.schema.json",
+  "title": "ApproveCapUsage",
+  "description": "Read-only Approve cap usage (docs/04 §2.1; ADR-0008; checkApproveCap() in netlify-engineer example 03). Advisory display data: the check inside the approve lock is authoritative. retryAt is null when a slot is free now.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "used31",
+    "usedToday",
+    "per31Days",
+    "perDay",
+    "retryAt"
+  ],
+  "properties": {
+    "used31": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "usedToday": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "per31Days": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "SETTINGS.approveCap.per31Days (D7, ADR-0008: 14). Not a const here: the value lives in netlify/functions/lib/settings.mts only."
+    },
+    "perDay": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "SETTINGS.approveCap.perDay (D7, ADR-0008: 5)."
+    },
+    "retryAt": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "format": "date-time"
+        }
+      ]
+    }
+  }
+}

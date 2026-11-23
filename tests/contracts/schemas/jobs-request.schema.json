@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/jobs-request.schema.json",
+  "title": "JobsRequest",
+  "description": "Body of POST /api/jobs (console/api.js -> jobs.mts). Either a new job from a chat transcript (same rules as ChatRequest), or Continue of a job that ended 'paused' (docs/04 §8): the server loads the saved conversation from that job, checks job.owner === caller sub (else 404 not_found), and creates a NEW job (counts as a new job). Response: 202 {jobId}. The internal POST /api/jobs-run body {jobId, nonce} is NOT a browser contract and is not here.",
+  "oneOf": [
+    { "$ref": "https://beachday.example/schemas/chat-request.schema.json" },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["continueFrom"],
+      "properties": { "continueFrom": { "type": "string", "pattern": "^j_[0-9A-Z]{26}$" } }
+    }
+  ]
+}

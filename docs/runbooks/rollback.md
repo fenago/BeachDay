@@ -102,6 +102,16 @@ Do these in order. Nothing here needs a service key. SQL checked against `knowle
 - 15 credits per production deploy, 300 per month on Free, a hard cap. Tell the orchestrator at about 70% (210) and 90% (270). Rollback costs 0.
 - If the site is paused at 0 credits, do not upgrade. Dr. Lee decides; Nell drafts an ADR.
 
+## 4a. Approve says "busy" forever (stuck approve lock)
+Cause: the site-wide approve lock (Blobs store `proposals`, key `approve-lock`) holds a malformed record. Approve then fails closed and stays blocked until a human deletes the key. A normal stale lock is taken over by itself after 90 s, so wait two minutes first.
+1. Make sure no approve is running (no spinner on any open Console, and the last Approve finished or failed over two minutes ago).
+2. Delete the key `approve-lock` in store `proposals`:
+   - **Netlify UI (preferred):** the site, then **Blobs** (listed under the site's data or storage settings; the exact menu name is UNVERIFIED). Open store `proposals`, find `approve-lock`, delete it.
+   - **CLI:** `netlify blobs:delete proposals approve-lock` (run from the linked site folder; the exact command and flags are UNVERIFIED, so check `netlify blobs --help`).
+3. Click Approve again. The proposal stayed `pending`, so nothing else needs fixing.
+4. If a proposal sits in `committing`, do not delete anything else. Reload it: the reconciler checks `main` for the `Beach-Day-Proposal: <id>` trailer.
+5. Tell the orchestrator, so security-engineer can look at how the record became malformed.
+
 ## 5. Checklist after any rollback
 - Smoke test passes and `/version.json.commit` is the intended commit.
 - Auto publishing is locked (or unlocked on purpose after the fix).

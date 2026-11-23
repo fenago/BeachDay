@@ -42,36 +42,47 @@ Researched 2026-11-23. Each doc cites its sources inline and marks unverified it
 | [0007](adr/0007-agent-reads-from-github-main.md) | Agents' `read_file` / `list_files` read from GitHub `main`, pinned to one SHA per turn | Accepted |
 | [0008](adr/0008-site-wide-approve-cap.md) | Approve cap, site-wide: 14 per rolling 31 days, 5 per day | Accepted |
 | [0009](adr/0009-public-read-token-for-agent-reads.md) | Agent read tools use a separate public-read token, `GITHUB_READ_TOKEN`; only Approve loads the write token (would supersede 0007) | **Proposed**, awaiting Dr. Lee |
+| [0010](adr/0010-diff-and-smol-toml-dependencies.md) | Two new npm dependencies: `diff` (runtime, proposal diffs) and `smol-toml` (dev, tests only), pinned exactly | **Proposed**, awaiting Dr. Lee |
 
 ## Build plan
 
-Nothing is built yet. This round changed only docs, ADRs, agents, skills and knowledge. Each phase ends with QA green on the `main` deploy and a rollback ready (ADR-0003). Push in batches, because every push to `main` costs 15 credits.
+**Status (2026-11-23, commit b828c82): v1 is built and tested locally. It is not deployed, and Approve is switched off.** Waves W0–W2 built the beach app, the How it works, Resources and Guide pages, the Agents page (Agent Console), the eight functions, the Supabase migration, `netlify.toml`, `_headers` and the build scripts. Each wave was reviewed. The seams between modules are pinned in [design/build-contracts.md](design/build-contracts.md) and machine-checked in `tests/contracts/`. How to run it, deploy it and roll it back is in the root `README.md` and [runbooks/rollback.md](runbooks/rollback.md).
 
-**Phase 0: Dr. Lee, by hand (no agent can do these; they hold credentials)**
-1. **Create the Supabase project** (Free plan; confirm limits and inactivity pausing on https://supabase.com/pricing **[UNVERIFIED]**). Note the project URL and the **publishable** key (`sb_publishable_…`). Do not copy the secret or service_role key anywhere.
-2. **Google sign-in:** in Google Cloud, create an OAuth client (type "Web application") with the Supabase callback URL that the Google provider page shows as the authorised redirect URI. Then enable the Google provider in Supabase Auth with that client ID and secret. The Google client secret lives only in Supabase, never in Netlify or the repo.
-3. **URLs:** set the Supabase Auth **Site URL** to the production URL. Add only the exact production Console URLs, such as `https://<site>.netlify.app/console`, to the **redirect URL allow-list**. Avoid broad wildcards; security-engineer sets the final list in docs/04 §4.
-4. **Email:** turn on **email confirmation** and **leaked-password protection** (if the latter needs a paid plan, record that **[UNVERIFIED]**). Set the minimum password rules security-engineer specifies.
-5. **Run the profiles SQL** from `knowledge/supabase-auth-engineer/`: the `profiles` table (`id` references `auth.users` on delete cascade, `role` defaults to `'user'`), the trigger that creates the row on sign-up, and RLS that lets a user read only their own row and never change `role`.
-6. **Sign up once in the Console, then make yourself admin** in the Supabase SQL editor: `update public.profiles set role = 'super_admin' where id = '<your auth user id>';`. Nobody else can set this.
-7. **Netlify env:** `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `GITHUB_REPO` as plain values. `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` as secrets (`GITHUB_TOKEN` Production-only if Free allows it; see docs/03). Delete the two old Console-password variables listed in ADR-0006 §7, if they were ever set.
-8. Create the fine-grained PAT (ADR-0005), the Anthropic workspace with a spend limit, and the `main` ruleset (no force push, no deletion). If you accept ADR-0009, also create the public-read token and set it as the secret `GITHUB_READ_TOKEN` (Production), then run its pre-launch read/write test.
+**What is built** (all agent work; no agent holds a credential):
 
-**Phase 1: platform skeleton** (netlify-engineer, then security-engineer review)
-- `netlify.toml`, `public/_headers` (CSP including the Supabase origin for `connect-src`), and the `ignore` rule.
-- The build script that writes `public/generated/config.js` and `public/version.json`, stamps `sw.js`, and never prints env.
-- The vendored `public/vendor/supabase-auth-js-<version>.mjs`, committed by a human.
+| Area | Where | Notes |
+|---|---|---|
+| Beach app | `public/index.html`, `public/js/{app,forecast,score,score-config}.js`, `js/api/`, `js/data/`, `js/ui/`, `js/copy/` | Calls Open-Meteo directly; no auth code (import-graph test) |
+| PWA | `public/manifest.webmanifest`, `public/sw.js`, `public/icons/`, `public/offline.html` | `sw.js` is version-stamped at build; it never caches `/api/*`, `/console`, `/vendor/*`, `/generated/*` or Supabase |
+| Content pages | `public/how-it-works/`, `public/resources/`, `public/guide/` | Header and footer on every page, including the NWS line and the Open-Meteo attribution |
+| Agents page | `public/console.html`, `public/js/console/*`, `public/vendor/supabase-auth-js-2.119.2.mjs` | Sign in (email or Google), TOTP, step-up, chat, jobs, proposal card, Approve sheet |
+| Functions | `netlify/functions/{agents,chat,jobs,job-run,job-status,proposal,approve,reject}.mts` + `lib/` | Token and `super_admin` check first on every function; production-only for the four that read secrets |
+| Supabase | `supabase/migrations/20261123000000_profiles.sql`, `supabase/manual/promote-super-admin.sql`, `supabase/README.md` | `profiles` with RLS; role changes only in the SQL editor |
+| Netlify | `netlify.toml`, `public/_headers`, `scripts/{build-agents,stamp-sw,gen-config,smoke}.mjs` | No test runner in the build; the `ignore` list equals `DEPLOY_PATHS` (nine paths, D9) |
 
-**Phase 2: beach app, in parallel** (open-meteo-integrator, pwa-mobile-engineer, ui and ux designers)
-- `public/js/app.js`, `api/openmeteo.js`, `score.js` and `score-config.js`, the views, the manifest and `sw.js`. No auth code.
+**What remains for Dr. Lee, in order:**
+1. **Phase 0, by hand (credentials).** The step-by-step is in the root `README.md`:
+   - **Supabase:** create the project (Free; limits and pausing **[UNVERIFIED]**). Apply the migration. Set Confirm email **and** Confirm phone on, minimum password length 12, **custom SMTP** (required: the built-in sender only mails your own team), JWT expiry 600 s, the exact Site URL and redirect URLs (docs/04 §4.5), and the Google provider with its OAuth client. Leaked-password protection is Pro-only, so it is skipped on Free.
+   - **Make yourself admin:** sign up once in the Console, confirm the email, then run `supabase/manual/promote-super-admin.sql`.
+   - **GitHub and Anthropic:** the fine-grained PAT (ADR-0005), the `main` ruleset (no force push, no deletion), and an Anthropic workspace with a spend limit.
+   - **Netlify:** link the site. Set `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` as plain values (`GITHUB_REPO` is optional; no code reads it), and `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` as Production-only secrets. Replace `<project-ref>` in `public/_headers` (the build fails until it matches). **Turn off Deploy Previews and branch deploys.**
+2. **First deploy** (15 credits), then the smoke test (`scripts/smoke.mjs`) and a rollback rehearsal.
+3. **Pre-launch tests (a)–(i)** on the real project (docs/04 §4.2). Approve stays off (`approveEnabled: false`, D10) until (a)–(e), (g) and (i) pass. Switch the JWT header pre-check on (D12) only after (f).
+4. **Turn Approve on:** a human edits `approveEnabled` to `true`, security-engineer reviews it, then push (15 credits).
+5. **Add the CI workflow** (D11): a human copies the template named in the root `README.md` into `.github/workflows/`, with actions pinned by SHA.
 
-**Phase 3: Console auth** (agent-console-engineer and supabase-auth-engineer; security-engineer can block)
-- The sign-up, log-in, log-out, reset and Google flows in `console.html`.
-- The shared `requireAuth` (token + role, fail closed) used first in every function.
-- 401/403/503 tests on every function.
+**Open decisions for Dr. Lee** (each is one value in one file; see [design/build-contracts.md](design/build-contracts.md) §9):
 
-**Phase 4: Console features** (agent-console-engineer)
-- `/api/agents`, `/api/chat` (SSE contract in docs/04 §2.1), `/api/jobs` + `/api/jobs-run`, the read tools from GitHub `main` (ADR-0007), proposals, and Approve with the cap (ADR-0008) and step-up.
-
-**Phase 5: release gate** (qa-engineer, then security-engineer)
-- The full test plan in docs/06, a post-deploy smoke test, and rollback rehearsed.
+| Decision | Built default | Where |
+|---|---|---|
+| ADR-0009: separate public-read token for agent reads | Not accepted; reads use `GITHUB_TOKEN` through a read-only module | `netlify/functions/lib/settings.mts` `githubReadTokenEnv` |
+| ADR-0010: `diff` and `smol-toml` dependencies | Installed, pinned | `package.json` |
+| D1 compute budget | 180 function-minutes per rolling 31 days (about 30 credits) | `settings.mts` `computeBudgetMinutes` |
+| D4 the 403 heading | "This account can't use Agents" | `public/js/copy/copy-deck.js` id `console.noaccess.title` |
+| Mandatory TOTP for `super_admin` | Recommended, not enforced (step-up requires `aal2` only if a factor exists) | Your Supabase account; enforcing it would be a `stepup.mts` change |
+| D6 deny the Console UI files to agents | Not denied | `settings.mts` `denyConsoleUi` |
+| Approve cap window | Rolling 31 days (ADR-0008, accepted), not the calendar month | `settings.mts` `approveCap`; a calendar month would need an ADR superseding 0008 |
+| D8 measurable rain | More than 0.02 in | `public/js/score-config.js` `rain.amountInchOver` |
+| D5 server-side refusal fallback model | None | `settings.mts` `serverRefusalFallback` |
+| Custom SMTP provider | Required before launch; you pick the provider | Supabase dashboard |
+| D3 positive reasons on good days | Off, so a Great day shows no reasons (ux-designer R16-11 recommends turning it on) | `score-config.js` `SCORE_CONFIG.reasons.positiveOnGoodDays` |

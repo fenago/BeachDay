@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/sse-event.schema.json",
+  "title": "ConsoleSseEvent",
+  "description": "JSON carried in the single `data:` line of each SSE message from POST /api/chat. The SSE `event:` field equals `type`. Types fixed by docs/04 §2.1: text, tool, proposal, handoff, error, done. Every stream ends with exactly one `done` or `error`; a refusal is a terminal `error` with code `refusal`, never `done`.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/text"
+    },
+    {
+      "$ref": "#/$defs/tool"
+    },
+    {
+      "$ref": "#/$defs/proposal"
+    },
+    {
+      "$ref": "#/$defs/handoff"
+    },
+    {
+      "$ref": "#/$defs/error"
+    },
+    {
+      "$ref": "#/$defs/done"
+    }
+  ],
+  "$defs": {
+    "text": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "delta"
+      ],
+      "properties": {
+        "type": {
+          "const": "text"
+        },
+        "delta": {
+          "type": "string",
+          "maxLength": 8192,
+          "description": "Appended to the visible reply; render as text, never innerHTML"
+        }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "name",
+        "phase"
+      ],
+      "properties": {
+        "type": {
+          "const": "tool"
+        },
+        "name": {
+          "enum": [
+            "read_file",
+            "list_files",
+            "propose_change"
+          ]
+        },
+        "phase": {
+          "enum": [
+            "start",
+            "end"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Short UI line, e.g. 'Read public/js/score.js'. Never raw tool input."
+        }
+      }
+    },
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "proposalId",
+        "summary",
+        "files"
+      ],
+      "properties": {
+        "type": {
+          "const": "proposal"
+        },
+        "proposalId": {
+          "$ref": "#/$defs/proposalId"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "bytes"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 204800
+              }
+            }
+          }
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "jobId"
+      ],
+      "properties": {
+        "type": {
+          "const": "handoff"
+        },
+        "jobId": {
+          "type": "string",
+          "pattern": "^j_[0-9A-Z]{26}$",
+          "description": "Job id (docs/04 §2.1). Client switches to polling GET /api/jobs/:id"
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "code",
+        "message",
+        "retryable"
+      ],
+      "properties": {
+        "type": {
+          "const": "error"
+        },
+        "code": {
+          "enum": [
+            "invalid_request",
+            "unauthorized",
+            "step_up_required",
+            "forbidden",
+            "bad_origin",
+            "not_found",
+            "conflict",
+            "stale",
+            "rate_limited",
+            "budget_exhausted",
+            "approve_cap",
+            "refusal",
+            "upstream",
+            "timeout",
+            "unavailable",
+            "internal"
+          ],
+          "description": "Same list as api-error.schema.json (docs/04 §2.1). budget_exhausted / rate_limited can arrive mid-stream when a handoff can't start its job."
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "User-safe text; no stack traces, no env values"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      }
+    },
+    "done": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "done"
+        },
+        "stopReason": {
+          "enum": [
+            "end_turn",
+            "max_tokens",
+            "handoff",
+            "tool_rounds_exhausted"
+          ],
+          "description": "Never 'refusal': a refusal ends the stream with error {code:'refusal'} and no done (docs/04 §2.1 'Refusals: one rule')."
+        }
+      }
+    },
+    "proposalId": {
+      "type": "string",
+      "pattern": "^p_[0-9A-Z]{26}$"
+    }
+  }
+}

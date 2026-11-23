@@ -1,0 +1,76 @@
+/* Beach Day beach views (Sable). Load after components.css, on index.html only.
+   Views: picker (#/beaches), Today (#/), day detail (#/day/YYYY-MM-DD).
+   Only tokens from tokens.css; no new colours, so the contrast table in
+   docs/design/visual-system.md still covers every pair. No text sits on the sky:
+   titles and status lines are in .panel, the verdict card is glass. */
+
+/* A view is one screen of the single-column app. */
+.view { display: grid; gap: var(--space-4); align-content: start; min-inline-size: 0; }
+.view-section { display: grid; gap: var(--space-2); min-inline-size: 0; }
+.view-section > h2 { margin: 0; }
+#install-slot { margin-block-start: var(--space-4); }
+.page-bar__actions .btn--text { white-space: nowrap; }
+.page-bar { flex-wrap: wrap; }
+
+/* Panel header: h1 + actions. .page-bar is in components.css. */
+.panel > .page-bar + .status-line { margin-block-start: calc(var(--space-1) * -1); }
+.page-bar__actions { display: flex; align-items: center; gap: var(--space-2); flex: none; }
+.page-bar h1 { font-size: var(--fs-title-1); }
+.today-bar .btn--text { min-inline-size: var(--target-min); padding-inline: var(--space-2); }
+
+/* Back control on day detail and the picker page: a text button above the title. */
+.back-link { justify-self: start; display: inline-flex; align-items: center; gap: var(--space-1); min-block-size: var(--target-min); padding-inline: var(--space-2) var(--space-3); border-radius: 999px; font-weight: 600; text-decoration: none; background: var(--surface-solid); color: var(--link); border: 1.5px solid var(--control-border); }
+.back-link:hover { background: var(--surface-2); }
+
+/* Today: the verdict card is the hero, glass over the sky. */
+.verdict-card .status-line { color: var(--text-2); }
+.verdict-card__title { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.verdict-card__tags { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.verdict-card__confidence { font-size: var(--fs-subhead); color: var(--text-2); }
+.verdict-card__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.verdict-card .reason-list:empty { display: none; }   /* a Great day may have no reasons */
+.verdict-card .reason-list:not(:empty) { padding-block-start: var(--space-1); }
+/* Skip it with no window: no "Best hours" line, only the stop reasons. */
+.verdict-card__best:empty { display: none; }
+
+/* Safety block under the verdict card: solid warn banner. Wraps .safety-line. */
+.safety-block { display: grid; gap: var(--space-2); }
+.safety-block .safety-line { margin: 0; }
+.safety-line__flags { font-weight: 600; }
+
+/* Stale, offline and partial states are banners with text; the card never dims. */
+.state-stack { display: grid; gap: var(--space-2); }
+.state-stack:empty { display: none; }
+
+/* Day detail: summary above the hourly list. */
+.day-summary { display: grid; gap: var(--space-3); }
+.hourly-row--best { border-inline-start: 6px solid var(--accent); padding-inline-start: calc(var(--space-4) - 6px); background: var(--surface-2); }   /* shape + label "Best", not colour alone */
+.hourly-row--stop { border-inline-start: 6px dashed var(--control-border); padding-inline-start: calc(var(--space-4) - 6px); }
+.hourly-row--night { color: var(--text-2); }
+.hourly-row .icon { color: var(--text-2); }
+.hourly-legend { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); font-size: var(--fs-footnote); color: var(--text-2); }
+
+/* Outlook note under days 4+ */
+.outlook-note { font-size: var(--fs-subhead); color: var(--text); padding: var(--space-3) var(--space-4); background: var(--surface-2); border-radius: var(--radius-s); border: 1.5px dashed var(--control-border); }
+
+/* Picker: county groups, favorites group on top, rows from components.css. */
+.picker { display: grid; gap: var(--space-4); }
+.picker__favorites { display: grid; gap: var(--space-2); }
+.picker .empty-state { padding: var(--space-4); }
+.picker-sheet .sheet__body { padding-block-end: var(--space-2); }
+.sheet .beach-list { gap: var(--space-3); }
+.beach-row__name { display: block; }
+
+/* Install hint (iOS sheet steps with inline Share icon; Android text button). */
+.install-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); counter-reset: ins; }
+.install-steps > li { counter-increment: ins; display: grid; grid-template-columns: 2rem 1fr; gap: var(--space-3); align-items: start; }
+.install-steps > li::before { content: counter(ins); display: grid; place-items: center; inline-size: 2rem; block-size: 2rem; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: var(--fs-subhead); }
+.install-steps .icon { inline-size: 1.25em; block-size: 1.25em; vertical-align: -0.2em; color: var(--text); }
+.install-action { justify-self: start; }
+.install-note { font-size: var(--fs-subhead); color: var(--text-2); }
+
+/* Update toast: solid, bottom, never steals focus. Button inside is 44 px. */
+.toast--update { justify-content: space-between; }
+.toast__text { flex: 1; min-inline-size: 0; }
+.toast .btn { flex: none; }
+@media (min-width: 40em) { .toast { inset-inline: auto; inset-inline-end: var(--space-4); margin-inline: 0; } }

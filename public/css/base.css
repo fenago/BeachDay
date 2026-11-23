@@ -1,0 +1,175 @@
+/* Beach Day base styles (Sable). Needs tokens.css. Mobile first, rem units,
+   logical properties, safe areas. No inline-style needs: CSP is style-src 'self'. */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-block: 6.5rem;   /* sticky header / composer never cover focus (WCAG 2.4.11) */
+  background: var(--bg-bottom, var(--bg-sunny-bottom));
+}
+
+/* Condition tint: put data-condition on <html> or <body>. */
+:root, [data-condition="sunny"]    { --bg-top: var(--bg-sunny-top);    --bg-bottom: var(--bg-sunny-bottom); }
+[data-condition="overcast"] { --bg-top: var(--bg-overcast-top); --bg-bottom: var(--bg-overcast-bottom); }
+[data-condition="stormy"]   { --bg-top: var(--bg-stormy-top);   --bg-bottom: var(--bg-stormy-bottom); }
+[data-condition="night"]    { --bg-top: var(--bg-night-top);    --bg-bottom: var(--bg-night-bottom); }
+
+body {
+  margin: 0;
+  min-block-size: 100dvh;
+  display: flex;
+  flex-direction: column;
+  font: 400 var(--fs-body) / 1.4 var(--font);
+  color: var(--text);
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%) no-repeat;
+  background-color: var(--bg-bottom);
+  overflow-wrap: break-word;
+}
+/* NOTE: no text may sit directly on the sky gradient. Page titles, status lines
+   and prose go in .panel (solid) or on glass. Only glass and gaps show the sky. */
+
+h1, h2, h3, h4, p, ul, ol, dl, figure, blockquote, pre { margin: 0; }
+h1 { font-size: var(--fs-large-title); line-height: 1.2; font-weight: 700; overflow-wrap: anywhere; }
+h2 { font-size: var(--fs-title-2); line-height: 1.25; font-weight: 700; }
+h3 { font-size: var(--fs-title-3); line-height: 1.25; font-weight: 600; }
+h4 { font-size: var(--fs-headline); line-height: 1.3; font-weight: 600; }
+b, strong { font-weight: 600; }
+small { font-size: var(--fs-footnote); }
+code, kbd, samp, pre { font-family: var(--font-mono); font-size: 0.9em; }
+img, svg { max-inline-size: 100%; }
+
+a { color: var(--link); text-underline-offset: 0.2em; text-decoration-thickness: 0.08em; }
+a:hover { text-decoration-thickness: 0.14em; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+:focus:not(:focus-visible) { outline: none; }
+[tabindex="-1"]:focus { outline: none; }   /* programmatic h1 focus after route change */
+
+/* Text styles (HIG iOS "Large (default)") */
+.t-large-title { font-size: var(--fs-large-title); line-height: 1.2; font-weight: 700; }
+.t-title-1 { font-size: var(--fs-title-1); line-height: 1.2; font-weight: 700; }
+.t-title-2 { font-size: var(--fs-title-2); line-height: 1.25; font-weight: 700; }
+.t-title-3 { font-size: var(--fs-title-3); line-height: 1.25; font-weight: 600; }
+.t-headline { font-size: var(--fs-headline); line-height: 1.3; font-weight: 600; }
+.t-callout { font-size: var(--fs-callout); }
+.t-subhead { font-size: var(--fs-subhead); line-height: 1.35; }
+.t-footnote { font-size: var(--fs-footnote); line-height: 1.4; }
+.t-caption { font-size: var(--fs-caption); line-height: 1.35; }
+.muted { color: var(--text-2); }
+.numeric { font-variant-numeric: tabular-nums; }
+
+/* Layout */
+.container {
+  inline-size: 100%;
+  max-inline-size: var(--content-max);
+  margin-inline: auto;
+  padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right));
+}
+.container--wide { max-inline-size: var(--content-wide); }
+.page-main {
+  flex: 1 0 auto;
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+}
+.stack { display: grid; gap: var(--space-3); }
+.stack--lg { gap: var(--space-5); }
+.cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.section-title { padding-inline: var(--space-1); }
+
+/* Solid content-layer surface (NOT glass). Page titles sit in one of these. */
+.panel {
+  background: var(--surface-solid);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+.panel--inset { background: var(--surface-2); border-radius: var(--radius-m); padding: var(--space-4); }
+.panel > :where(h1, h2, h3):first-child { margin-block-start: 0; }
+
+/* Skip link: first focusable element on every page. */
+.skip-link {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-start: var(--space-2);
+  z-index: 100;
+  padding: var(--space-3) var(--space-4);
+  min-block-size: var(--target-min);
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-solid);
+  color: var(--link);
+  border: 2px solid var(--control-border);
+  border-radius: var(--radius-s);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; }
+
+.visually-hidden {
+  position: absolute !important;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Icons: <svg class="icon" aria-hidden="true"><use href="/img/sprite.svg#sun"/></svg> */
+.icon {
+  inline-size: 1.25em;
+  block-size: 1.25em;
+  flex: none;
+  vertical-align: -0.25em;
+  fill: none;
+  stroke: currentColor;
+}
+.icon--sm { inline-size: 1em; block-size: 1em; }
+.icon--lg { inline-size: 1.75em; block-size: 1.75em; }
+.icon--xl { inline-size: 2.5em; block-size: 2.5em; }
+
+/* Motion: no loops anywhere. Reduced motion removes movement; fades stay. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Forced colours */
+@media (forced-colors: active) {
+  :focus-visible { outline: 3px solid Highlight; }
+  a { color: LinkText; }
+  .panel { border: 1px solid CanvasText; }
+}
+
+/* The hidden attribute always wins over component display rules (.panel, .console are display: grid). */
+[hidden] { display: none !important; }
+
+/* Increase contrast: darker secondary text, firm borders. */
+@media (prefers-contrast: more) {
+  .muted { color: var(--text); }
+  .panel { border-color: var(--control-border); }
+}
+
+@media print {
+  html, body { background: #fff; color: #000; }
+  .site-header, .skip-link { display: none; }
+}

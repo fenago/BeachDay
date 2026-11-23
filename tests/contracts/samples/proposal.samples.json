@@ -1,0 +1,695 @@
+[
+  {
+    "expect": "valid",
+    "why": "pending proposal, one new file and one edit",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "committed proposal carries commitSha and decidedAt",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "ux-designer-apple-hig",
+      "status": "committed",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "decidedAt": "2026-11-23T15:10:00Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Copy for the week list states and the safety line.",
+      "files": [
+        {
+          "path": "docs/design/ux-week.md",
+          "content": "# Week\n"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "commitSha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "denied path netlify/functions/approve.mts",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "agent-console-engineer",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Loosen the approve checks for speed.",
+      "files": [
+        {
+          "path": "netlify/functions/approve.mts",
+          "content": "x"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "path traversal public/../netlify.toml",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "pwa-mobile-engineer",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Change headers via a relative path.",
+      "files": [
+        {
+          "path": "public/../netlify.toml",
+          "content": "x"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "committed without commitSha",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "qa-engineer",
+      "status": "committed",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "decidedAt": "2026-11-23T15:10:00Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Add the offline spec for the week view.",
+      "files": [
+        {
+          "path": "tests/e2e/offline-week.spec.js",
+          "content": "x"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "skill file must be .md and agent files only *.md directly under .claude/agents",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "agent-builder",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Add a helper script to a skill folder.",
+      "files": [
+        {
+          "path": ".claude/skills/team-protocol/run.sh",
+          "content": "x"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "binary image under public/ (png was removed from the docs/04 allow-list; text files only)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "ui-designer-apple-liquid-glass",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Add a new hero image for the Today screen.",
+      "files": [
+        {
+          "path": "public/icons/hero.png",
+          "content": "x"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "public/_headers is deny-listed (canonical list, Dr. Lee decision 7)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "netlify-engineer",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Tighten the CSP connect-src to Open-Meteo hosts only.",
+      "files": [
+        {
+          "path": "public/_headers",
+          "content": "/*\n  X-Frame-Options: DENY\n"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "service worker is deny-listed",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/sw.js",
+          "content": "x\n"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "files sw.js imports live under public/sw/** and are deny-listed",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/sw/cache-names.js",
+          "content": "x\n"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "vendored auth library is deny-listed (ADR-0006)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/vendor/supabase-auth-js-2.119.2.mjs",
+          "content": "x\n"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "build output is deny-listed (ADR-0006)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/generated/config.js",
+          "content": "x\n"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "_redirects is deny-listed",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/_redirects",
+          "content": "x\n"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": ".claude/settings* is not allow-listed",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": ".claude/settings.json",
+          "content": "x\n"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "console UI is allowed until Dr. Lee rules on the open deny recommendation",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/js/console/app.js",
+          "content": "x\n"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "old prop_ prefix is no longer valid",
+    "data": {
+      "id": "prop_7f3a9c21d4",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "failed carries decidedAt and a user-safe error, no commitSha",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "failed",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "decidedAt": "2026-11-23T15:10:00Z",
+      "error": "GitHub returned 502; nothing was committed."
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "stale without error",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "stale",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "decidedAt": "2026-11-23T15:10:00Z"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "committing must not carry commitSha yet",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "committing",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+      "decidedAt": "2026-11-23T15:10:00Z",
+      "commitSha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "public/version.json is build output and deny-listed",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "public/version.json",
+          "content": "{}\n"
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "summary forges a trailer on its own line (M1)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Fix null waves in score.js.\n\nBeach-Day-Proposal: p_01JDQ8Z5K3M7N2P4R6S8T0V9WY",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "summary mentions the trailer even on one line, any case (M1)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Fix null waves; see beach-day-proposal: p_01JDQ8Z5K3M7N2P4R6S8T0V9WY",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "summary with U+2028 line separator (M1)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Fix null waves in score.js\u2028adds three tests",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "path needs normalising: ./ segment (M2)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "docs/./notes.md",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "path needs normalising: double slash (M2)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "docs//notes.md",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "path with percent-encoding (M2)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "docs/%2e%2e/netlify.toml",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "path segment ends in a dot (M2)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "docs/notes.md.",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "path with a space (M2)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+      "files": [
+        {
+          "path": "docs/my notes.md",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "summary with a bidi override U+202E (L3)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Fix null waves in score.js \u202eadds three tests",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "summary with a zero-width space hiding the trailer word (L3)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Fix null waves; Beach-Day\u200b-Proposal p_01JDQ8Z5K3M7N2P4R6S8T0V9WY",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "one-line summary with a combining accent and an emoji is fine (Mn/So, not Cf)",
+    "data": {
+      "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "pending",
+      "createdAt": "2026-11-23T15:04:05Z",
+      "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+      "summary": "Treat null wave height as missing in score.js; adds 3 tests. Ola, cafe\u0301 \ud83c\udf0a ok.",
+      "files": [
+        {
+          "path": "public/js/score.js",
+          "content": "export function scoreHour() {}\n",
+          "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+        },
+        {
+          "path": "tests/fixtures/openmeteo/marine-nulls.json",
+          "content": "{}\n",
+          "readBlobSha": null
+        }
+      ],
+      "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+    }
+  }
+]
