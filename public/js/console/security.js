@@ -23,9 +23,7 @@ export function mountSecurity(root, { auth, copy, onDone = () => {}, onSessionEn
   let secret = "";
 
   const c = card("S12", "auth.totp.setup.title");
-  const back = button("agents.back", "btn--text", () => onDone());
-  back.prepend(k.icon("chevron-left"));
-  c.section.prepend(back);
+  // No back control here: main.js's chat-head backLink is the one "Back to Agents" on #/console/security (R16, Wren).
   const who = el("p", { class: "auth-card__email" });
   c.section.querySelector(".auth-card__head").append(who);
   const body = el("div", { class: "stack" });

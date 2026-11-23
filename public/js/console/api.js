@@ -43,7 +43,8 @@ async function errorFrom(res) {
   // Netlify's own 429 (and any foreign body) has no code of ours: use the status mapping.
   const code = e && CODES.has(e.code) ? e.code : statusCode(res.status);
   const retryAt = typeof e?.retryAt === "string" ? e.retryAt : null;
-  const approvals = body && "approvals" in body ? body.approvals : undefined;
+  // The contract puts approvals next to error (api-error.schema); accept it inside error too.
+  const approvals = body?.approvals ?? e?.approvals ?? undefined;
   return new ApiError({ status: res.status, code, retryAt, approvals });
 }
 
@@ -204,5 +205,7 @@ export function createApi({ auth, fetchImpl = (...a) => globalThis.fetch(...a), 
     approve: (id, contentHash) => postJson(`/api/proposals/${checkId(id, "p")}/approve`, { contentHash }, { timeout: 65_000 }), // > server GitHub deadline (45 s) and the 60 s function limit (R15)
     reject: (id) => postJson(`/api/proposals/${checkId(id, "p")}/reject`, {}),
     get stopped() { return stopped; },
+    /** A new sign-in or a sign-out: the next person gets a fresh access check (the 403 refusal was per account). */
+    reset() { stopped = false; },
   };
 }

@@ -6,7 +6,7 @@
 // - Approve is sent ONLY from a click on "Approve and Deploy". Never from a URL, storage or a timer.
 // - The password is read once, cleared from the field, and never kept.
 import { h, icon, say, clear, announce, shortSha, shortHash } from "./dom.js";
-import { showCap, showCommitted, showLive, showStillDeploying, showUnconfirmed } from "./proposal.js";
+import { showCap, showCommitted, showLive, showStillDeploying, showUnconfirmed, capParams } from "./proposal.js";
 import { watchDeploy } from "./live.js";
 
 export const STEP_UP_KEY = "bd.console.stepUpProposal"; // id only; it navigates and reopens, it never acts
@@ -88,8 +88,8 @@ export async function openApproveSheet({ auth, api, card, hasDraft = () => false
         h("li", {}, say("agents.sheet.undo"))),
       h("p", { class: "sheet__note proposal-card__meta" }, say("agents.sheet.meta", { base: shortSha(p.baseSha), hash: shortHash(p.contentHash) })),
       view.approvals ? h("p", { class: "usage-line", dataset: { testid: "usage-line" } },
-        say("console.cap.usage", { used: view.approvals.used31, per31Days: view.approvals.per31Days }),
-        deploys ? null : ` ${say("console.cap.nodeploy", { per31Days: view.approvals.per31Days })}`) : null,
+        say("console.cap.usage", { used: capParams(view.approvals).used31, per31Days: capParams(view.approvals).per31Days }),
+        deploys ? null : ` ${say("console.cap.nodeploy", { per31Days: capParams(view.approvals).per31Days })}`) : null,
       stepup, status, alert),
     h("div", { class: "sheet__footer" }, approve));
 
@@ -211,7 +211,7 @@ export async function openApproveSheet({ auth, api, card, hasDraft = () => false
       (methods.password ? pw : google).focus();
       return;
     }
-    if (code === "approve_cap") { close(); showCap(card, err.approvals ?? { retryAt: err.retryAt }); return; }
+    if (code === "approve_cap") { close(); showCap(card, err.approvals, err.retryAt); return; }
     if (code === "upstream" || code === "timeout" || err?.network) {
       // The commit may have landed (docs/04 §7 reconciler): never offer Approve again; reload the proposal.
       close(); await reload(); showUnconfirmed(card); return;

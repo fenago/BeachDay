@@ -1,7 +1,7 @@
 // Console diff rendering (R12, Vera): invisible format characters and U+2028/2029 must show as ⟨U+XXXX⟩ tokens,
 // never raw, and the proposal card must warn. Pure parts run in node; the DOM part uses a tiny document stub.
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { splitHidden, hasHiddenChars, hiddenLabel, parseDiff, diffLines, warningsFor } from "../../public/js/console/proposal.js";
+import { splitHidden, hasHiddenChars, hiddenLabel, parseDiff, diffLines, warningsFor, capParams, APPROVE_CAP_FALLBACK } from "../../public/js/console/proposal.js";
 
 describe("splitHidden / hasHiddenChars", () => {
   it.each([
@@ -21,6 +21,15 @@ describe("splitHidden / hasHiddenChars", () => {
   it("labels are uppercase hex, at least 4 digits", () => {
     expect(hiddenLabel("\u200D")).toBe("⟨U+200D⟩");
     expect(hiddenLabel("\u{1D173}")).toBe("⟨U+1D173⟩");
+  });
+  it.each([
+    ["a\rb", [{ text: "a" }, { hidden: "⟨U+000D⟩" }, { text: "b" }]],                  // lone CR (Vera-B)
+    ["\u0000x", [{ hidden: "⟨U+0000⟩" }, { text: "x" }]],                              // NUL
+    ["\u001B[31m", [{ hidden: "⟨U+001B⟩" }, { text: "[31m" }]],                         // ESC (terminal colour)
+    ["\u007F\u0085", [{ hidden: "⟨U+007F⟩" }, { hidden: "⟨U+0085⟩" }]],                // DEL, NEL
+  ])("control character %j is shown", (input, want) => {
+    expect(splitHidden(input)).toEqual(want);
+    expect(hasHiddenChars(input)).toBe(true);
   });
   it("tabs, newlines and emoji are not hidden characters", () => {
     expect(hasHiddenChars("a\tb\nc 🌊 é")).toBe(false);
@@ -77,5 +86,15 @@ describe("diffLines (DOM)", () => {
     const [hunk, del] = diffLines("@@ \u200B @@\n-x\u2029y");
     expect(hunk.textContent).toBe("@@ ⟨U+200B⟩ @@");
     expect(del.textContent).toBe("−Removed line: x⟨U+2029⟩y");
+  });
+});
+
+describe("capParams (cap strings never show a raw placeholder)", () => {
+  it("uses the server's numbers when present", () => {
+    expect(capParams({ used31: 9, usedToday: 2, per31Days: 14, perDay: 5, retryAt: null })).toEqual({ per31Days: 14, perDay: 5, used31: 9, usedToday: 2, retryAt: null });
+  });
+  it("falls back to D7 when the server leaves numbers out, and takes retryAt from the error", () => {
+    expect(capParams(undefined, "2026-12-04T05:00:00.000Z")).toEqual({ ...APPROVE_CAP_FALLBACK, used31: 14, usedToday: 0, retryAt: "2026-12-04T05:00:00.000Z" });
+    expect(capParams({ used31: "x", per31Days: -1 })).toMatchObject({ per31Days: 14, used31: 14 });
   });
 });

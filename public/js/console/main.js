@@ -49,7 +49,8 @@ async function boot() {
   let authShowing = false;          // an auth screen is mounted or mounting
   let pendingNotice = null;         // e.g. auth.reset.done after S5; shown once on the next page bar
 
-  const api = createApi({ auth, onSessionEnded: () => showAuth("sessionExpired"), onNoAccess: () => showNoAccess() });
+  // S7 mounts once: a second 401 (or SIGNED_OUT) while a screen is up does nothing.
+  const api = createApi({ auth, onSessionEnded: () => { if (!authShowing) showAuth("sessionExpired"); }, onNoAccess: () => showNoAccess() });
 
   // ---- auth screens (Cass) ----
   async function loadScreens() {
@@ -82,6 +83,7 @@ async function boot() {
   async function onSignedIn(returnRoute, noticeId) {
     authShowing = false;
     signingOut = false;
+    api.reset(); // a fresh sign-in gets a fresh access check, even after S6 refused the last account
     pendingNotice = typeof noticeId === "string" ? noticeId : null;
     screens?.unmount?.();
     screens = null;
@@ -104,6 +106,7 @@ async function boot() {
     return mod.createSignOutControls({ auth: deliberate, copy, prominent, onSignedOut: ({ notice }) => {
       clear(appHost); // the hidden app host must not keep the last chat or proposal in the DOM
       chats.clear(); access = "unknown"; accountId = null;
+      api.reset();
       showAuth(notice);
     } });
   }
@@ -183,7 +186,8 @@ async function boot() {
     if (!agent) return renderList();
     const view = chatFor(agent);
     clear(appHost, h("div", { class: "chat-head" }, backLink(), h("h1", { tabindex: "-1" }, agent.persona || agent.name),
-      h("span", { class: "model-badge" }, h("span", { class: "visually-hidden" }, `${say("agents.model")}: `), agent.modelLabel)),
+      h("span", { class: "model-badge" }, h("span", { class: "visually-hidden" }, `${say("agents.model")}: `), agent.modelLabel),
+      accountMenu()),
       view.el);
   }
 

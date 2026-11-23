@@ -73,6 +73,7 @@ Current page = `aria-current="page"` (bold + underline, not colour alone). Wraps
     <svg class="icon" aria-hidden="true"><use href="/img/sprite.svg#chevron-right"/></svg></button></li></ul></li></ul>
 ```
 Rows may be `<a>` or `<button>`; `aria-current="true"` marks the saved beach.
+`.beach-group__title` is a solid chip (`--surface-solid`, 1 px `--border`, `--radius-s`, `--text`, `justify-self: start`), so no group title sits on the sky gradient. `--text` on `--surface-solid` is checked in light and dark by `tests/helpers/contrast-beachday.mjs`. In forced-colors it uses Canvas, CanvasText and a CanvasText border. The chip edge is decorative; the label carries the meaning.
 
 ### Verdict card (glass, the hero)
 ```html

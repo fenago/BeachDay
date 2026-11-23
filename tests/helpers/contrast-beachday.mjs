@@ -120,6 +120,7 @@ for (const [scheme, t] of [['light', light], ['dark', dark]]) {
   check(scheme, '--accent vs --surface-2 [1.4.11]', c('--accent'), c('--surface-2'), 3);
   check(scheme, '--on-accent on --accent (chat user/selected chip)', c('--on-accent'), c('--accent'), 4.5);
   check(scheme, '--error-text on --banner-error-bg', c('--error-text'), c('--banner-error-bg'), 4.5);
+  check(scheme, '--text on --surface-solid (.beach-group__title chip)', c('--text'), c('--surface-solid'), 4.5);
   check(scheme, '--text on --verdict-none (surface-2)', c('--text'), c('--surface-2'), 4.5);
 }
 

@@ -1,11 +1,21 @@
 // Small DOM helpers for the Agents page (Console). No framework, no innerHTML.
 // Every dynamic string (model output, diffs, file paths, server and Supabase errors) goes in through
 // textContent or a Text node (docs/04 §10, agent-console-security). Attributes are set one by one.
-import { t } from "../copy/copy-deck.js";
+import { STRINGS, t } from "../copy/copy-deck.js";
 
-/** Copy lookup: Wren's deck only (every Console id now lives there). Unknown ids or missing placeholders throw. */
+/**
+ * Ids the Console needs that are not in Wren's deck yet. The deck wins as soon as it has the id, so each entry
+ * here is dead once Wren adds it; delete it then. Placeholders are not allowed in these fallbacks.
+ */
+export const LOCAL_COPY = Object.freeze({
+  "agents.chat.log": "Conversation",
+});
+
+/** Copy lookup: Wren's deck first, then LOCAL_COPY. Unknown ids or missing placeholders throw. */
 export function say(id, params) {
-  return t(id, params);
+  if (Object.prototype.hasOwnProperty.call(STRINGS, id)) return t(id, params);
+  if (Object.prototype.hasOwnProperty.call(LOCAL_COPY, id)) return LOCAL_COPY[id];
+  return t(id, params); // throws the deck's own "unknown id" error
 }
 
 /**

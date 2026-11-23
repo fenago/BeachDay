@@ -23,7 +23,7 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
   let busy = false;
   let budgetUntil = 0;
 
-  const log = h("div", { class: "chat-log", role: "log", "aria-label": "Conversation", "data-empty": say("agents.sub"), dataset: { testid: "chat-log" } });
+  const log = h("div", { class: "chat-log", role: "log", "aria-label": say("agents.chat.log"), "data-empty": say("agents.sub"), dataset: { testid: "chat-log" } });
   const status = h("p", { class: "chat-status", role: "status", dataset: { testid: "chat-status" } });
   const alert = h("div", { role: "alert", dataset: { testid: "chat-alert" } });
   const inputId = `composer-${agent.name}`;

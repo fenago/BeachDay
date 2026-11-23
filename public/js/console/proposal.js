@@ -21,8 +21,9 @@ export function warningsFor(path) {
 // Invisible format characters (bidi overrides, zero-width, BOM…) and line/paragraph separators can make a diff
 // read differently from what gets committed (R12, Vera). They are never rendered raw: each one becomes a visible
 // "⟨U+XXXX⟩" token, and the card warns when any appears.
-const HIDDEN_RE = /[\p{Cf}\u2028\u2029]/u;
-const HIDDEN_SPLIT_RE = /([\p{Cf}\u2028\u2029])/u;
+// Also \p{Cc} (a lone \r, NUL, ESC…) except tab and newline; lines are split on \n first (R12 follow-up, Vera-B).
+const HIDDEN_RE = /(?![\t\n])[\p{Cf}\p{Cc}\u2028\u2029]/u;
+const HIDDEN_SPLIT_RE = /((?![\t\n])[\p{Cf}\p{Cc}\u2028\u2029])/u;
 export const hasHiddenChars = (text) => HIDDEN_RE.test(String(text ?? ""));
 export const hiddenLabel = (ch) => `⟨U+${ch.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}⟩`;
 
@@ -159,12 +160,27 @@ export function proposalCard(view, handlers) {
 }
 
 /** S9: the cap message is a blocking failure (role="alert"). Review stays hidden until retryAt; Reject stays. */
-export function showCap(card, approvals) {
+/**
+ * D7 (ADR-0008) as the browser's last resort, used only when a server answer leaves a number out. The server's
+ * `approvals` always wins; the source of truth stays netlify/functions/lib/settings.mts `approveCap`.
+ */
+export const APPROVE_CAP_FALLBACK = Object.freeze({ per31Days: 14, perDay: 5 });
+
+/** Every number the cap strings need, from the server's approvals with D7 fallbacks. Never a raw placeholder. */
+export function capParams(approvals, retryAt) {
   const a = approvals ?? {};
-  const daily = Number.isInteger(a.usedToday) && Number.isInteger(a.perDay) && a.usedToday >= a.perDay;
+  const int = (v, d) => (Number.isInteger(v) && v >= 0 ? v : d);
+  const per31Days = int(a.per31Days, APPROVE_CAP_FALLBACK.per31Days);
+  const perDay = int(a.perDay, APPROVE_CAP_FALLBACK.perDay);
+  return { per31Days, perDay, used31: int(a.used31, per31Days), usedToday: int(a.usedToday, 0), retryAt: a.retryAt ?? retryAt ?? null };
+}
+
+export function showCap(card, approvals, retryAt) {
+  const a = capParams(approvals, retryAt);
+  const daily = a.usedToday >= a.perDay && a.used31 < a.per31Days;
   const line = daily
     ? say("console.cap.day", { perDay: a.perDay })
-    : say("console.cap.month", { used: a.used31 ?? a.per31Days ?? "—", per31Days: a.per31Days ?? "—", date: formatWhen(a.retryAt) || "—" });
+    : say("console.cap.month", { used: a.used31, per31Days: a.per31Days, date: formatWhen(a.retryAt) || "—" });
   clear(card.alert, h("div", { class: "cap-note", dataset: { testid: "approve-cap" } },
     h("p", {}, line), h("p", {}, say("console.cap.waiting"))));
   card.actions.querySelector('[data-testid="proposal-review"]')?.remove();
