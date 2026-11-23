@@ -43,8 +43,8 @@ From [Documenting Architecture Decisions](https://cognitect.com/blog/2011/11/15/
 ## Beach Day notes
 
 - Our template (`docs/adr/README.md`, `architecture-decision-records` skill) is Nygard's plus two additions: **Deciders** (Dr. Lee plus agents consulted) and **Revisit when** (a concrete trigger). The trigger makes "the time to change old decisions ... clear from changes in the project's context", which is Nygard's own consequence, made explicit.
-- File naming is `docs/adr/NNNN-short-title.md` with 4 digits, never reused. The next free number is **0006**.
-- **Only Dr. Lee accepts.** Agents write `Status: Proposed`, and the orchestrator brings it to Dr. Lee. The status line is the only allowed edit to an accepted ADR (when superseding it).
+- File naming is `docs/adr/NNNN-short-title.md` with 4 digits, never reused. The next free number is **0010** (0006–0008 accepted 2026-11-23; 0009, the read token, drafted as Proposed the same day). A partial change to an accepted ADR is still a superseding ADR: restate the unchanged points, as 0006 did for 0001 and 0009 does for 0007.
+- **Only Dr. Lee accepts.** Agents write `Status: Proposed`, and the orchestrator brings it to Dr. Lee. Exception: when Dr. Lee has stated the decision himself (0006–0008), the ADR records it as Accepted with `Deciders: Dr. Lee`. The status line is the only allowed edit to an accepted ADR (when superseding it).
 - Write an ADR (per our skill) for: a new dependency or service, a trust-boundary change, a deploy-flow change, a data-source change, or anything that changes cost. These map directly onto Nygard's "dependencies, interfaces, non-functional characteristics".
 - **Consequences must include cost in Netlify credits** where relevant (ADR-0004: 300 credits a month, 15 per production deploy). Cost is the non-functional force that most often decides things here.
 - A worked Proposed ADR in our format is in `examples/03-proposed-adr/`.

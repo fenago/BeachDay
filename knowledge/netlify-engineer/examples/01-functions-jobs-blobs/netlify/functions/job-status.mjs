@@ -2,11 +2,13 @@
 // background job runs. Named path group -> context.params.id.
 import { store } from "./lib/blobs.mjs";
 import { json } from "./lib/http.mjs";
+import { guard } from "./lib/guard.mjs";
 
 const ID_RE = /^[a-z0-9-]{8,64}$/;
 
 export default async (req, context) => {
-  // Real code calls requireSession(req, context) first and returns 401.
+  const auth = await guard(req); // FIRST line of every /api/* handler
+  if (auth.response) return auth.response;
   const id = context.params?.id ?? "";
   if (!ID_RE.test(id)) return json(400, { error: "invalid_id" });
 
@@ -20,6 +22,5 @@ export default async (req, context) => {
 
 export const config = {
   path: "/api/jobs/:id",
-  excludedPath: "/api/jobs/run", // the background function owns that path
   method: "GET",
 };

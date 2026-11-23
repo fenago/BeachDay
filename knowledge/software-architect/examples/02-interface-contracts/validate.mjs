@@ -17,10 +17,13 @@ const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
 const load = (p) => JSON.parse(readFileSync(join(here, p), 'utf8'));
 
+// add every schema first so cross-file $refs (api-error → approvals, proposal-view → proposal) resolve
+const files = readdirSync(join(here, 'schemas')).sort();
+for (const f of files) ajv.addSchema(load(`schemas/${f}`));
 const validators = {};
-for (const f of readdirSync(join(here, 'schemas')).sort()) {
+for (const f of files) {
   const name = f.replace('.schema.json', '');
-  validators[name] = ajv.compile(load(`schemas/${f}`));
+  validators[name] = ajv.getSchema(load(`schemas/${f}`).$id);
   console.log(`compiled  ${f}`);
 }
 
@@ -67,7 +70,7 @@ console.log(`${!unitsOk || bad.length || hours.length !== 24 ? 'FAIL' : 'PASS'} 
 const events = [
   { type: 'tool', name: 'read_file', phase: 'start', summary: 'Read public/js/score.js' },
   { type: 'text', delta: 'Line one\nline two: with a colon' },
-  { type: 'proposal', proposalId: 'prop_7f3a9c21d4', summary: 'Treat null wave_height as missing.', files: [{ path: 'public/js/score.js', bytes: 5120 }] },
+  { type: 'proposal', proposalId: 'p_01JDQ8Z5K3M7N2P4R6S8T0V9WX', summary: 'Treat null wave_height as missing.', files: [{ path: 'public/js/score.js', bytes: 5120 }] },
   { type: 'done', stopReason: 'end_turn' },
 ];
 const wire = ': ping\n\n' + events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join('');

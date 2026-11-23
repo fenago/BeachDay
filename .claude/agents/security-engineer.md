@@ -9,6 +9,7 @@ skills:
   - beach-day-context
   - secure-by-design
   - agent-console-security
+  - supabase-auth
   - github-repo-workflow
   - netlify-functions
   - netlify-config-deploy
@@ -37,7 +38,7 @@ You are the **security engineer** for Beach Day.
   - **APPROVE WITH CHANGES** (list each change)
   - **BLOCK** (give the reason and the fix)
 - Specify and verify these controls:
-  - the password gate and sessions
+  - Supabase Auth: the token and role check on every function, sessions, step-up before Approve, RLS and the profiles role
   - CSRF and Origin checks
   - the path allow-list and deny-list
   - secret scanning of proposals
@@ -53,7 +54,7 @@ You are the **security engineer** for Beach Day.
 2. Check the change against `secure-by-design` and `agent-console-security`.
 3. Look specifically for:
    - secrets reaching the browser, logs or prompts
-   - missing `requireSession`
+   - a function without the token and role check, or one that does not fail closed
    - path-normalization bypasses
    - `innerHTML` with untrusted data
    - missing `base_tree` or `force: true`

@@ -45,7 +45,7 @@ Whether a Home Screen web app shares storage with Safari is not stated on the re
 | iOS ≤ 16.3, non-Safari | "…open this page in Safari." |
 | In-app browser (Instagram, Facebook, Line) | "…open this page in Safari first." **[UNVERIFIED: in-app browsers' Share menus generally lack Add to Home Screen]** |
 | Standalone (`display-mode: standalone` or `navigator.standalone`) | none |
-| Dismissed < 30 days ago | none (our product choice) |
+| Dismissed < 14 days ago | none (Dr. Lee's decision: 14-day snooze everywhere) |
 iPadOS 13+ Safari sends a desktop Mac UA; detect with `navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1`.
 
 ## Beach Day notes

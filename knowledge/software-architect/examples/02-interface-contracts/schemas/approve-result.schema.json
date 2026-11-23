@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/approve-result.schema.json",
+  "title": "ApproveResult",
+  "description": "200 body of POST /api/proposals/:id/approve (docs/04 §2.1). `deploys` is deploysOnCommit(paths) from netlify/functions/lib/deploys.mts over the committed paths, and is required so the outcome copy never guesses (Deploying… + Live vs No deploy needed). `approvals` is read after recording; null if that read fails. A 200 can carry status `committing` when the commit landed but recording did not finish (docs/04 §1, §7 reconciler).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposal", "deploys", "approvals"],
+  "properties": {
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "commitSha", "decidedAt"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^p_[0-9A-Z]{26}$" },
+        "status": { "enum": ["committed", "committing"] },
+        "commitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "decidedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "deploys": { "type": "boolean" },
+    "approvals": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "https://beachday.example/schemas/approvals.schema.json" }
+      ]
+    }
+  }
+}

@@ -43,13 +43,17 @@ Secret types to detect include API keys, private keys, session tokens, passwords
 
 Logs themselves are a target. One listed failure mode is "Logs contain technical secrets such as passwords."
 
-## Beach Day secrets inventory
+## Beach Day secrets inventory (since ADR-0006)
 | Secret | Where | Scope / lifetime | Rotation |
 |---|---|---|---|
-| `ANTHROPIC_API_KEY` | Netlify secret env var | dedicated workspace with a spend limit | on suspicion; at least yearly (our choice) |
-| `GITHUB_TOKEN` | Netlify secret env var, **Production context only** | fine-grained PAT: 1 repo, Contents R/W, no Workflows (ADR-0005) | 90-day expiry, calendar reminder |
-| `CONSOLE_PASSWORD_HASH` | Netlify secret env var | the scrypt hash, not the password | when the password changes |
-| `SESSION_SECRET` | Netlify secret env var | ≥ 32 random bytes | rotating it logs everyone out; use it as the "revoke all sessions" switch |
+| `ANTHROPIC_API_KEY` | Netlify secret env var, Production context | dedicated workspace with a spend limit | on suspicion; at least yearly (our choice) |
+| `GITHUB_TOKEN` | Netlify secret env var, **Production context only**. Today (ADR-0007) also used by the read module in `chat` and `jobs-run`; under ADR-0009 only `lib/github-write.mts`, imported only by approve | fine-grained PAT: 1 repo, Contents R/W, no Workflows (ADR-0005) | 90-day expiry, calendar reminder |
+| `GITHUB_READ_TOKEN` (**Proposed, [ADR-0009](../../../docs/adr/0009-public-read-token-for-agent-reads.md); do not create until Dr. Lee accepts it**) | Netlify secret env var, Production context only, read only by `lib/github-read.mts` | fine-grained PAT, **public repositories only**, no permissions; read tools only; no fallback to `GITHUB_TOKEN` | 90-day expiry, same reminder as `GITHUB_TOKEN` |
+| User access/refresh tokens | the user's browser `localStorage` only | access token 600 s; refresh token single-use | sign-out; refresh reuse detection revokes the session |
+
+**Not secrets:** `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `GITHUB_REPO`. Never mark them secret, or secret scanning fails the build on `config.js`.
+
+**Never created:** the Supabase secret key `sb_secret_…` and the legacy `service_role` JWT. The two old Console-password variables (names beginning `CONSOLE_` and `SESSION_`) were removed (ADR-0006); delete them from Netlify if they exist.
 
 Rules from `secure-by-design`:
 - Secrets are only ever read inside functions.
@@ -59,15 +63,15 @@ Rules from `secure-by-design`:
 ## Audit and log design
 Use **structured JSON** logs, one object per event:
 ```json
-{"evt":"approve","requestId":"01J…","sid_h":"3f9a1c2e","agent":"pwa-mobile-engineer","proposal":"p_01J…","result":"committed","commit":"9b1e…","ms":1840}
+{"evt":"approve","requestId":"01J…","user":"<supabase user id>","agent":"pwa-mobile-engineer","proposal":"p_01J…","result":"committed","commit":"9b1e…","ms":1840}
 ```
-- `sid_h` is a truncated HMAC of `sid`, never the raw `sid` or cookie.
+- `user` is the Supabase user id (`sub`). It is not secret, and it is the audit actor. Never log the token itself.
 - Never log:
-  - request bodies (they can contain the password or proposal content)
-  - `Authorization`/`Cookie` headers
+  - request bodies (they can contain proposal content)
+  - the `Authorization` header, `apikey` values, access or refresh tokens
   - `process.env`
   - full upstream error bodies
-- Audit events (`agent-console-security`): login success and fail, proposal created, approve, reject, commit result. Write them to Blobs with `onlyIfNew` keys so they are append-only.
+- Audit events (`agent-console-security`): proposal created, approve, step-up failure, reject, commit result. Supabase records sign-ins itself. Write them to Blobs with `onlyIfNew` keys so they are append-only.
 - Strip CR/LF from any user-controlled value that ends up in a log message. Using JSON fields instead of string concatenation does this.
 
 ## Our secret scanner (examples/03)
@@ -80,12 +84,13 @@ Use **structured JSON** logs, one object per event:
 - **Added rules:**
   - AWS key ID
   - Slack token
+  - `sb_secret_…` and any full three-part JWT (legacy `service_role`/`anon` keys, access tokens). The bare word `service_role` is not a rule.
   - `ANTHROPIC_API_KEY=` style assignments to our own env var names
 - **Findings are redacted** to 6 characters plus the length, so they can be logged and shown.
 - **Test fixtures are generated at runtime.** That follows OWASP's "standard test secrets" advice, and it keeps our own repo clean for GitHub push protection.
 
 ## Beach Day notes
 - The scanner is a tripwire. The structural control is that **secrets never enter the model's context**, so an injected agent has nothing to exfiltrate. Keep env values out of system prompts, tool results and error messages returned to Claude.
-- **Build logs:** on Free there are no env-var scopes, so builds can read secrets (ADR-0004). `scripts/**` is on the deny list, and build scripts must never print env.
-- **Deploy Previews:** `GITHUB_TOKEN` is absent outside Production, so the approve function returns `not_configured`. QA tests this (`agent-console-security` → "token absent in non-production").
+- **Build logs:** on Free there are no env-var scopes, so builds can read secrets (ADR-0004). `scripts/**` is on the deny list, build scripts must never print env, and no test runner runs in the build (docs/04 §4.7).
+- **Deploy Previews:** turned off (docs/04 §4.6). Per-context values on Free are UNVERIFIED, so functions also return 503 unless `context.deploy.context === "production"`. QA tests this.
 - **Ordering:** run the scanner before storing a proposal and again at Approve. GitHub push protection is the third line of defence (doc 06).

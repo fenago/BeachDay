@@ -53,16 +53,9 @@ export function createFakeStore() {
 
 // Minimal stand-in for the Netlify Context object used by these handlers.
 export function fakeContext({ params = {}, ip = "203.0.113.7" } = {}) {
-  const setCookies = [];
   return {
     ip,
     params,
     requestId: "test-request",
-    cookies: {
-      get: () => undefined,
-      set: (c) => setCookies.push(c),
-      delete: () => {},
-    },
-    setCookies,
   };
 }

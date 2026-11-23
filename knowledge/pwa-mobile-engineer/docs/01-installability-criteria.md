@@ -54,7 +54,8 @@ Android only: if the manifest has `description` and `screenshots`, they are show
 - Engagement heuristics make `beforeinstallprompt` hard to trigger in automation; test the controller logic with a synthetic event (`examples/03-install-prompt`).
 
 ## Beach Day notes
-- Manifest must meet every Chromium bullet above plus our own: separate `maskable` 512 icon, `id: "/"`, `scope: "/"`, narrow screenshot with a `label`, `description` (Android rich install UI).
-- `sw.js` must have a real fetch handler (it does: Open-Meteo network-first, shell cache-first, navigation fallback). Never ship an empty handler "for install".
+- Manifest must meet every Chromium bullet above plus **our own rules** (Chrome does not ask for these): separate `maskable` 512 icon, `id: "/"`, `scope: "/"`, narrow screenshot with a `label`, `description` (Android rich install UI). No `shortcuts` member (no `/console` shortcut, Dr. Lee's decision).
+- `sw.js` must have a real fetch handler (it does: Open-Meteo network-first, shell cache-first, navigation fallback). Never ship an empty handler "for install". The prompt rule comes from Chrome's Dec 2023 post and is **UNVERIFIED** as current: web.dev and developer.chrome.com were unreachable on 2026-11-23, so it was not re-checked.
+- `start_url` is `/?source=pwa`; `sw.js` must match precached shell requests with `ignoreSearch: true`.
 - The install button stays hidden until `beforeinstallprompt`; on iOS show the Add to Home Screen hint instead (06-ios-home-screen-web-apps.md).
 - Netlify Free serves HTTPS on the `*.netlify.app` domain and custom domains (ADR-0004); nothing extra needed for the secure-origin rule.

@@ -25,7 +25,7 @@ From [Using server-sent events](https://developer.mozilla.org/en-US/docs/Web/API
 ## EventSource vs fetch
 
 - `new EventSource(url, { withCredentials })`: the only options are the URL and `withCredentials` (default `false`). ([EventSource()](https://developer.mozilla.org/en-US/docs/Web/API/EventSource/EventSource))
-- There is no option for an HTTP method, request body or custom headers. So EventSource can't send our `POST /api/chat` body or the `X-CSRF-Token` header. The constructor's option list shows this, but MDN doesn't state it in so many words.
+- There is no option for an HTTP method, request body or custom headers. So EventSource can't send our `POST /api/chat` body or the `Authorization: Bearer` header (ADR-0006). The constructor's option list shows this, but MDN doesn't state it in so many words.
 - Use **`fetch()` + `response.body` (a ReadableStream)** and parse the SSE format ourselves.
 
 ## ReadableStream
@@ -41,7 +41,7 @@ From [ReadableStream](https://developer.mozilla.org/en-US/docs/Web/API/ReadableS
 Minimal client parser shape:
 
 ```js
-const res = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body, signal });
+const res = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${accessToken}` }, body, signal });
 let buf = '';
 for await (const chunk of res.body.pipeThrough(new TextDecoderStream())) {
   buf += chunk;
@@ -61,9 +61,10 @@ for await (const chunk of res.body.pipeThrough(new TextDecoderStream())) {
 
 ## Beach Day notes
 
-- **Event types are fixed by docs/04 §8:** `text`, `tool`, `proposal`, `handoff`, `error`, `done`. Each message is `event: <type>` + one `data:` line of JSON. The JSON Schema union for these is in `examples/02-interface-contracts/schemas/sse-event.schema.json`. The client and function must both validate against it.
+- **Event types and fields are fixed by docs/04 §2.1** (IDs `p_`/`j_` + ULID; `error.code` uses the **one code list** shared with JSON errors, e.g. `unauthorized`, `forbidden`, `rate_limited`, `budget_exhausted`): `text`, `tool`, `proposal`, `handoff`, `error`, `done`. Each message is `event: <type>` + one `data:` line of JSON. The JSON Schema union for these is in `examples/02-interface-contracts/schemas/sse-event.schema.json`. The client and function must both validate against it.
 - **Headers on `/api/chat`:** `content-type: text/event-stream`, `cache-control: no-store` (docs/04; stricter than MDN's `no-cache`, correct for authenticated output). Consider `x-accel-buffering: no`; whether Netlify buffers without it is **[UNVERIFIED]**.
 - **Keep-alive:** send `: ping\n\n` about every 15 s during long tool rounds, so intermediaries don't drop an idle stream inside Netlify's 60 s limit.
+- **Errors before the stream opens are plain JSON, not SSE** (docs/04 §2.1): auth, role, Origin, body and limit failures answer with their HTTP status and `application/json`. Check `res.ok` and `content-type` before parsing the body as SSE.
 - **Terminal events:** every stream ends with exactly one `done` or `error`. `handoff` (switching to a background job at about 45 s) is followed by `done` so the client closes cleanly and starts polling `/api/jobs/:id`.
 - **No `id`/`retry` and no auto-reconnect.** A chat turn isn't resumable, because a retry would re-run the Claude call and cost tokens. Reconnection means polling the job.
 - **Six-connection limit:** irrelevant on Netlify's HTTP/2 CDN in practice, but the Console must close each stream (`AbortController`) before starting the next turn.

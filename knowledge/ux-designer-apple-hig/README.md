@@ -8,7 +8,7 @@ Reference notes from Apple's Human Interface Guidelines (read from Apple's DocC 
 |---|---|---|
 | [docs/01-ios-foundations-and-navigation.md](docs/01-ios-foundations-and-navigation.md) | Designing for iOS, tab bars (Liquid Glass era), lists and tables, layout and state restoration; Beach Day IA table | Designing screens, navigation, the tab bar or lists |
 | [docs/02-sheets-alerts-modality.md](docs/02-sheets-alerts-modality.md) | Sheets (Cancel leading / Done trailing, detents, grabber), alerts ("avoid OK", no alert at launch), modality | Any sheet, dialog, confirmation or error interruption |
-| [docs/03-buttons-input-and-auth.md](docs/03-buttons-input-and-auth.md) | Buttons (44 pt, roles, prominent style), entering data, managing accounts; WCAG 2.5.8 and 3.3.8 | Buttons, forms, the Console login and re-auth |
+| [docs/03-buttons-input-and-auth.md](docs/03-buttons-input-and-auth.md) | Buttons (44 pt, roles, prominent style), entering data, managing accounts; WCAG 2.5.8 and 3.3.8; Beach Day auth conventions | Buttons, forms, Console sign in, Google and the step-up |
 | [docs/04-feedback-loading-launch-onboarding.md](docs/04-feedback-loading-launch-onboarding.md) | Feedback, loading, progress indicators, launching, onboarding, notifications | Loading, offline and progress states; first launch; install hints |
 | [docs/05-writing.md](docs/05-writing.md) | HIG Writing best practices (no "we", no "oops", "tap" not "click", empty states, errors), alert and button copy rules | Writing or reviewing any user-facing text |
 | [docs/06-accessibility-targets-status.md](docs/06-accessibility-targets-status.md) | HIG Accessibility (sizes, gestures, time-boxing, confirm twice), WCAG 2.5.8 and 4.1.3 with techniques ARIA22/19/23 and G199 | Deciding live regions, target sizes, gesture alternatives |
@@ -17,11 +17,12 @@ Reference notes from Apple's Human Interface Guidelines (read from Apple's DocC 
 | Folder | Shows | Status |
 |---|---|---|
 | [examples/01-flow-beach-verdict/](examples/01-flow-beach-verdict/) | Full flow spec for pick a beach → today's verdict → day detail, with text wireframes and a state matrix (loading, partial, error, offline, stale, too old, empty, outlook, after hours) | Spec. Its status strings are machine-checked by example 02 |
-| [examples/02-copy-deck/](examples/02-copy-deck/) | `copy-deck.json` (verdicts, reasons, advice, status, errors, buttons, Console, the exact safety line) + `check-copy.mjs` (lengths, banned words, case, Flesch ≥ 60, spec cross-check) | Ran: 7 failures → copy rewritten → PASS |
-| [examples/03-console-approval/](examples/03-console-approval/) | Approval flow spec (card, confirm sheet with consequences + password re-auth, outcome table) + accessible HTML prototype (mocked server) + Playwright/axe check of 8 states × 2 schemes | Ran: 6 axe violations → fixed → 0 violations, PASS |
+| [examples/02-copy-deck/](examples/02-copy-deck/) | `copy-deck.json` (verdicts, every reason code from docs/01, advice, status, errors, buttons, Console and auth, the exact safety line) + `check-copy.mjs` (lengths, banned words, case, Flesch ≥ 60, spec cross-check) | Ran: PASS (190 strings, wave 3b) |
+| [examples/03-console-approval/](examples/03-console-approval/) | Approval flow spec (card, confirm sheet with consequences + "Confirm it's you", outcome table incl. cap, no-deploy and session ended) + accessible HTML prototype (mocked server) + Playwright/axe check of 13 states × 2 schemes | Ran: 0 violations, PASS (16 states × 2 schemes incl. code field and 502) |
+| [examples/04-console-auth/](examples/04-console-auth/) | Account flows for the Supabase Auth Console: sign up, check email, sign in, Google, forgot/reset, sign out, no access (403), session ended, step-up, approve cap, TOTP enrolment and code step, one-button Confirm Email screen, Sign Out Everywhere, with copy ids | Spec. Copy checked by example 02; Supabase behavior marked UNVERIFIED |
 
 ## Key takeaways
 1. One question and one prominent action per screen, answer first. No alert at launch; offline and errors show inline over cached data.
 2. Every state is designed and worded. Status changes use one persistent `role="status"`, and `role="alert"` is only for blocking failures.
-3. Approve is the one heavy flow: consequences in plain words ("production", "15 of 300 credits"), password re-auth that allows paste and autofill, a verb-titled button, and an honest step-by-step outcome.
+3. Approve is the one heavy flow: consequences in plain words ("production", "15 of 300 credits"), a "Confirm it's you" step-up (password that allows paste and autofill, or Google), a verb-titled button, an honest step-by-step outcome, and a clear cap message ("N of 14 used in the last 31 days. Next slot frees <date>").
 4. The safety line is fixed text on every verdict screen, with a descriptive link ("NWS rip-current risk").

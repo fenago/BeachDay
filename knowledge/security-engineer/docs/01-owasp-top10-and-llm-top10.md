@@ -5,15 +5,15 @@ Retrieved: 2026-11-23 (owasp.org and genai.owasp.org read through Firecrawl; che
 ## OWASP Top 10:2025 (the current edition; it replaces 2021)
 | ID | Name | Where it bites Beach Day |
 |---|---|---|
-| A01:2025 | Broken Access Control | a missing `requireSession` on any `/api/*`; approving another session's proposal |
-| A02:2025 | Security Misconfiguration | missing CSP or headers, function responses without `no-store`, secrets visible to Deploy Previews |
+| A01:2025 | Broken Access Control | a function without the token-and-role check; a role read from the JWT or `user_metadata`; a `profiles` UPDATE grant |
+| A02:2025 | Security Misconfiguration | missing CSP or headers, function responses without `no-store`, secrets visible to Deploy Previews, a wildcard Supabase redirect URL |
 | A03:2025 | Software Supply Chain Failures | agents editing `package*.json` (denied); unpinned deps; CDN scripts |
-| A04:2025 | Cryptographic Failures | weak password hashing, non-constant-time compares, short `SESSION_SECRET` |
+| A04:2025 | Cryptographic Failures | trusting `getSession()` on a server; `allowExpired`; a legacy HS256 project secret instead of asymmetric signing keys |
 | A05:2025 | Injection | `innerHTML` with model output; path injection into GitHub paths |
 | A06:2025 | Insecure Design | an agent with a commit tool (we don't have one); no human approval |
-| A07:2025 | Authentication Failures | no login throttling; no step-up on Approve |
+| A07:2025 | Authentication Failures | no step-up on Approve; `reauthenticate()` mistaken for a step-up; long-lived access tokens |
 | A08:2025 | Software or Data Integrity Failures | a proposal changed after review (content hash); a non-fast-forward ref update |
-| A09:2025 | Security Logging and Alerting Failures | no audit record for login, approve or commit; secrets in logs |
+| A09:2025 | Security Logging and Alerting Failures | no audit record for proposal, approve or commit; tokens or secrets in logs |
 | A10:2025 | Mishandling of Exceptional Conditions | failing open on GitHub/Claude errors; partial commits |
 
 The names were copied from the edition's index page. The per-category detail pages were not read in this pass, so the "where it bites" column is our own mapping.
@@ -64,9 +64,9 @@ How Beach Day maps to that list:
 | Minimize extensions | 3 tools only: `read_file`, `list_files`, `propose_change` |
 | Avoid open-ended extensions | no shell, no fetch, no generic `github_api` tool |
 | Minimize permissions | fine-grained PAT, one repo, Contents only, no Workflows (ADR-0005) |
-| Require user approval | Approve button with a visible diff, step-up re-auth |
+| Require user approval | Approve button with a visible diff, step-up (fresh sign-in ≤ 10 min) |
 | Complete mediation | allow-list, size limits, secret scan and hash in code, re-checked at approve |
-| Rate limiting | ≤ 15 tool rounds per job; Blobs counters; workspace spend limit |
+| Rate limiting | ≤ 15 tool rounds and ≤ 1M tokens per job; per-user Blobs counters; site-wide compute budget; workspace spend limit |
 
 ## Agent-specific notes from the LLM Prompt Injection Prevention Cheat Sheet
 - **Agent attacks:**
@@ -82,5 +82,5 @@ How Beach Day maps to that list:
 ## Beach Day notes
 - Treat **every** file an agent reads as untrusted input (indirect injection). Our guarantees don't depend on the model obeying. They rest on code: the allow-list, the secret scan, human Approve, and a token that can't touch workflows.
 - LLM05: model output → DOM only via `textContent` or a sanitizer. Model output → git only via `propose_change` → human diff review → approve re-validation.
-- LLM10: spend limits sit at three layers. Anthropic has a workspace spend limit; our functions have per-session counters and max rounds; Netlify has the Free-plan credits (ADR-0004), where every approve costs 15 credits.
+- LLM10: spend limits sit at three layers. Anthropic has a workspace spend limit; our functions have per-user counters, per-job caps and a site-wide compute budget; Netlify has the Free-plan credits (ADR-0004), where every approve costs 15 credits and the Approve cap is 14 per 31 days (ADR-0008).
 - Map review findings to these IDs, for example "A01:2025 / LLM06", so trends are visible over time.

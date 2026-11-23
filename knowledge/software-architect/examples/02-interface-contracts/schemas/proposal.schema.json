@@ -2,51 +2,276 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://beachday.example/schemas/proposal.schema.json",
   "title": "ProposalRecord",
-  "description": "Record stored in the Netlify Blobs `proposals` store (strong consistency) and returned by GET /api/proposals/:id. Shape check only: the server-side allow-list in netlify/functions/lib/allowlist.mts (normalise, DENY wins) and the secret scan remain the enforcement points, re-run at approve time (docs/04 §6-7, ADR-0003, ADR-0005).",
+  "description": "Record stored in the Netlify Blobs `proposals` store (strong consistency) and returned by GET /api/proposals/:id. Shape check only: the server-side allow-list in netlify/functions/lib/allowlist.mts (normalise, case-insensitive, DENY wins, text-only) and the secret scan remain the enforcement points, re-run at approve time (docs/04 §2.1, §6-7; ADR-0003, ADR-0005, ADR-0006, ADR-0007).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "agent", "status", "createdAt", "baseSha", "summary", "files", "contentHash"],
+  "required": [
+    "id",
+    "agent",
+    "status",
+    "createdAt",
+    "baseSha",
+    "summary",
+    "files",
+    "contentHash"
+  ],
   "properties": {
-    "id": { "type": "string", "pattern": "^prop_[A-Za-z0-9_-]{8,64}$" },
-    "agent": {
-      "enum": ["orchestrator", "agent-builder", "software-architect", "open-meteo-integrator", "pwa-mobile-engineer",
-        "security-engineer", "agent-console-engineer", "ui-designer-apple-liquid-glass", "ux-designer-apple-hig",
-        "qa-engineer", "netlify-engineer"]
+    "id": {
+      "type": "string",
+      "pattern": "^p_[0-9A-Z]{26}$"
     },
-    "status": { "enum": ["pending", "committed", "rejected", "stale"] },
-    "createdAt": { "type": "string", "format": "date-time" },
-    "decidedAt": { "type": "string", "format": "date-time" },
-    "baseSha": { "$ref": "#/$defs/sha1", "description": "main head SHA the agent read from" },
-    "summary": { "type": "string", "minLength": 20, "maxLength": 2000, "description": "What, why, how tested (change-proposal-protocol)" },
+    "agent": {
+      "enum": [
+        "orchestrator",
+        "agent-builder",
+        "software-architect",
+        "open-meteo-integrator",
+        "pwa-mobile-engineer",
+        "security-engineer",
+        "agent-console-engineer",
+        "ui-designer-apple-liquid-glass",
+        "ux-designer-apple-hig",
+        "qa-engineer",
+        "netlify-engineer",
+        "supabase-auth-engineer"
+      ]
+    },
+    "status": {
+      "enum": [
+        "pending",
+        "committing",
+        "committed",
+        "failed",
+        "stale",
+        "rejected"
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "decidedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "baseSha": {
+      "$ref": "#/$defs/sha1",
+      "description": "main head SHA pinned at the start of the turn/job; all reads used it (ADR-0007)"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 2000,
+      "allOf": [
+        {
+          "pattern": "^[^\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]*$"
+        },
+        {
+          "not": {
+            "pattern": "[Bb][Ee][Aa][Cc][Hh]-[Dd][Aa][Yy]-[Pp][Rr][Oo][Pp][Oo][Ss][Aa][Ll]"
+          }
+        }
+      ],
+      "description": "What, why, how tested (change-proposal-protocol). ONE line, 20-2000 code points: no control, format or line-break characters (\\p{Cc}, \\p{Cf} incl. bidi overrides/isolates and zero-width, \\p{Zl}, \\p{Zp}) and no 'Beach-Day-Proposal' text in any case, so it can never forge or disguise the commit trailer (docs/04 §6, §7). Lone surrogates are rejected in code (isWellFormed()); JSON Schema can't express that."
+    },
     "files": {
-      "type": "array", "minItems": 1, "maxItems": 20,
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
       "items": {
-        "type": "object", "additionalProperties": false, "required": ["path", "content"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "content"
+        ],
         "properties": {
           "path": {
             "type": "string",
-            "description": "Allow-listed path (docs/04 §6 ALLOW: public/**/*.{html,css,js,json,webmanifest,svg}, public/_headers, tests/**, docs/**, .claude/agents/*.md, .claude/skills/**/*.md). Rejects '..', absolute paths, backslashes, .env files and every DENY prefix.",
+            "description": "Canonical list (docs/04 §6). ALLOW: public/** with a text extension (html, css, js, json, webmanifest, svg, txt, md), tests/**, docs/**, .claude/agents/*.md, .claude/skills/**/*.md. DENY wins: public/_headers, public/_redirects, public/sw.js, public/sw/**, public/vendor/**, public/generated/**, public/version.json, netlify/**, netlify.toml, .github/**, package*.json, scripts/**, .env*, .git/**, .gitmodules, .claude/settings*, *.pem, *.key. Case-insensitive matching is enforced server-side; JSON Schema regexes are case-sensitive. Exact string sent to GitHub, never normalised: 1-200 chars of [A-Za-z0-9._/-], no leading '/', no empty, '.' or '..' segment, no segment ending in '.'. propose_change cannot delete files.",
             "allOf": [
-              { "type": "string", "pattern": "^(public/[^\\\\]+\\.(html|css|js|json|webmanifest|svg)|public/_headers|tests/[^\\\\]+|docs/[^\\\\]+|\\.claude/agents/[^/\\\\]+\\.md|\\.claude/skills/[^\\\\]+\\.md)$" },
-              { "not": { "type": "string", "pattern": "(^|/)\\.\\.(/|$)" } },
-              { "not": { "type": "string", "pattern": "(^|/)\\.env" } }
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$"
+              },
+              {
+                "type": "string",
+                "pattern": "^(public/[^\\\\]+\\.(html|css|js|json|webmanifest|svg|txt|md)|tests/[^\\\\]+|docs/[^\\\\]+|\\.claude/agents/[^/\\\\]+\\.md|\\.claude/skills/[^\\\\]+\\.md)$"
+              },
+              {
+                "not": {
+                  "type": "string",
+                  "pattern": "^public/(_headers|_redirects|sw\\.js|version\\.json)$"
+                }
+              },
+              {
+                "not": {
+                  "type": "string",
+                  "pattern": "^public/(sw|vendor|generated)/"
+                }
+              },
+              {
+                "not": {
+                  "type": "string",
+                  "pattern": "(^|/)\\.\\.(/|$)"
+                }
+              },
+              {
+                "not": {
+                  "type": "string",
+                  "pattern": "(^|/)\\.env"
+                }
+              },
+              {
+                "not": {
+                  "type": "string",
+                  "pattern": "\\.(pem|key)$"
+                }
+              },
+              {
+                "not": {
+                  "type": "string",
+                  "pattern": "(^|/)\\.(/|$)|\\.(/|$)"
+                }
+              }
             ]
           },
-          "content": { "type": "string", "maxLength": 204800, "description": "Complete new file contents (text only). maxLength counts characters; the server also checks bytes." },
-          "readBlobSha": { "anyOf": [{ "$ref": "#/$defs/sha1" }, { "type": "null" }], "description": "Blob SHA the agent read; null for a new file. Used for the stale check." }
+          "content": {
+            "type": "string",
+            "maxLength": 204800,
+            "description": "Complete new file contents (text only). maxLength counts characters; the server also checks bytes."
+          },
+          "readBlobSha": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/sha1"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Blob SHA the agent read; null for a new file. Used for the stale check."
+          }
         }
       }
     },
-    "contentHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "description": "Hash of files the user saw; recomputed at approve" },
-    "commitSha": { "$ref": "#/$defs/sha1" },
-    "rejectReason": { "type": "string", "maxLength": 500 }
+    "contentHash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Hash of files the user saw; recomputed at approve"
+    },
+    "commitSha": {
+      "$ref": "#/$defs/sha1"
+    },
+    "rejectReason": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "decidedBy": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Supabase user id (JWT sub) of the super_admin who approved or rejected"
+    },
+    "error": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "User-safe reason for failed/stale; never a token, header or stack"
+    }
   },
   "allOf": [
-    { "if": { "properties": { "status": { "const": "committed" } } }, "then": { "properties": { "commitSha": true, "decidedAt": true }, "required": ["commitSha", "decidedAt"] } },
-    { "if": { "properties": { "status": { "const": "rejected" } } }, "then": { "properties": { "decidedAt": true }, "required": ["decidedAt"] } },
-    { "if": { "properties": { "status": { "enum": ["pending", "stale", "rejected"] } } }, "then": { "not": { "properties": { "commitSha": true }, "required": ["commitSha"] } } }
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "committed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "commitSha": true,
+          "decidedAt": true
+        },
+        "required": [
+          "commitSha",
+          "decidedAt"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "rejected",
+              "committing"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "decidedAt": true
+        },
+        "required": [
+          "decidedAt"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "failed",
+              "stale"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "decidedAt": true,
+          "error": true
+        },
+        "required": [
+          "decidedAt",
+          "error"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "enum": [
+              "pending",
+              "committing",
+              "failed",
+              "stale",
+              "rejected"
+            ]
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "properties": {
+            "commitSha": true
+          },
+          "required": [
+            "commitSha"
+          ]
+        }
+      }
+    }
   ],
   "$defs": {
-    "sha1": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+    "sha1": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    }
   }
 }

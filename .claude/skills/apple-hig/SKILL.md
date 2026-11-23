@@ -43,7 +43,19 @@ Use toasts briefly and announce them (`role="status"`).
 
 ## Writing (voice)
 - Friendly, short and specific. Lead with the answer, then the reason: "Good — storms likely after 2 pm."
+- No "we", no "oops", no blame. Say what happened, what still works and what to do next. All strings are in `knowledge/ux-designer-apple-hig/examples/02-copy-deck/copy-deck.json`.
 - Safety copy is calm and direct: "Check NWS rip-current risk and posted flags."
+
+## Console accounts (Supabase Auth, ADR-0006). Spec: `knowledge/ux-designer-apple-hig/examples/04-console-auth/`
+- **Delay sign-in.** Today and Beaches never ask for an account. Only `/console` does.
+- **Name the method on the button:** "Sign In", "Create Account", "Continue with Google", "Confirm with Password". Never "OK" or "Submit". Say "password", never "passcode". "Sign In" on screen, not "log in".
+- **One primary button per screen.** Google is a secondary-style button, not a smaller one.
+- **No account hints.** Wrong sign-in: "Email or password didn't match." Reset and sign-up say the same thing whether or not the email exists.
+- **Four access states are four screens:** signed out (sign in), 401 session ended (sign in again, keep the place), 403 "This account can't use Agents" (Sign Out), 503 "Couldn't check your access" (Try Again). Never show "no access" for a 503. "No access" appears only on Agents, chat and Approve: sign-up is open, and anyone can use Today and Beaches. The 403 heading wording is pending Dr. Lee.
+- **Sign out has no confirmation** (common and recoverable). Sheets and dialogs are for Approve only.
+- **Approve step-up:** "Confirm it's you" in the confirm sheet, with a password path and a Google path. Either counts, inside a window of {minutes} = 10. A `401 step_up_required` reopens this sheet; it is not "Session ended". The Google path leaves the page and returns, and **nothing approves automatically**: the note says "After Google, you'll return here. Choose Approve and Deploy again." Mechanism belongs to security-engineer.
+- **Approve cap (ADR-0008):** "N of 14 approvals used in the last 31 days. Next slot frees {date}." The proposal stays waiting; Review and Approve is hidden until then.
+- **Outcome copy:** "Committed {sha}. Deploying…" then "Live. The change is on the site." For docs-only commits: "Committed {sha}. No deploy needed." (no "Live" step).
 
 ## Platform conventions on the web
 - Back navigation works with the browser and the OS back gesture, using hash routes.

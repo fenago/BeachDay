@@ -26,6 +26,7 @@ test('each Chromium install criterion is enforced', () => {
     [{ icons: manifest.icons.filter((i) => i.purpose !== 'maskable') }, /maskable/],
     [{ start_url: '/console/', scope: '/app/' }, /outside scope/],
     [{ start_url: 'https://evil.example/' }, /same-origin/],
+    [{ shortcuts: [{ name: 'Agent Console', url: '/console' }] }, /no \/console shortcut/],
   ];
   for (const [patch, re] of cases) {
     const { errors } = validate({ ...manifest, ...patch });

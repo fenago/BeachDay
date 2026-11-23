@@ -63,7 +63,7 @@ From [Notifications](https://developer.apple.com/design/human-interface-guidelin
 - **Today loading:** show the beach name and the skeleton of the verdict card immediately (HIG "show something as soon as possible"; skeletons per the apple-hig skill). If cached data exists, show it at once with a stale label, then swap in fresh data without moving focus.
 - **Status line** (integrated feedback, like Mail's toolbar): "Updated 8:15 am", or "Offline — showing 8:15 am forecast". Placed under the beach name and announced via `role="status"`.
 - **Progress copy is specific:** "Getting the forecast…" and "Committing to main…", not "Loading…".
-- **Approve progress:** a sequence of determinate *steps*, Committing → Deploying → Live, each with a timestamp. There is no fake percentage bar, because deploy duration is unknown (HIG: be accurate).
+- **Approve progress:** a sequence of determinate *steps*, Committing → Deploying → Live, each with a timestamp. When only docs or agent files change, the steps are Committing → "Committed. No deploy needed." and there is no Live step. There is no fake percentage bar, because deploy duration is unknown (HIG: be accurate).
 - **Success confirmation:** Approve is significant, so confirm completion ("Committed abc1234 · Deploying…", then "Live"). Chat replies are not confirmed; they appear in place.
 - **Cancel:** allowed while a chat reply streams ("Stop"). Not allowed once the commit request is sent, because GitHub may already have the commit. Say so before Approve.
 - **No onboarding carousel.** First launch = choose a beach (a single task), then Today. The install hint is a context tip shown after a second visit, never on first launch, and never twice after dismissal (owned by the ios-android-install-behavior skill).

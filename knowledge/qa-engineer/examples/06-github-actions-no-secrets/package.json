@@ -1,0 +1,7 @@
+{
+  "name": "beachday-example-workflow-lint",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test" },
+  "dependencies": { "yaml": "2.9.1" }
+}

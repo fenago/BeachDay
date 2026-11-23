@@ -1,4 +1,4 @@
-# 0006 — Hash-route single-page app with plain ES modules, no framework
+# 0010 — Hash-route single-page app with plain ES modules, no framework
 - Status: Proposed
 - Date: 2026-11-23
 - Deciders: Dr. Lee (+ software-architect, pwa-mobile-engineer, ux-designer-apple-hig consulted)
@@ -9,7 +9,7 @@ The main app needs a few views: beach picker, Today, the 7-day list, and day det
 The forces are:
 
 - **Offline and install.** The service worker must serve every view while offline (docs/02). With path routes (`/beach/miami/week`), every deep link is a different URL. The service worker would need a navigation fallback to `index.html`, and Netlify would need a SPA rewrite (`/* /index.html 200`). Both have to stay in step with the precache list. Hash routes (`/#/beach/miami/week`) always request `/` from the server, so one cached `index.html` serves every view.
-- **Static hosting only (ADR-0001).** There is no server-side rendering and no server that could resolve routes, so all routing is client-side either way.
+- **Static hosting only (ADR-0001, now restated in ADR-0006).** There is no server-side rendering and no server that could resolve routes, so all routing is client-side either way.
 - **Budget (ADR-0004, performance-budgets).** Every dependency adds bytes and an upgrade path. A framework also adds a build step and the risk of a dependency-update deploy. Each deploy costs 15 of 300 monthly credits.
 - **Size of the UI.** About 5 views, no shared mutable state beyond "selected beach + cached forecast", and no forms beyond the beach search. MDN's module guide covers what we need: `type="module"`, relative imports, dynamic `import()` for rarely used views (docs `03-es-modules.md`).
 - **Sharing and SEO.** Hash fragments are not sent to the server and are not indexed as separate pages. Beach Day is a personal utility, so no SEO need was identified.

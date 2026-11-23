@@ -17,11 +17,15 @@ Lead: **Dr. Lee** (human). Dr. Lee makes all product decisions.
 ## Decisions (docs/adr/) — do not contradict them
 | ADR | Decision |
 |---|---|
-| 0001 | Static front end on Netlify plus Netlify Functions **only** for the Claude and GitHub calls. No other servers. The browser calls Open-Meteo directly. |
+| 0001 | *Superseded by 0006* (its boundary is restated there). |
 | 0002 | No rip-current proxy. Link out to the National Weather Service (NWS). |
 | 0003 | Approve commits straight to `main` as one atomic commit. Netlify then auto-deploys. |
 | 0004 | Stay on the Netlify Free plan: 300 credits/month, roughly 20 production deploys. |
 | 0005 | Fine-grained PAT, this repo only, Contents read/write, no Workflows permission. |
+| 0006 | Static front end on Netlify plus Netlify Functions **only** for the Claude and GitHub calls. No other servers. The browser calls Open-Meteo directly, and the Console page calls **Supabase Auth** directly (identity and the `profiles` role only). Every function checks the Bearer token **and** `role = super_admin` on every request and fails closed. Publishable key only; never the secret/service_role key. |
+| 0007 | Agents' `read_file` / `list_files` read from GitHub `main`, pinned to one SHA per turn. |
+| 0008 | Approve cap, site-wide: at most 14 per rolling 31 days and 5 per day. |
+| 0009 | **Proposed, not decided:** agent read tools would use a separate public-read token, `GITHUB_READ_TOKEN`, and only Approve would load the write `GITHUB_TOKEN`. Until Dr. Lee accepts it, ADR-0007 stands. |
 
 If a task seems to need breaking a decision, stop and tell the orchestrator. Do not work around it.
 

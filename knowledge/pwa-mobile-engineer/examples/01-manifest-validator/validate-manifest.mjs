@@ -51,6 +51,10 @@ export function validate(manifest, { manifestUrl = 'https://beachday.example/man
   if (icons.some((i) => purposesOf(i).includes('any') && purposesOf(i).includes('maskable'))) {
     warn('avoid purpose "any maskable" on one file: padded maskable art looks small where "any" is used');
   }
+  // Decision (Dr. Lee): no /console shortcut in the public manifest.
+  if (Array.isArray(manifest.shortcuts) && manifest.shortcuts.some((s) => /^\/?console\b/.test(String(s.url ?? '').replace(/^https?:\/\/[^/]+/, '')))) {
+    err('Beach Day: no /console shortcut in the public manifest');
+  }
   if (display !== 'standalone') warn('Beach Day uses display "standalone" (iOS supports only standalone)');
   if (!manifest.id) warn('set "id" so the app identity survives start_url changes');
   for (const k of ['theme_color', 'background_color', 'description']) if (!manifest[k]) warn(`${k} is recommended`);

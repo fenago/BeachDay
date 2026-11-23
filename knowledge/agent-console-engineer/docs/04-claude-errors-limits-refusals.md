@@ -81,7 +81,7 @@ Validation errors worth knowing (exact messages):
 
 ## Beach Day notes
 - Map errors to calm UI messages, and never echo upstream bodies to the browser. Log `request_id`, status and `error.type` only. Never log prompts or keys.
-- Keep SDK `maxRetries` low (1 in chat, 2 in background) so retries can't overrun Netlify's 60 s / 15 min limits (ADR-0001).
+- Keep SDK `maxRetries` low (1 in chat, 2 in background) so retries can't overrun Netlify's 60 s / 15 min limits (docs/03 §5). In chat, the per-turn `signal` is the hard bound.
 - Run the deployed app in a **dedicated workspace** with a low workspace spend limit as the hard stop. Treat a 400 spend-limit error and a 429 `enforced_spend_limit_reached` as "Console paused: budget reached". Never retry them.
-- Rate-limit by our own Blobs counters before calling Claude: 100 chat turns, 20 jobs and 10 approvals per session per day (docs/04 §9). Netlify's 2 `rateLimit` rules on Free cover `/api/login` and `/api/chat` (ADR-0004).
+- Our own limits run after the token-and-role check and before calling Claude (docs/04 §9): per Supabase user per New York day, 200 chat turns and 20 jobs; a site-wide compute budget; the site-wide Approve cap (ADR-0008). Netlify's 2 `rateLimit` rules on Free cover `/api/chat` and `/api/jobs`.
 - On `refusal`: drop the partial reply, tell the user plainly, and either reset that turn or offer a retry on a fallback. Opting into server-side fallback is a product decision for Dr. Lee, so it is not on by default.

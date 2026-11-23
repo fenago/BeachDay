@@ -39,7 +39,7 @@ Source for every bullet: [network § glob](https://playwright.dev/docs/network#g
 
 ## Offline
 - Set `offline: true` in `use` or `newContext`. At runtime, call `context.setOffline(true)`. Both affect normal browser network traffic. [emulation § offline](https://playwright.dev/docs/emulation#offline), [BrowserContext](https://playwright.dev/docs/api/class-browsercontext)
-- How `setOffline` interacts with a service worker's own fetches wasn't stated on the pages read **[UNVERIFIED]**. The offline spec should assert what the user sees (cached verdict plus offline banner), not internal requests.
+- **Observed (Playwright 1.63.0, Chromium, 2026-11-23, example 07):** `setOffline(true)` does not stop a *fulfilling* `context.route` from answering the service worker's own request, so the page gets fresh data and no offline banner. Replace the route with `route.abort("internetdisconnected")` (or remove it) before going offline; then the SW falls back to Cache Storage. Not stated on the doc pages read. Assert what the user sees, and also list `caches.keys()` to prove what was (not) cached.
 
 ## Beach Day notes
 - **Data and UI specs:**

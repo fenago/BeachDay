@@ -9,7 +9,15 @@ const MAX_PATH = 200;
 const SAFE_CHARS = /^[A-Za-z0-9._\-/]+$/;
 
 // DENY wins. Tested against the lower-cased path so "Netlify.toml" or ".GitHub/" can't slip through.
+// Canonical list: docs/04 §6 (ADR-0006 point 9 added vendor/, generated/, version.json).
 const DENY = [
+  /^public\/_headers$/,         // CSP and security headers
+  /^public\/_redirects$/,
+  /^public\/sw\.js$/,           // the service worker ...
+  /^public\/sw(\/|$)/,          // ... and everything it may import (public/sw/**)
+  /^public\/vendor(\/|$)/,      // vendored @supabase/auth-js
+  /^public\/generated(\/|$)/,   // build output: config.js
+  /^public\/version\.json$/,    // build output
   /^netlify(\/|$)/,             // netlify/** (functions, incl. this file and approve)
   /^netlify\.toml$/,
   /^\.github(\/|$)/,           // workflows, actions, CODEOWNERS
@@ -21,17 +29,22 @@ const DENY = [
 ];
 
 // ALLOW is exact-case: GitHub paths are case-sensitive, so "PUBLIC/x.html" is a different (unlisted) path.
+// Text types only under public/ (docs/04 §6 TEXT_EXT). No png: proposals are UTF-8 text only.
 const ALLOW = [
-  /^public\/(?:[^/]+\/)*[^/]+\.(?:html|css|js|json|webmanifest|svg|png|txt)$/,
-  /^public\/_headers$/,
+  /^public\/(?:[^/]+\/)*[^/]+\.(?:html|css|js|json|webmanifest|svg|txt|md)$/,
   /^tests\/.+/,
   /^docs\/.+/,
   /^\.claude\/agents\/[^/]+\.md$/,
   /^\.claude\/skills\/.+\.md$/,
 ];
 
-// Paths that are allowed but need a louder warning in the proposal card.
-const SENSITIVE = [/^public\/_headers$/, /^\.claude\//, /^public\/sw\.js$/];
+// Allowed paths that need a louder warning in the proposal card, with the reason shown to the human.
+const WARN = [
+  [/^public\/.*\.(?:js|html)$/, "runs in the site origin, next to the Console's tokens"],
+  [/^public\/(?:console\.html|js\/console\/)/, "Console code (deny recommended, open for Dr. Lee)"],
+  [/^\.claude\//, "changes agent behaviour or model"],
+  [/^tests\//, "runs as code in CI"],
+];
 
 export function checkPath(path) {
   if (typeof path !== "string") return deny("not a string");
@@ -45,7 +58,8 @@ export function checkPath(path) {
   const lower = path.toLowerCase();
   if (DENY.some((r) => r.test(lower))) return deny("deny list");
   if (!ALLOW.some((r) => r.test(path))) return deny("not on allow list");
-  return { ok: true, sensitive: SENSITIVE.some((r) => r.test(path)) };
+  const warnings = WARN.filter(([r]) => r.test(path)).map(([, why]) => why);
+  return { ok: true, sensitive: warnings.length > 0, warnings };
 }
 
 /** Whole-proposal checks used at propose time AND again at approve time. */
@@ -61,6 +75,9 @@ export function checkProposal(files, { maxFiles = 20, maxBytes = 200 * 1024 } = 
     seen.add(key);
     if (f.mode !== undefined && f.mode !== "100644") errors.push(`${f.path}: mode ${f.mode} not allowed`);
     if (typeof f.content !== "string") { errors.push(`${f.path}: content must be text`); continue; }
+    // A lone surrogate is not valid UTF-8: GitHub would store U+FFFD, so the content hash, the reviewed diff
+    // and the reconciler's blob SHA would no longer describe the bytes on main.
+    if (!f.content.isWellFormed()) errors.push(`${f.path}: not valid UTF-8 (lone surrogate)`);
     if (Buffer.byteLength(f.content, "utf8") > maxBytes) errors.push(`${f.path}: larger than ${maxBytes} bytes`);
     if (f.content.includes("\u0000")) errors.push(`${f.path}: NUL byte (binary?)`);
   }

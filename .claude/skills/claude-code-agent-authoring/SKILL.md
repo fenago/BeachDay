@@ -15,7 +15,7 @@ name: kebab-name            # required, unique, no ":" or leading "-"
 description: When to delegate to this agent. Keep it short; add "Use proactively" to encourage delegation.
 tools: Read, Grep, Glob, Edit, Write, Bash   # allowlist; omit = inherit all
 disallowedTools: Agent      # experts must not delegate (hub-and-spoke)
-model: sonnet               # sonnet | opus | haiku | fable | full ID | inherit
+model: sonnet               # Console allows only opus | sonnet | haiku (inherit/missing = opus)
 color: cyan                 # red blue green yellow purple orange pink cyan
 skills:                     # full SKILL.md content injected at startup (first 32)
   - beach-day-context
@@ -55,7 +55,7 @@ Instructions / reference. Keep under 500 lines; put detail in sibling files and 
   - `opus` / `inherit` / missing → `claude-opus-5-5`
   - `sonnet` → `claude-sonnet-5-5`
   - `haiku` → `claude-haiku-5-5`
-  - `fable` → `claude-fable-5-2`
+  - Console allow-list is these three only. `fable` and full IDs are valid in Claude Code but fail `build-agents`; keep them out of agent files.
 - **`persona`** is the agent's first name. Each agent also gets a `## Who you are` section in its body. Keep `docs/agent-brains.md` in sync.
 - **Model choice:** `opus` for hard reasoning or costly mistakes; `sonnet` for everyday engineering and design; `haiku` for small, well-defined jobs.
 - **`personality`** is one line in plain language, using they/them for personas. The Console falls back to `description` if it is missing.

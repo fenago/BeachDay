@@ -11,7 +11,7 @@ description: How installing Beach Day actually works on iPhone/iPad and Android 
   - the user tapped at least once and spent at least 30 s on the page;
   - the page is served over HTTPS;
   - the manifest fields are present;
-  - the service worker has a non-empty `fetch` handler.
+  - the service worker has a non-empty `fetch` handler (per Chrome's December 2023 post; **UNVERIFIED** whether still current. We ship a real handler regardless).
 - **Custom install button:**
   1. Listen for `beforeinstallprompt` and call `e.preventDefault()`.
   2. Store the event.
@@ -26,8 +26,8 @@ description: How installing Beach Day actually works on iPhone/iPad and Android 
 - **Show the Beach Day hint** (a sheet that shows the Share icon and steps) when all of these are true:
   - iOS;
   - `!matchMedia('(display-mode: standalone)').matches && !navigator.standalone`;
-  - not dismissed in the last 14 days.
-- **Ignored on iOS:** `background_color`, `orientation`, `shortcuts`, `description`. Supply `apple-touch-icon` at 180 × 180.
+  - not dismissed in the last 14 days (the snooze is 14 days everywhere).
+- **Ignored on iOS:** `background_color`, `orientation`, `shortcuts`, `description`. Supply `apple-touch-icon` at 180 × 180 (`/icons/apple-touch-icon-180.png`).
 - **Storage:** sites that aren't installed lose all script-writable storage, including SW caches, after 7 days of Safari use without visiting. Installed apps aren't expected to be cleared. Treat favorites as disposable and offer "Install to keep your beaches".
 - **Web Push** works only for installed Home Screen apps (iOS 16.4+), and only after a user tap. It is not in v1.
 - **EU:** Home Screen web apps still work. Apple reversed its iOS 17.4 removal in March 2024.
@@ -35,7 +35,7 @@ description: How installing Beach Day actually works on iPhone/iPad and Android 
 ## Detecting install state
 - Check `matchMedia('(display-mode: standalone)')`.
 - Listen for the `appinstalled` event (Chromium).
-- Add `?source=pwa` to `start_url` to tell launches apart in analytics, if analytics are ever added. There are none in v1.
+- `start_url` is `/?source=pwa`, which tells installed launches apart (no analytics in v1). The query string means `sw.js` must use `ignoreSearch: true` when it matches the precached `/`.
 
 ## When to go native
 | Need | Path |
@@ -43,6 +43,9 @@ description: How installing Beach Day actually works on iPhone/iPad and Android 
 | Only Play Store presence | Trusted Web Activity via Bubblewrap/PWABuilder: $25 once, plus `/.well-known/assetlinks.json` (strict JSON) |
 | App Store listing, reliable push without install, background alerts, widgets | Capacitor: $99/yr Apple fee, a Mac with Xcode, and two store pipelines. Must add native value to pass App Store Guideline 4.2, which rejects a "repackaged website" |
 | Everything else | Stay a PWA (current decision) |
+
+## Console and install
+- The installed app's service worker never caches `/console*`, `/vendor/*`, `/generated/*`, `/version.json`, `/sw.js`, `/api/*` or the Supabase host. Offline, the Console shows a normal network error, not the beach shell. Test the Console offline on iPhone and Pixel once per release.
 
 ## Manual test matrix (each release)
 - **iPhone, Safari:** install, launch standalone, rotate, go offline, relaunch.

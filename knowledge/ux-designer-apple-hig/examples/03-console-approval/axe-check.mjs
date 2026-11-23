@@ -78,6 +78,81 @@ for (const colorScheme of ['light', 'dark']) {
   await axe(page, s('live'));
   console.log(`  status now: "${await statusText(page)}"`);
 
+  // 4b. Google path: Google-only account sees no password field; confirming returns to the sheet
+  await page.goto(base + '?account=google');
+  await page.click('#review');
+  assert(await page.locator('#pw').isHidden(), `${s('google-only')}: password field shown for a Google-only account`);
+  assert(await active(page) === 'google', `${s('google-only')}: focus not on the Google button`);
+  await axe(page, s('confirm sheet (Google only)'));
+  await page.click('#google');
+  await page.locator('#confirmed').waitFor({ state: 'visible' });
+  assert(await active(page) === 'approve', `${s('google-confirmed')}: focus not on Approve after returning`);
+  assert((await page.locator('#confirmed').innerText()).startsWith('Confirmed.'), `${s('google-confirmed')}: no confirmation text`);
+  await axe(page, s('confirm sheet (Google confirmed)'));
+  await page.click('#approve');
+  await page.locator('#status', { hasText: 'Live.' }).waitFor();
+
+  // 4c. Both paths offered, both are real buttons/fields with names
+  await page.goto(base);
+  await page.click('#review');
+  assert(await page.locator('#google').innerText() === 'Confirm with Google', `${s('both')}: Google button label`);
+  assert(await page.locator('legend', { hasText: "Confirm it\u2019s you" }).count() === 1, `${s('both')}: step-up legend missing`);
+  await page.keyboard.press('Escape');
+
+  // 4g. Step-up required (401): sheet stays open, unconfirmed, message, focus on the first path
+  await page.goto(base + '?outcome=stepup&account=google');
+  await page.click('#review');
+  assert((await page.locator('#google-note').innerText()).includes('Choose Approve and Deploy again'), `${s('stepup')}: Google note missing`);
+  await page.click('#google');
+  assert((await page.locator('#confirmed').innerText()).includes('Nothing is approved yet'), `${s('stepup')}: confirmed text must say nothing is approved`);
+  assert(await page.locator('#status', { hasText: 'Live.' }).count() === 0, `${s('stepup')}: approved automatically after Google`);
+  await page.click('#approve');
+  await page.locator('#sheet-status', { hasText: 'Your last sign-in was over 10 minutes ago' }).waitFor();
+  assert(await active(page) === 'google' && await page.locator('dialog#confirm[open]').count() === 1, `${s('stepup')}: sheet closed or focus lost`);
+  await axe(page, s('step-up required (401)'));
+
+  // 4h. Usage limit 429 budget_exhausted: alert, proposal untouched
+  await page.goto(base + '?outcome=budget');
+  assert((await alertText(page)).includes('usage limit'), `${s('budget')}: alert text missing`);
+  assert(await page.locator('#review').isVisible(), `${s('budget')}: Approve must stay (chat budget only)`);
+  await axe(page, s('usage limit (429)'));
+
+  // 4i. Approve off: visible, aria-disabled, reachable, reason shown, sheet does not open, 44px
+  await page.goto(base + '?outcome=disabled');
+  assert(await page.getAttribute('#review', 'aria-disabled') === 'true', `${s('disabled')}: not aria-disabled`);
+  assert(await page.locator('#disabled-note').isVisible(), `${s('disabled')}: reason not visible`);
+  await page.click('#review', { force: true });
+  assert(await page.locator('dialog#confirm[open]').count() === 0, `${s('disabled')}: sheet opened`);
+  await page.focus('#review');
+  assert(await active(page) === 'review', `${s('disabled')}: button not focusable`);
+  const box = await page.locator('#review').boundingBox();
+  assert(box.height >= 44, `${s('disabled')}: target under 44px`);
+  await axe(page, s('approve off'));
+
+  // 4d. Approve cap reached: alert names the numbers and the date, proposal stays, Review hidden
+  await page.goto(base + '?outcome=cap');
+  await page.click('#review'); await page.fill('#pw', 'demo-password'); await page.click('#approve');
+  await page.locator('#alert', { hasText: 'approvals used in the last 31 days' }).waitFor();
+  assert((await alertText(page)).includes('Next slot frees'), `${s('cap')}: no date`);
+  assert(await page.locator('#review').isHidden() && await page.locator('#reject').isVisible(), `${s('cap')}: Approve should be hidden, Reject kept`);
+  await axe(page, s('approve cap reached'));
+
+  // 4e. Session expired
+  await page.goto(base + '?outcome=expired');
+  await page.click('#review'); await page.fill('#pw', 'demo-password'); await page.click('#approve');
+  await page.locator('#alert', { hasText: 'session ended' }).waitFor();
+  assert(await active(page) === 'review' && (await page.locator('#review').innerText()) === 'Sign In', `${s('expired')}: Sign In not offered/focused`);
+  await axe(page, s('session expired'));
+
+  // 4f. Committed, no deploy needed
+  await page.goto(base + '?outcome=nodeploy');
+  await page.click('#review');
+  assert((await page.locator('#c-desc').innerText()).includes('no deploy runs'), `${s('nodeploy')}: sheet still promises a deploy`);
+  await page.fill('#pw', 'demo-password'); await page.click('#approve');
+  await page.locator('#status', { hasText: 'No deploy needed' }).waitFor();
+  assert((await statusText(page)).includes('docs, tests or skill files'), `${s('nodeploy')}: detail must name docs, tests or skill files only`);
+  await axe(page, s('committed, no deploy'));
+
   // 5. Stale base outcome → alert
   await page.goto(base + '?outcome=stale');
   await page.click('#review'); await page.fill('#pw', 'demo-password'); await page.click('#approve');
@@ -91,6 +166,30 @@ for (const colorScheme of ['light', 'dark']) {
   assert(await active(page) === 'review' && (await page.locator('#review').innerText()) === 'Try Again', `${s('fail')}: Try Again not offered/focused`);
   await axe(page, s('commit failed'));
   console.log(`  alert now: "${await alertText(page)}"`);
+
+  // 6b. Two-step code (account has an authenticator factor): empty and wrong code, then success
+  await page.goto(base + '?totp=1');
+  await page.click('#review');
+  assert(await page.getAttribute('#code', 'autocomplete') === 'one-time-code', `${s('totp')}: autocomplete not one-time-code`);
+  assert(await page.getAttribute('#code', 'inputmode') === 'numeric', `${s('totp')}: inputmode not numeric`);
+  await axe(page, s('confirm sheet + code field'));
+  await page.fill('#pw', 'demo-password'); await page.click('#approve');
+  assert((await page.locator('#code-error').innerText()).includes('Enter the 6-digit code'), `${s('totp')}: empty code message`);
+  assert(await active(page) === 'code', `${s('totp')}: focus not on the code field`);
+  await page.fill('#code', '000000'); await page.click('#approve');
+  assert((await page.locator('#code-error').innerText()).includes("didn't match"), `${s('totp')}: wrong code message`);
+  assert(await page.getAttribute('#code', 'aria-invalid') === 'true', `${s('totp')}: aria-invalid not set on code`);
+  await axe(page, s('wrong code'));
+  await page.fill('#code', '123456'); await page.click('#approve');
+  await page.locator('#status', { hasText: 'Live.' }).waitFor();
+
+  // 6c. Approve 502: not confirmed, no Try Again, link focused
+  await page.goto(base + '?outcome=unconfirmed');
+  await page.click('#review'); await page.fill('#pw', 'demo-password'); await page.click('#approve');
+  await page.locator('#alert', { hasText: "Couldn\u2019t confirm the commit yet." }).waitFor();
+  assert(await active(page) === 'commits', `${s('unconfirmed')}: link not focused`);
+  assert(await page.locator('#review').isHidden(), `${s('unconfirmed')}: a retry button must not be offered`);
+  await axe(page, s('commit not confirmed (502)'));
 
   // 7. Reject
   await page.goto(base);

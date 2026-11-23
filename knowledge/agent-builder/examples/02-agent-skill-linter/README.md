@@ -76,6 +76,8 @@ Issues to report, not fix here:
 
 All 11 agents passed every ERROR check: frontmatter on line 1, YAML parses, name and description, name equals filename, valid model and color, all `skills:` folders exist, both required skills preloaded, personality and persona present (each with a matching "Who you are" section and a mention in `docs/agent-brains.md`), `disallowedTools: Agent` on all 10 experts, and the orchestrator's `Agent(...)` list exactly matches the 10 expert files.
 
+**Wave 4 re-run (2026-11-23, 12 agents, 25 skills):** 0 errors, 0 warnings, 2 info; the `<name>` warning above is fixed.
+
 **Model example (`../01-model-agent-and-skill/`):** 0 errors. The only warnings are the shared one above and the expected `knowledge/fixture-curator/` missing (it is a template, not a roster agent).
 
 **Broken fixtures:** 13 errors caught, exit 1. Excerpt:

@@ -23,12 +23,12 @@ export default async (req, context) => {
   const { jobId, token } = await req.json();   // ≤ 256 KB body
   // claim job with CAS, do work, write progress + result to Blobs
 };
-export const config = { path: "/api/jobs/run", method: "POST", background: true };
+export const config = { path: "/api/jobs-run", method: "POST", background: true };
 ```
 
 ### Consequences for design
 1. **Idempotency.** The same request can run up to 3 times (the first run plus two retries). Claim the job with a conditional write, so a second run sees it is no longer `queued` and exits. See example 01.
-2. **No auth feedback.** The caller always gets `202`, so the function can't answer `401`. Either a sync function checks auth and hands over a one-time token, or the background function re-checks the session cookie and silently exits.
+2. **No auth feedback.** The caller always gets `202`, so the function can't answer `401`. The sync wrapper (`POST /api/jobs`) checks the bearer token and the role, creates the job record, and hands the worker (`POST /api/jobs-run`, ADR-0006 and docs/04 §2) a random one-time nonce, which the worker consumes with a compare-and-swap on the job record. The worker never trusts the caller, only the nonce, and silently exits on a mismatch. ADR-0006 point 5 also has the worker re-run the token and role check with the caller's forwarded bearer token **as its first line**, before it reads the job or does work; a refusal returns silently with no read or write, and the worker also requires that the user is the job's owner. Example 01 does exactly this (`job-run.mjs`, test 10). The route is `/api/jobs-run`, a sibling path: it does not collide with `GET /api/jobs/:id`, so no `excludedPath` is needed. Example 01 stores only the **hash** of the nonce, which is stricter than the ADR (a Blobs read never reveals a usable nonce); the bearer token itself is never stored.
 3. **Error capture.** Throwing triggers a retry. Catch errors, record `status: "failed"` with a safe message, and return normally, unless a retry is actually wanted.
 
 ## Scheduled functions
@@ -57,5 +57,5 @@ export const config = { path: "/api/jobs/run", method: "POST", background: true 
   - The Console polls `GET /api/jobs/:id` every 2–3 s (docs/04 §8).
   - **Never commit from a job.** Commits happen only in the sync approve function (ADR-0003).
 - **Pruning:** an optional `@daily` scheduled function can prune old rate-limit and job keys from Blobs (example 03, `pruneOlderThan`). Keep each run under 30 s. Delete in batches, or let it continue the next day.
-- **Deploy status:** the `deploySucceeded` handler can write `{ deployId, commit, at }` to Blobs so the Console can show "Live". The netlify-engineer agent configures this.
+- **Deploy status ("Live"):** the primary signal is `/version.json`, written by the build (example 04) and served only once the atomic deploy is published, so it needs no function and no compute credits. **There is no `deploy-succeeded` function** (ADR-0006 point 8: no unauthenticated functions, and an event function would cost compute credits). The Console polls `GET /version.json` (served `no-store`, network-only in the service worker) until `commit` equals the approved `commitSha`. A build skipped by the `ignore` rule never changes `version.json`, so it never goes Live: the approve function decides "no deploy needed" from the changed paths.
 - **Cost:** background, scheduled and event functions all use compute, at 10 credits per GB-hour (doc 07). At 1024 MB, a 15-minute job is 0.25 GB-hour, which is 2.5 credits.

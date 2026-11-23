@@ -25,9 +25,12 @@ MDN's network-first example has **no timeout**: on a slow (not failed) connectio
 ## Beach Day mapping (pwa-manifest-service-worker skill)
 | Request | Strategy | Cache |
 |---|---|---|
-| App shell: `/`, `/app.js`, CSS, icons, `/offline.html`, `/manifest.webmanifest` | Precache on install, cache-first | `beachday-shell-${VERSION}` (deleted on activate when version changes) |
+| App shell: `/`, `/app.js`, CSS, icons, `/offline.html`, `/manifest.webmanifest` (match with `ignoreSearch: true`, because `start_url` is `/?source=pwa`) | Precache on install, cache-first | `beachday-shell-${VERSION}` (deleted on activate when version changes) |
 | `api.open-meteo.com`, `marine-api.open-meteo.com` | Network-first, **4 s timeout**, then cache; stamp `x-bd-fetched-at` | `beachday-data-v1` (survives deploys; trimmed to 20 entries) |
-| Same-origin `/api/*` (Netlify Functions: Console login, chat, approve) | **Network-only; not intercepted; never cached** | — |
+| Same-origin `/api/*` (Netlify Functions: Console chat, proposals, approve; all carry a Supabase bearer token) | **Network-only; not intercepted; never cached** | — |
+| `/sw.js`, `/version.json` | Not intercepted; never cached | — |
+| Supabase host (auth), `/generated/config.js` | Not intercepted; never cached | — |
+| Console: `/console`, `/console.html`, `/js/console/*`, `/vendor/*` | Not intercepted, **not precached** (stale auth client risk, ADR-0006); offline navigation to `/console` must not get the beach shell | — |
 | Non-GET (POST `/api/chat`, etc.) | Not intercepted | — |
 | Navigations | Network; offline → cached shell → `offline.html` | shell |
 | Other images | Stale-while-revalidate (not in the example) | shell or separate |
@@ -54,8 +57,9 @@ Notes:
 - Playwright proved: slow upstream (6 s) → cached answer at ~4.0 s; offline reload → shell + cached forecast.
 
 ## What never to cache
-- `/api/*` — Console sessions, CSRF tokens, chat streams, approve results. Caching them could replay authenticated data offline or to another user on a shared device. The server also sends `Cache-Control: no-store`.
-- Responses with `Set-Cookie` or `Authorization`-dependent content.
+- `/sw.js`, `/version.json`, `/generated/config.js`, the vendored auth bundle, Console pages and modules, and any Supabase request. `sw.js` imports only from `public/sw/**`.
+- `/api/*` — Console bearer-authenticated responses, chat streams, approve results. Caching them could replay authenticated data offline or to another user on a shared device. The server also sends `Cache-Control: no-store`.
+- Responses with `Set-Cookie` or `Authorization`-dependent content (every Console request carries an `Authorization` header).
 - Opaque cross-origin responses (status unknown; can fill quota).
 
 ## Storage size and persistence

@@ -1,6 +1,6 @@
 # UX flow: pick a beach → today's verdict → day detail
 Owner: Wren · Status: example spec · Date: 2026-11-23
-Follows: HIG (docs/01–06), ADR-0001 (browser calls Open-Meteo directly), ADR-0002 (rip currents are link-outs, never scored), beach-day-scoring skill (verdict bands and reasons).
+Follows: HIG (docs/01–06), ADR-0006 (browser calls Open-Meteo directly; restates ADR-0001), ADR-0002 (rip currents are link-outs, never scored), beach-day-scoring skill (verdict bands and reasons).
 
 ## 0. Principles for this flow
 - One primary question per screen, answer first (HIG "Order content by relative importance").
@@ -69,10 +69,9 @@ Follows: HIG (docs/01–06), ADR-0001 (browser calls Open-Meteo directly), ADR-0
 │ Updated 8:15 am                      │  role="status"
 │ ┌──────────────────────────────────┐ │
 │ │ Today · Sun 23 Nov               │ │
-│ │ GREAT BEACH DAY                  │ │  h2, 34px bold
-│ │ [☀ Great beach day]              │ │  chip: color+icon+text
+│ │ [☀ Great beach day]              │ │  h2, 34px bold: chip = color+icon+text
 │ │ Best hours 10 am – 1 pm          │ │
-│ │ • Sunny, feels like 84 °F        │ │  top 3–4 reasons
+│ │ • Sunny, feels like 84 °F        │ │  up to 4 reasons (codes from docs/01 §5.2)
 │ │ • Light wind, 8 mph              │ │
 │ │ • Offshore waves under 2 ft      │ │
 │ │ UV very high — sunscreen, shade  │ │  advice (not scored)
@@ -131,6 +130,9 @@ Follows: HIG (docs/01–06), ADR-0001 (browser calls Open-Meteo directly), ADR-0
 | **Empty** | No beach chosen | S1 picker | — | Choose beach |
 | Outlook days | Day 4+ | Lighter rows, "Outlook" tag | — | Opens S4 with an "Outlook — less certain" note |
 | Night / outside window | After the beach window closes | Verdict switches to tomorrow | "Beach hours are over for today. Here is tomorrow." | — |
+| **Short window** | Fewer than 3 beach hours left today | Verdict capped at Good, reason "Only 2 beach hours left", a "Fairly sure" or "Less sure" line | — (reason is in the list) | — |
+| **No usable hour** | Every remaining hour has missing core data | No verdict card, message | "No verdict yet. Some forecast data is missing." | Try Again |
+| **Storm outside the best window** | Thunder hour not in the best window | First reason: "Thunderstorms around 3 pm" | — | — |
 
 Rules:
 - Never show a verdict built from data older than 24 h.

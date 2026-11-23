@@ -1,8 +1,8 @@
-# Example 03: A Proposed ADR (0006: hash-route SPA, no framework) plus an ADR checker
+# Example 03: A Proposed ADR (0010: hash-route SPA, no framework) plus an ADR checker
 
 ## What it demonstrates
 
-- `0006-hash-route-spa-no-framework.md` is a complete ADR in the exact template from `docs/adr/README.md`: title line, Status, Date, Deciders, then Context / Decision / Consequences / Revisit when. Status is **Proposed**, because only Dr. Lee accepts.
+- `0010-hash-route-spa-no-framework.md` (first drafted as 0006, then 0009; renumbered again when the real ADR-0009, the read token, was drafted on 2026-11-23) is a complete ADR in the exact template from `docs/adr/README.md`: title line, Status, Date, Deciders, then Context / Decision / Consequences / Revisit when. Status is **Proposed**, because only Dr. Lee accepts.
 - `check-adr.mjs` is a dependency-free checker for the template.
   - **ERROR** (breaks the template):
     - filename `NNNN-short-title.md` matches the number in the title;
@@ -29,14 +29,57 @@
 ```bash
 cd <repo>
 node knowledge/software-architect/examples/03-proposed-adr/check-adr.mjs \
-  knowledge/software-architect/examples/03-proposed-adr/0006-hash-route-spa-no-framework.md \
+  knowledge/software-architect/examples/03-proposed-adr/0010-hash-route-spa-no-framework.md \
   --index docs/adr/README.md --draft
 for f in docs/adr/000*.md; do node knowledge/software-architect/examples/03-proposed-adr/check-adr.mjs "$f"; done
 ```
 
-To adopt it, the orchestrator brings it to Dr. Lee. If accepted, the file is copied to `docs/adr/0006-hash-route-spa-no-framework.md` with `Status: Accepted`, and a row is added to `docs/adr/README.md` and the `architecture-decision-records` skill's log.
+To adopt it, the orchestrator brings it to Dr. Lee. If accepted, the file is copied to `docs/adr/<next free number>-hash-route-spa-no-framework.md` with `Status: Accepted`, and a row is added to `docs/adr/README.md` and the `architecture-decision-records` skill's log.
 
 ## Verified
+
+**Re-run 2026-11-23, wave 3** (Node v22.23.5), after drafting `docs/adr/0009-public-read-token-for-agent-reads.md` and renumbering this example to 0010:
+
+```
+$ node check-adr.mjs docs/adr/0009-public-read-token-for-agent-reads.md --draft
+docs/adr/0009-public-read-token-for-agent-reads.md: ok (status Proposed, 0 warning(s))
+exit=0
+$ node check-adr.mjs 0010-hash-route-spa-no-framework.md --index docs/adr/README.md --draft
+.../0010-hash-route-spa-no-framework.md: ok (status Proposed, 0 warning(s))
+exit=0
+$ for f in docs/adr/000*.md; do node check-adr.mjs "$f" | tail -1; done
+docs/adr/0001-static-site-plus-functions.md: ok (status Superseded by 0006, 1 warning(s))
+docs/adr/0002-no-rip-current-proxy.md: ok (status Accepted, 1 warning(s))
+docs/adr/0003-approve-commits-to-main.md: ok (status Accepted, 2 warning(s))
+docs/adr/0004-netlify-free-plan.md: ok (status Accepted, 1 warning(s))
+docs/adr/0005-fine-grained-pat.md: ok (status Accepted, 1 warning(s))
+docs/adr/0006-supabase-auth-for-console.md: ok (status Accepted, 0 warning(s))
+docs/adr/0007-agent-reads-from-github-main.md: ok (status Accepted, 0 warning(s))
+docs/adr/0008-site-wide-approve-cap.md: ok (status Accepted, 0 warning(s))
+docs/adr/0009-public-read-token-for-agent-reads.md: ok (status Proposed, 0 warning(s))
+```
+
+ADR-0009 is a *partial* supersession: it changes one point of ADR-0007 and restates the rest unchanged, the same pattern ADR-0006 used for 0001, so the newest ADR is always the single current statement. ADR-0007's status line changes only if Dr. Lee accepts 0009.
+
+**Earlier re-run (after renumbering 0006 → 0009):**
+
+**Re-run 2026-11-23 after renumbering** (Node v22.23.5):
+
+```
+$ node check-adr.mjs 0009-hash-route-spa-no-framework.md --index docs/adr/README.md --draft   # file name at the time
+.../0009-hash-route-spa-no-framework.md: ok (status Proposed, 0 warning(s))
+exit=0
+$ for f in docs/adr/000*.md; do node check-adr.mjs "$f"; done
+docs/adr/0001-static-site-plus-functions.md: ok (status Superseded by 0006, 1 warning(s))
+docs/adr/0002 … 0005: ok (Accepted; style warnings only, as before)
+docs/adr/0006-supabase-auth-for-console.md: ok (status Accepted, 0 warning(s))
+docs/adr/0007-agent-reads-from-github-main.md: ok (status Accepted, 0 warning(s))
+docs/adr/0008-site-wide-approve-cap.md: ok (status Accepted, 0 warning(s))
+```
+
+0006–0008 were written directly as Accepted because Dr. Lee stated the decisions himself. That's why the `--draft` check doesn't apply to them.
+
+**Original run:**
 
 Run on 2026-11-23, Node v22.23.5:
 

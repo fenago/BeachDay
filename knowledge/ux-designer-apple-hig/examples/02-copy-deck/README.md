@@ -7,7 +7,8 @@
 - reasons for each scoring factor and the advice lines
 - status messages, errors and the empty state
 - buttons
-- Agent Console strings: consequences, re-auth, the commit lifecycle and failures
+- Agent Console strings: consequences, the "Confirm it's you" step-up, the commit lifecycle (including "No deploy needed" and "Live"), failures, the approve-cap messages and the no-access and session screens
+- Console account strings (`auth.*`): sign in, sign up, check your email, reset password, sign out, errors
 
 [`check-copy.mjs`](check-copy.mjs), with no dependencies, enforces:
 - **Length limits** per element: verdict 24, reason 36, advice 60, status 60, error 90, button 22. These keep the chip and row on one line at 320 px.
@@ -38,7 +39,7 @@ FAIL (7)
 ```
 **Second run:** the rewrites passed the deck but the cross-check failed. `flow-spec.md` still used the old stale, offline and after-hours wording, so I updated the spec. One string (`console.reauth`, Flesch 55) needed another pass.
 
-**Final run:**
+**Wave 1 final run (password version):**
 ```
 $ node check-copy.mjs
 ...
@@ -50,8 +51,18 @@ PASS
 ```
 Exit code 0.
 
+**Wave 2 run (2026-11-23):** reasons now cover every code in docs/01 §5.2; password strings replaced by Supabase auth strings (+87 strings). First run failed 12 checks (banned "we" in "We sent a link…", Flesch below 60 on "Visibility may be low" and the email-format hint, sentence-case on "Google" and "Eastern", which I added to the proper-noun list in `check-copy.mjs`). After rewriting:
+```
+$ node check-copy.mjs
+...
+152 strings, 10 flow-spec status strings cross-checked
+Flesch (strings with words): min -106, mean 74
+PASS
+```
+Exit code 0.
+
 ## Limits and follow-ups
 - The syllable counter is a heuristic, and Flesch was designed for prose. Use it as a nudge, not a judge. Apple's HIG gives no numeric reading level.
 - Placeholders like `{time}` are dropped before scoring and expanded to `.+` for the spec cross-check.
 - Verdict and reason wording changes need open-meteo-integrator review before they go into `public/js/score-config.js`.
-- The apple-hig and accessibility skills still say "Proposal ready". If this deck is adopted, the skills should be updated through agent-builder.
+- The apple-hig and accessibility skills now say "New change ready", matching this deck.

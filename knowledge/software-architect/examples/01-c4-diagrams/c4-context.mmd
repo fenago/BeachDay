@@ -1,5 +1,5 @@
 ---
-title: "Beach Day: System Context (C4 level 1), 2026-11-23"
+title: "Beach Day: System Context (C4 level 1), 2026-11-23, ADR-0006"
 ---
 flowchart TB
     beachgoer["Beach-goer<br/>[Person]<br/>Checks if today or this week<br/>is a good beach day, on a phone"]
@@ -11,12 +11,18 @@ flowchart TB
     claude["Anthropic Claude API<br/>[External System]<br/>Messages API"]
     github["GitHub<br/>[External System]<br/>Repo fenago/BeachDay"]
     netlify["Netlify<br/>[External System]<br/>Build, CDN hosting, Functions, Blobs"]
+    supabase["Supabase Auth<br/>[External System]<br/>Accounts, Google sign-in,<br/>profiles.role (identity only)"]
+    google["Google<br/>[External System]<br/>OAuth sign-in"]
     nws["National Weather Service<br/>[External System]<br/>Beach and surf-zone forecasts"]
 
     beachgoer -- "Views verdicts<br/>[HTTPS]" --> beachday
-    drlee -- "Chats, reviews diffs, clicks Approve<br/>[HTTPS, password gate]" --> beachday
+    drlee -- "Chats, reviews diffs, clicks Approve<br/>[HTTPS, Supabase sign-in, super_admin only]" --> beachday
     beachday -- "Reads hourly weather and waves<br/>[HTTPS/JSON, from the browser]" --> openmeteo
+    drlee -- "Signs up, logs in, resets password<br/>[HTTPS, from the Console page]" --> supabase
+    supabase -- "Continue with Google<br/>[OAuth redirect]" --> google
+    beachday -- "Verifies token, reads own role<br/>[HTTPS, publishable key + Bearer, from Functions]" --> supabase
     beachday -- "Sends agent prompts and tools<br/>[HTTPS, from Functions only]" --> claude
+    beachday -- "Reads repo files at main<br/>[REST GET, ADR-0007]" --> github
     beachday -- "Commits approved changes to main<br/>[REST Git Database API, fine-grained PAT]" --> github
     github -- "Push to main triggers deploy<br/>[webhook]" --> netlify
     netlify -- "Hosts and runs" --> beachday
@@ -27,4 +33,4 @@ flowchart TB
     classDef external fill:#999999,stroke:#6b6b6b,color:#ffffff
     class beachgoer,drlee person
     class beachday system
-    class openmeteo,claude,github,netlify,nws external
+    class openmeteo,claude,github,netlify,nws,supabase,google external

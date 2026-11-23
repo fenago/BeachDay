@@ -1,7 +1,10 @@
 /* Beach Day service worker (reference example).
  * - Precache the app shell into a versioned cache on install (no automatic skipWaiting).
  * - Open-Meteo (api./marine-api.open-meteo.com): network-first with a 4 s timeout, fall back to cache.
- * - Same-origin /api/* (Netlify Functions for the Agent Console): network-only, never cached.
+ * - NEVER cached, never intercepted (network-only): /sw.js, /version.json, /api/*, /generated/*, the Console
+ *   (/console, /console.html, /js/console/*), the vendored auth bundle (/vendor/*) and the Supabase host.
+ *   A stale auth client or config would be a security bug, so Console assets are not in SHELL_URLS either.
+ * - Imports: sw.js may importScripts/import only from /sw/** (deny-listed, human-only). This example imports nothing.
  * - Navigations: network-first, offline -> cached shell -> offline.html.
  * - Other same-origin GETs: cache-first (shell assets).
  * - Update flow: page shows "New version — Refresh", posts {type:"SKIP_WAITING"}; we then skipWaiting().
@@ -12,6 +15,9 @@ const SHELL_CACHE = `beachday-shell-${VERSION}`;
 const DATA_CACHE = "beachday-data-v1";
 const SHELL_URLS = ["/", "/app.js", "/offline.html", "/manifest.webmanifest"];
 const DATA_HOSTS = new Set(["api.open-meteo.com", "marine-api.open-meteo.com"]);
+const NETWORK_ONLY_PATHS = ["/sw.js", "/version.json", "/console", "/console.html"];
+const NETWORK_ONLY_PREFIXES = ["/api/", "/generated/", "/vendor/", "/js/console/"];
+const isSupabaseHost = (h) => h.endsWith(".supabase.co") || h.endsWith(".supabase.in"); // auth calls; UNVERIFIED custom domains need adding
 const NETWORK_TIMEOUT_MS = 4000;
 const DATA_CACHE_MAX_ENTRIES = 20;
 
@@ -47,8 +53,12 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return; // POSTs (e.g. /api/chat) go straight to the network
   const url = new URL(request.url);
 
-  if (url.origin === self.location.origin && url.pathname.startsWith("/api/")) {
-    return; // network-only: not intercepted, never cached
+  if (isSupabaseHost(url.hostname)) return; // auth traffic: never touched
+  if (
+    url.origin === self.location.origin &&
+    (NETWORK_ONLY_PATHS.includes(url.pathname) || NETWORK_ONLY_PREFIXES.some((p) => url.pathname.startsWith(p)))
+  ) {
+    return; // network-only: not intercepted, never cached (also keeps the beach shell from answering /console offline)
   }
   if (DATA_HOSTS.has(url.hostname)) {
     event.respondWith(networkFirstWithTimeout(event, request));

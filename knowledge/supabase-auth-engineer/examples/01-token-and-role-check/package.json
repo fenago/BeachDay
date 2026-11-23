@@ -1,0 +1,11 @@
+{
+  "name": "example-token-and-role-check",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@supabase/auth-js": "2.119.2"
+  }
+}

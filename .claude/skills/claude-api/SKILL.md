@@ -5,11 +5,12 @@ description: Claude API facts for the Agent Console Netlify Functions — model 
 # Claude API (summary of docs/05-claude-api.md — read it for details)
 
 ## Defaults
-- **SDK:** `@anthropic-ai/sdk` with `new Anthropic()`, which reads `ANTHROPIC_API_KEY`. Call it only from Netlify Functions, never from the browser.
+- **SDK:** `@anthropic-ai/sdk`, only from Netlify Functions, never from the browser. Always pass the endpoint and key explicitly: `new Anthropic({ baseURL: "https://api.anthropic.com", apiKey: process.env.ANTHROPIC_API_KEY, timeout, maxRetries })`, so an injected `ANTHROPIC_BASE_URL` or AI-Gateway variable can't reroute calls (docs/03 §5).
 - **Model:** `claude-opus-5-5`. Per agent, map `model:` aliases to IDs:
+  - `opus` / `inherit` / missing → `claude-opus-5-5`
   - `sonnet` → `claude-sonnet-5-5`
   - `haiku` → `claude-haiku-5-5`
-  - `fable` → `claude-fable-5-2`
+  - **Console allow-list is these three only.** `fable`, full IDs and anything else fail `build-agents`, and functions re-check the ID (docs/04 §11). Fable 5.2 (`claude-fable-5-2`) is for Claude Code sessions only.
   - Use exact IDs; never add date suffixes.
 - **Thinking:** `thinking: {type: "adaptive"}`, or omit it.
   - `budget_tokens` and `{type: "disabled"}` return **400** on current models.
@@ -31,6 +32,7 @@ description: Claude API facts for the Agent Console Netlify Functions — model 
   - Append the **full** `response.content`.
   - Return **all** `tool_result` blocks for a turn in **one** user message, matched by `tool_use_id`. Use `is_error: true` for failures.
   - Parse tool input with JSON.parse, then validate it yourself (schema plus allow-list). `strict` guarantees shape, not safety.
+  - `tool_result` content (repo files) is untrusted data: keep it in `tool_result` blocks, never in `system`. Policy lives in code, not the prompt.
 - **Truncated input:** if `stop_reason === "max_tokens"` while a tool_use is present, the input may be cut off. Do not run it.
 - **Streaming with client tools:** set `eager_input_streaming: true` on each tool and validate the parsed input before running it.
 - **Beach Day tools:**
@@ -40,10 +42,10 @@ description: Claude API facts for the Agent Console Netlify Functions — model 
 
 ## Refusals & errors
 - **Refusals** come back as HTTP 200 with `stop_reason: "refusal"`. Check `stop_reason` before reading content, and discard partial output.
-  - Opt into fallbacks with `client.beta.messages.create({..., betas: ["server-side-fallback-2026-07-01"], fallbacks: "default"})`. The streaming variant takes the same parameters.
+  - Server-side fallbacks (`betas: ["server-side-fallback-2026-07-01"], fallbacks: "default"`) are **off by default**; Dr. Lee hasn't decided. If Dr. Lee ever enables it, the fallback model must stay within the three Console models (Opus 5.5, Sonnet 5.5, Haiku 5.5; Haiku 5.5 has no server-side fallback), and token limits and cost are counted from the response's `model`, not the requested one.
 - **Error classes,** most specific first: `Anthropic.NotFoundError`, `Anthropic.RateLimitError`, `Anthropic.APIError`, `Anthropic.APIConnectionError`.
 - **SDK retries:** 408/409/429/5xx are retried twice by default.
-- **TypeScript timeout is in ms.** Keep it under the Netlify limit: about 50_000 for chat, 840_000 in background functions.
+- **TypeScript timeout is in ms.** Keep it under the Netlify limit: about 50_000 for chat, 840_000 in background functions. In chat also pass a per-turn deadline as the request option `{ signal }` (55 s from the turn's start), so retries can't overrun 60 s (docs/04 §8).
 
 ## Caching
 - Put the stable system prompt and tools first, with `cache_control: {type: "ephemeral"}`.

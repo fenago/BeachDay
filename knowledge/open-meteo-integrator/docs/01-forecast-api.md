@@ -50,7 +50,7 @@ Hourly data: "Time always starts at 0:00 today and contains 168 hours" (that is 
 | `cape` | Instant | J/kg | Convective available potential energy |
 | `is_day` | Instant | Dimensionless | "1 if the current time step has daylight, 0 at night." |
 
-Consequence of "preceding hour": the 13:00 row's `precipitation`, `uv_index` and `wind_gusts_10m` describe 12:00–13:00. When scoring the hour slot 13:00–14:00, the strictly correct row is 14:00 for those fields. v1 scoring ignores this one-hour skew; mention it if anyone tunes thresholds.
+Consequence of "preceding hour": the 13:00 row's `precipitation`, `uv_index` and `wind_gusts_10m` describe 12:00–13:00. When scoring the hour slot 13:00–14:00, the strictly correct row is 14:00 for those fields. **Decided 2026-11-23 (docs/01 §5.2): scoring corrects the skew.** For the slot starting at T, `precipitation`, `precipitation_probability`, `wind_gusts_10m` and `uv_index` are read from row T+1 h; instant fields stay on row T. Example 01's normalizer does not apply the shift yet.
 
 ## Daily variables used by Beach Day
 | Variable | Unit | Notes |

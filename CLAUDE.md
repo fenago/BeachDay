@@ -6,17 +6,21 @@ The project lead is **Dr. Lee**, who makes the product decisions.
 
 ## Decisions you must respect (`docs/adr/`)
 
-1. **Architecture:** a static front end on Netlify, with Netlify Functions **only** for the Claude and GitHub calls. No other servers. The browser calls Open-Meteo directly.
+1. **Architecture:** a static front end on Netlify, with Netlify Functions **only** for the Claude and GitHub calls. No other servers. The browser calls Open-Meteo directly. ADR-0006 supersedes this for sign-in: Console users sign in with Supabase Auth, which the browser calls directly, and every function checks the token and role.
 2. **Rip currents:** no rip-current proxy. Link out to the National Weather Service.
 3. **Approve:** commits straight to `main` as one atomic commit, and Netlify auto-deploys it.
 4. **Hosting plan:** Netlify Free (300 credits a month, 15 per production deploy).
 5. **GitHub access:** a fine-grained PAT for this repo only, with Contents read/write and no Workflows permission.
+6. **Supabase Auth (ADR-0006):** see item 1. Publishable key only; never the secret or `service_role` key.
+7. **Agent reads (ADR-0007):** `read_file` / `list_files` read GitHub `main`, pinned to one SHA per turn.
+8. **Approve cap (ADR-0008):** at most 14 per rolling 31 days and 5 per day, site-wide.
+9. **Proposed, not decided (ADR-0009):** a separate read-only `GITHUB_READ_TOKEN` for agent reads. Until Dr. Lee accepts it, ADR-0007 stands.
 
 Research and specs live in `docs/`. Start with `docs/README.md`.
 
 ## The agent team
 
-The 11 project subagents are in `.claude/agents/`. Their 22 shared skills are in `.claude/skills/<skill>/SKILL.md`. Each agent preloads its skills through the `skills:` frontmatter field. The full roster and skill matrix are in `docs/expert-roster.md`.
+The 12 project subagents are in `.claude/agents/`. Their 25 shared skills are in `.claude/skills/<skill>/SKILL.md`. Each agent preloads its skills through the `skills:` frontmatter field. The full roster and skill matrix are in `docs/expert-roster.md`.
 
 | Agent | Role |
 |---|---|
@@ -27,6 +31,7 @@ The 11 project subagents are in `.claude/agents/`. Their 22 shared skills are in
 | `pwa-mobile-engineer` (**Pip**) | Manifest, service worker, offline, install on iOS and Android |
 | `security-engineer` (**Vera**) | Threat model and security reviews (can block) |
 | `agent-console-engineer` (**Remy**) | Agent Console: Claude via Functions, proposals, Approve → GitHub commit |
+| `supabase-auth-engineer` (**Cass**) | Console sign-in on Supabase Auth: profiles and roles, the token-and-role check on every function |
 | `ui-designer-apple-liquid-glass` (**Sable**) | Apple-inspired Liquid Glass visual design system |
 | `ux-designer-apple-hig` (**Wren**) | Flows, interaction and copy per Apple's Human Interface Guidelines |
 | `qa-engineer` (**Tess**) | Tests and the release gate |
@@ -62,7 +67,7 @@ Every agent file has a **Before you answer** section. It tells the agent to read
 ## Working rules for every session
 
 - Read the relevant `docs/` file and the existing code before you change anything.
-- Never put secrets (`ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `CONSOLE_PASSWORD_HASH`, `SESSION_SECRET`) in the repo, the front end, logs or prompts.
+- Never put secrets (`ANTHROPIC_API_KEY`, `GITHUB_TOKEN`) in the repo, the front end, logs or prompts. The Supabase project URL and publishable key are public by design; the Supabase secret and `service_role` keys are used nowhere.
 - Verdicts never depend on colour alone. Keep the Open-Meteo attribution on screen. Beach Day is not a safety service, so always point people to NWS rip-current risk and posted flags.
 - Every push to `main` is a production deploy and costs Netlify credits, so batch changes.
 - When you add or rename an agent or skill, update `.claude/agents/`, `.claude/skills/`, `knowledge/`, `docs/expert-roster.md`, the orchestrator's `Agent(...)` list and this file together.

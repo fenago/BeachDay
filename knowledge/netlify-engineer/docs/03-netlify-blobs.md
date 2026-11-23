@@ -64,14 +64,14 @@ Source for every line: [Blobs § Requirements and limitations](https://docs.netl
 - **HIPAA:** Blobs is not part of HIPAA-compliant hosting.
 
 ## Plan and pricing
-- The pricing page lists "Built-in database, storage, and AI" for Free, but none of the pages read here gives a Blobs storage quota or price per plan. **[UNVERIFIED]** Check https://www.netlify.com/pricing/ before relying on large blobs.
+- The pricing page lists "Built-in database, storage, and AI" for Free, but none of the pages read here gives a Blobs storage quota or price per plan. **[UNVERIFIED]** Check https://www.netlify.com/pricing/ before relying on large blobs. Re-check attempted 2026-11-23: docs.netlify.com was **not reachable** from the sandbox (DNS failure), so Free-plan availability and any quota stay **UNVERIFIED**. The cheap test: deploy once and watch the first function that writes a blob; if it fails, escalate to Dr. Lee (no paid feature without his decision). Our volume is tiny (a few KB per proposal, per job and per counter).
 
 ## Beach Day notes
 - **Stores** (docs/03 §7):
-  - `proposals`: key `<id>`
-  - `jobs`: key `<id>`
-  - `ratelimit`: key `<action>/<subject>/<YYYY-MM-DD>`
-  - `audit`: key `<ISO time>-<id>`
+  - `proposals`: key `p_<ULID>`
+  - `jobs`: key `j_<ULID>`
+  - `ratelimit`: key `<action>/<user id>/<YYYY-MM-DD>`, plus the single record `site:approvals` (value `{ times: [<ISO-8601 UTC>, ...] }`, pruned to 31 days on every write) for the site-wide Approve cap of ADR-0008: 14 in a rolling 31 days, 5 per America/New_York day (example 03); and the single record `site:compute` (value `{ days: { "<New York YYYY-MM-DD>": <ms> } }`, at most 32 day buckets, pruned on every write) for the site-wide compute budget, 180 function-minutes per rolling 31 days (docs/04 §9; **number pending Dr. Lee**; `checkComputeBudget()` and `recordCompute()` in example 03)
+  - `audit`: key `<ISO time>_<id>`
   - All are opened with **`consistency: "strong"`**, because approval state and counters must not read data that is up to 60 s stale.
 - Use `getStore`, not `getDeployStore`. Proposals and jobs must survive the deploy that an approval itself triggers.
 - **Approve flow:**
@@ -79,7 +79,8 @@ Source for every line: [Blobs § Requirements and limitations](https://docs.netl
   2. Re-validate it.
   3. CAS `pending → committing` with `onlyIfMatch`.
   4. Only the winner calls GitHub, which prevents double commits (docs/04 §3).
-  5. CAS to `committed` with the commit SHA.
+  5. CAS to `committed` with the commit SHA, or to `failed` or `stale`.
+  - Status set: `pending → committing → committed | failed | stale`, and `pending → rejected`.
 - **Job creation:** use `setJSON(id, job, { onlyIfNew: true })`. Every later change goes through CAS (example 01).
 - **Counters:** CAS loop, shown in example 03. The test proves that a naive read-modify-write lets 50 of 50 requests through a limit of 20.
 - **Store names:** `proposals`, `jobs`, `ratelimit` and `audit` are all valid (no `/` or `:`, under 64 bytes). Keys may use `/` as a folder separator (supported by `list({ directories: true })`), but must not *start* with `/`.

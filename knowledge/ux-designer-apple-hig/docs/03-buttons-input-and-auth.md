@@ -64,12 +64,15 @@ The SC's own examples of mechanisms: "support for password entry by password man
 ## Beach Day notes
 - **Targets:** every Beach Day control is ≥ **44×44 CSS px** (HIG). That's well above the WCAG 24 px minimum. The exception is inline links inside sentences such as the safety line, which 2.5.8's Inline exception covers. Keep pill buttons tall enough that a 24 px square fits inside the rounded ends.
 - **One prominent button per view:**
-  - Today: "See hourly".
-  - Proposal card: "Review and Approve…". The final "Approve and Deploy" in the confirm step is prominent but deliberately **not** auto-focused and not triggered by Enter from elsewhere. It isn't destructive in the data-loss sense, but it does ship to production, so we confirm it.
+  - Today: "See Hourly".
+  - Sign in: "Sign In". "Continue with Google" is a secondary style, not a smaller button.
+  - Proposal card: "Review and Approve". The final "Approve and Deploy" in the confirm step is prominent but deliberately **not** auto-focused and not triggered by Enter from elsewhere. It isn't destructive in the data-loss sense, but it does ship to production, so we confirm it.
 - **Labels:** verb-first, title case for buttons ("Approve and Deploy", "Reject", "Try Again", "Choose Beach"). Sentence case for body copy and errors.
 - **Busy buttons:** "Approve and Deploy" → "Committing…" with a spinner and `aria-disabled="true"`; double submits are blocked server-side too (CAS in Blobs).
-- **Console auth:**
-  - The password field is `type="password"` with `autocomplete="current-password"`, never prefilled, and paste allowed (3.3.8). No CAPTCHA.
-  - The label says "Console password", not "passcode".
-  - Re-auth for Approve uses the same field type in the confirmation sheet (docs/04 §4: within the last 10 min). The button is titled with the method, "Confirm with Password".
+- **Console auth (Supabase Auth, ADR-0006):** details in `examples/04-console-auth/`.
+  - The password field is `type="password"` with `autocomplete="current-password"` (sign in) or `"new-password"` (sign up and reset), never prefilled, paste allowed. The sign-in email field uses `autocomplete="username"`. No CAPTCHA, no puzzle, no security question (3.3.8). With password-manager support plus a second method (Google), the "Alternative" and "Mechanism" routes of 3.3.8 are both met.
+  - One password field with a Show Password button, not a second "confirm" field. That avoids redundant entry (WCAG 3.3.7) and typing errors on a phone.
+  - Name the method on each button: "Sign In", "Continue with Google" (a label Google's own branding allows), "Confirm with Password", "Confirm with Google". Never "Submit" or "OK". The word is "password", not "passcode".
+  - HIG "delay sign-in": the beach app never asks for an account. Only `/console` does.
+  - Step-up before Approve is "Confirm it's you", with a password path and a Google path. Either counts.
 - **Beach search:** offer a list of beaches plus "Nearest" (geolocation), rather than free-text entry.

@@ -1,5 +1,5 @@
 ---
-title: "Beach Day: Containers (C4 level 2), 2026-11-23"
+title: "Beach Day: Containers (C4 level 2), 2026-11-23, ADR-0006"
 ---
 flowchart TB
     beachgoer["Beach-goer<br/>[Person]"]
@@ -7,14 +7,14 @@ flowchart TB
 
     subgraph bd["Beach Day [Software System]"]
         direction TB
-        cdn["Static hosting<br/>[Container: Netlify CDN]<br/>Serves public/ with _headers"]
+        cdn["Static hosting<br/>[Container: Netlify CDN]<br/>Serves public/ with _headers,<br/>incl. vendor/ and generated/"]
         pwa["PWA<br/>[Container: HTML, CSS, ES modules + service worker]<br/>Fetches, normalizes and scores forecasts<br/>in the browser; caches per device"]
-        consoleui["Agent Console UI<br/>[Container: HTML, ES modules, /console]<br/>Agent list, streaming chat,<br/>proposal diff, Approve/Reject"]
+        consoleui["Agent Console UI<br/>[Container: HTML, ES modules, /console]<br/>Sign-in via vendored auth-js, agent list,<br/>streaming chat, proposal diff, Approve/Reject"]
         subgraph fns["Netlify Functions [Containers: Node, one per route]"]
             direction LR
-            auth["login / logout<br/>[sync]"]
+            agents["agents<br/>[sync]"]
             chat["chat<br/>[sync, SSE ≤60 s]"]
-            jobs["jobs<br/>[background ≤15 min]"]
+            jobs["jobs + jobs-run<br/>[sync wrapper + background ≤15 min]"]
             approve["proposals / approve<br/>[sync]"]
         end
         blobs[("Netlify Blobs<br/>[Container: key-value stores]<br/>proposals, jobs, ratelimit, audit<br/>strong consistency for state")]
@@ -24,6 +24,7 @@ flowchart TB
     claude["Claude API<br/>[External System]"]
     github["GitHub<br/>[External System]"]
     nws["NWS<br/>[External System]"]
+    supabase["Supabase Auth<br/>[External System]<br/>auth.users + profiles.role"]
 
     beachgoer -- "Uses [HTTPS]" --> pwa
     drlee -- "Uses [HTTPS]" --> consoleui
@@ -31,17 +32,19 @@ flowchart TB
     cdn -- "Delivers assets" --> consoleui
     pwa -- "GET forecast + marine<br/>[HTTPS/JSON, CORS]" --> openmeteo
     pwa -. "Link-out only" .-> nws
-    consoleui -- "POST /api/login<br/>[JSON, cookie]" --> auth
-    consoleui -- "POST /api/chat<br/>[JSON in, SSE out]" --> chat
+    consoleui -- "Sign up / in / out, reset, Google<br/>[HTTPS /auth/v1, publishable key]" --> supabase
+    consoleui -- "GET /api/agents (403 = no access)<br/>[JSON, Bearer]" --> agents
+    consoleui -- "POST /api/chat<br/>[JSON in, SSE out, Bearer]" --> chat
     consoleui -- "GET /api/jobs/:id<br/>[poll 2-3 s]" --> jobs
-    consoleui -- "GET proposal, POST approve<br/>[JSON + CSRF]" --> approve
+    consoleui -- "GET proposal, POST approve<br/>[JSON, Bearer + step-up]" --> approve
     chat -- "Messages API, streaming<br/>[HTTPS, ANTHROPIC_API_KEY]" --> claude
     jobs -- "Messages API<br/>[HTTPS]" --> claude
     chat -- "handoff at ~45 s" --> jobs
-    auth -- "throttle counters" --> blobs
+    fns -- "Every request: verify token, read role as caller<br/>[HTTPS, fail closed]" --> supabase
     chat -- "proposals, rate limits" --> blobs
     jobs -- "job events, proposals" --> blobs
-    approve -- "CAS status, audit" --> blobs
+    chat -- "read_file / list_files at pinned main SHA<br/>[REST GET, ADR-0007]" --> github
+    approve -- "Cap check (ADR-0008), CAS status, audit" --> blobs
     approve -- "One atomic commit to main<br/>[Git Database API, GITHUB_TOKEN]" --> github
 
     classDef person fill:#08427b,stroke:#052e56,color:#ffffff
@@ -49,6 +52,6 @@ flowchart TB
     classDef store fill:#438dd5,stroke:#2e6295,color:#ffffff
     classDef external fill:#999999,stroke:#6b6b6b,color:#ffffff
     class beachgoer,drlee person
-    class cdn,pwa,consoleui,auth,chat,jobs,approve container
+    class cdn,pwa,consoleui,agents,chat,jobs,approve container
     class blobs store
-    class openmeteo,claude,github,nws external
+    class openmeteo,claude,github,nws,supabase external

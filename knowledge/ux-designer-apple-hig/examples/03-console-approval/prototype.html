@@ -48,9 +48,14 @@
     .sheet-body h2 { font-size: 1.25rem; margin: 0 0 8px; }
     .consequences { margin: 0 0 16px; padding-left: 1.2em; }
     label { display: block; font-weight: 600; margin-bottom: 6px; }
-    input[type=password] { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+    input[type=password], input[type=text] { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
     input[aria-invalid="true"] { border-color: var(--danger); border-width: 2px; }
     .field-error { color: var(--danger); font-weight: 600; margin: 6px 0 0; min-height: 1.4em; }
+    .or { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--text-2); font-weight: 600; }
+    .or::before, .or::after { content: ""; flex: 1; border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent); }
+    .stepup { border: 0; padding: 0; margin: 0; }
+    .stepup legend { font-weight: 600; font-size: 1.0625rem; padding: 0; margin-bottom: 8px; }
+    .wide { width: 100%; }
     .visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     @media (prefers-reduced-motion: no-preference) { dialog[open] { animation: rise 280ms cubic-bezier(.2,.8,.2,1); } }
     @keyframes rise { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -81,6 +86,7 @@
         <button type="button" class="primary" id="review" aria-haspopup="dialog">Review and Approve</button>
         <button type="button" class="secondary" id="reject">Reject</button>
       </div>
+      <p id="disabled-note" class="meta" hidden>Approve is off until the launch checks pass. You can still read and reject.</p>
 
       <!-- One persistent polite status region (WCAG 4.1.3, ARIA22) -->
       <p id="status" role="status"></p>
@@ -104,10 +110,29 @@
             <li>To undo, make a revert commit or roll back in Netlify.</li>
           </ul>
         </div>
-        <label for="pw">Console password</label>
-        <input id="pw" name="password" type="password" autocomplete="current-password" required aria-describedby="pw-help pw-error">
-        <p id="pw-help" class="meta" style="margin:6px 0 0">Type the password again to approve.</p>
-        <p id="pw-error" class="field-error" role="alert"></p>
+        <p id="usage" class="meta" style="margin:0 0 12px">9 of 14 approvals used in the last 31 days.</p>
+        <fieldset class="stepup" id="stepup">
+          <legend>Confirm it’s you</legend>
+          <!-- Password path: shown when the account has a password -->
+          <div id="path-password">
+            <label for="pw">Password</label>
+            <input id="pw" name="password" type="password" autocomplete="current-password" required aria-describedby="pw-help pw-error">
+            <p id="pw-help" class="meta" style="margin:6px 0 0">Type your password to approve.</p>
+            <p id="pw-error" class="field-error" role="alert"></p>
+          </div>
+          <p class="or" id="or" aria-hidden="true">Or</p>
+          <!-- Google path: a real button, no popup, redirect and return -->
+          <button type="button" class="secondary wide" id="google" aria-describedby="google-note">Confirm with Google</button>
+          <p id="google-note" class="meta" style="margin:6px 0 0">After Google, you'll return here. Choose Approve and Deploy again.</p>
+          <p id="confirmed" class="meta" style="margin:8px 0 0" hidden>Confirmed. Nothing is approved yet. Choose Approve and Deploy within 10 minutes.</p>
+          <div id="path-code" hidden>
+            <label for="code" style="margin-top:16px">Authenticator code</label>
+            <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" aria-describedby="code-help code-error">
+            <p id="code-help" class="meta" style="margin:6px 0 0">Enter the 6-digit code from your app. It changes every 30 seconds.</p>
+            <p id="code-error" class="field-error" role="alert"></p>
+          </div>
+          <p id="sheet-status" role="status" class="meta" style="margin:8px 0 0"></p>
+        </fieldset>
         <div class="actions" style="justify-content:flex-end">
           <button type="submit" class="primary" id="approve">Approve and Deploy</button>
         </div>
@@ -117,19 +142,45 @@
 
   <script type="module">
     // Prototype only: no network. The server behavior is mocked here.
-    // Real flow: POST /api/proposals/:id/approve (session + CSRF + re-auth), see docs/04-agent-console.md.
-    const outcome = new URLSearchParams(location.search).get('outcome') ?? 'ok'; // ok | stale | fail
+    // Real flow: POST /api/proposals/:id/approve (Bearer token + super_admin + step-up), see docs/04-agent-console.md.
+    const outcome = new URLSearchParams(location.search).get('outcome') ?? 'ok'; // ok | stale | fail | cap | expired | nodeploy | stepup | budget | disabled
     const DEMO_PASSWORD = 'demo-password';
     const $ = (id) => document.getElementById(id);
     const dialog = $('confirm'), status = $('status'), alertBox = $('alert'), review = $('review'), reject = $('reject');
     const pw = $('pw'), pwError = $('pw-error'), approve = $('approve');
+    // Mocked account: ?account=google means a Google-only account (no password path).
+    const googleOnly = new URLSearchParams(location.search).get('account') === 'google';
+    let confirmedByGoogle = false;
+    const totp = new URLSearchParams(location.search).get('totp') === '1'; // account has an authenticator factor
+    const code = $('code'), codeError = $('code-error');
+    if (totp) $('path-code').hidden = false;
+    if (googleOnly) { $('path-password').hidden = true; $('or').hidden = true; }
+    const markConfirmed = () => { confirmedByGoogle = true; $('confirmed').hidden = false; $('google').hidden = true; $('google-note').hidden = true; $('or').hidden = true; $('path-password').hidden = true; };
+    const unconfirm = () => { confirmedByGoogle = false; $('confirmed').hidden = true; $('google').hidden = false; $('google-note').hidden = false; if (!googleOnly) { $('path-password').hidden = false; $('or').hidden = false; } };
+    if (outcome === 'disabled') { review.setAttribute('aria-disabled', 'true'); review.setAttribute('aria-describedby', 'disabled-note'); $('disabled-note').hidden = false; }
+    if (outcome === 'budget') { alertBox.textContent = 'The Console has hit its usage limit for now. Chat and jobs resume Dec 4.'; }
+    let stepupSeen = false;
     const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     const say = (html) => { status.innerHTML = html; };
 
+    if (outcome === 'nodeploy') {
+      $('c-title').textContent = 'Approve this change?';
+      $('c-desc').innerHTML = '<p style="margin:0 0 8px">This commits to main. The live site doesn’t change, so no deploy runs.</p>';
+    }
     review.addEventListener('click', () => {
+      if (review.getAttribute('aria-disabled') === 'true') return; // Approve is off: no sheet
+      code.value = ''; codeError.textContent = ''; code.removeAttribute('aria-invalid');
       pw.value = ''; pwError.textContent = ''; alertBox.textContent = ''; pw.removeAttribute('aria-invalid');
       dialog.showModal();
-      pw.focus(); // the one input the task needs
+      (googleOnly && !confirmedByGoogle ? $('google') : confirmedByGoogle ? approve : pw).focus();
+    });
+    // Mocked Google round trip: the real flow redirects away and returns to this proposal.
+    $('google').addEventListener('click', async () => {
+      dialog.close('google');
+      say('Taking you to Google…');
+      await wait(150);
+      markConfirmed(); say('Confirmed with Google.');
+      dialog.showModal(); approve.focus();
     });
     $('cancel').addEventListener('click', () => dialog.close('cancel'));
     dialog.addEventListener('close', () => { if (dialog.returnValue !== 'approved') review.focus(); });
@@ -142,10 +193,22 @@
     $('confirm-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       if (approve.getAttribute('aria-disabled') === 'true') return; // no double submit
-      if (pw.value !== DEMO_PASSWORD) {
+      if (!confirmedByGoogle && pw.value !== DEMO_PASSWORD) {
         pw.setAttribute('aria-invalid', 'true');
         pwError.textContent = "That password didn't match. Try again.";
         pw.focus(); pw.select();
+        return;
+      }
+      if (totp && code.value !== '123456') {
+        code.setAttribute('aria-invalid', 'true');
+        codeError.textContent = code.value ? "That code didn't match. Try again." : 'Enter the 6-digit code.';
+        code.focus(); code.select();
+        return;
+      }
+      if (outcome === 'stepup' && !stepupSeen) { // server: 401 step_up_required, the 10 minutes ran out
+        stepupSeen = true; unconfirm(); pw.value = '';
+        $('sheet-status').textContent = "Confirm it's you to approve. Your last sign-in was over 10 minutes ago.";
+        (googleOnly ? $('google') : pw).focus();
         return;
       }
       approve.setAttribute('aria-disabled', 'true');
@@ -156,6 +219,25 @@
       review.hidden = true; reject.hidden = true;
       say('Committing to main…');
       await wait(300);
+      if (outcome === 'cap') {
+        say(''); alertBox.textContent = '14 of 14 approvals used in the last 31 days. Next slot frees Dec 4. The proposal is still waiting.';
+        review.hidden = true; reject.hidden = false;
+        return;
+      }
+      if (outcome === 'expired') {
+        say(''); alertBox.textContent = 'Your session ended. Sign in to pick up where you left off.';
+        review.hidden = false; review.textContent = 'Sign In'; review.focus();
+        return;
+      }
+      if (outcome === 'nodeploy') {
+        say('Committed <a href="#commit-abc1234">abc1234</a>. No deploy needed. Only docs, tests or skill files changed, so the site stays as it is.');
+        return;
+      }
+      if (outcome === 'unconfirmed') {
+        say(''); alertBox.innerHTML = 'Couldn\u2019t confirm the commit yet. Check the commit list on GitHub before you approve again. <a href="#commits" id="commits">View Commits on GitHub</a>';
+        review.hidden = true; $('commits').focus();
+        return;
+      }
       if (outcome === 'stale') {
         say(''); alertBox.textContent = 'Main changed since this proposal. Ask the agent to redo it.';
         return;

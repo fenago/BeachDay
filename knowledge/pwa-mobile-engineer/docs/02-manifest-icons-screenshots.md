@@ -21,10 +21,10 @@ Retrieved: 2026-11-23
 | `start_url` | `"/?source=pwa"` | Required; must be inside `scope` |
 | `scope` | `"/"` | Navigations outside open in the browser |
 | `display` | `"standalone"` | Installable value; iOS supports only standalone |
-| `theme_color`, `background_color` | `#0e7490` | Title bar / splash |
-| `icons` | 192 any, 512 any, 512 maskable | Chromium needs 192 + 512 |
-| `screenshots` | 1 × narrow 1080×2340 with `label` | Android rich install UI, stores |
-| `shortcuts` | `/console` | Long-press menu (Chromium) |
+| `theme_color`, `background_color` | `#0b3b5c` for both (Sable). Contrast: white 11.70:1, amber sun `#f2a93b` 5.86:1. Maskable and apple-touch icons must be full-bleed `#0b3b5c` so Android's splash (icon centred on `background_color`) shows no box edge; iOS ignores `background_color` | Title bar / splash |
+| `icons` | `icon-192.png` any, `icon-512.png` any, `icon-maskable-512.png` maskable (all `/icons/`) | Chromium needs only 192 + 512; the separate maskable file is **our** rule |
+| `screenshots` | 1 × narrow `/screenshots/today-narrow-1080x2340.png`, `1080x2340`, with `label` | Android rich install UI, stores |
+| `shortcuts` | **none** | Decision (Dr. Lee): no `/console` shortcut in the public manifest |
 
 `prefer_related_applications`: leave it out. MDN's compat table shows Chrome "No support" for the member itself, but the install criteria still say it must be absent or `false`.
 
@@ -57,4 +57,6 @@ web.dev: add `<link rel="apple-touch-icon" href="/icons/ios.png">`; without one,
 - Netlify `_headers`: `/manifest.webmanifest` → `Content-Type: application/manifest+json` (pwa-manifest-service-worker skill). Header changes need security-engineer + netlify-engineer review.
 - Icon art comes from Sable (UI designer); this folder's PNGs are placeholders with correct geometry.
 - Keep `start_url` stable; `id` protects identity if it changes.
-- The `/console` shortcut points at a password-gated page; the gate is enforced in Functions (ADR-0004), not by the manifest.
+- There is no `/console` shortcut. The Console is reachable only by its URL; access is enforced by Supabase Auth plus a role check in every Function (ADR-0006), never by the manifest. (ADR-0006 is being drafted by software-architect this round.)
+- `apple-touch-icon` is `/icons/apple-touch-icon-180.png`, 180×180, opaque.
+- Chrome's install criteria ask for a 192 and a 512 icon only. `maskable`, `id`, `scope`, `description` and the screenshot are Beach Day rules.

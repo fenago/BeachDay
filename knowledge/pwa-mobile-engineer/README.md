@@ -16,12 +16,17 @@ Date: 2026-11-23. Notes come from MDN, web.dev, developer.chrome.com and webkit.
 |---|---|---|
 | [examples/01-manifest-validator/](examples/01-manifest-validator/) | Valid Beach Day manifest + Node validator (install criteria, Beach Day rules, real PNG sizes) + icon generator; 5 tests | Before shipping any manifest/icon change; CI check |
 | [examples/02-service-worker/](examples/02-service-worker/) | Full `sw.js` + `app.js` update toast + Netlify-like server; Playwright proves registration, cache contents, 4 s timeout fallback, offline reload, `/api/*` never cached, v1→v2 update with one reload | Writing/reviewing `public/sw.js`; QA offline spec |
-| [examples/03-install-prompt/](examples/03-install-prompt/) | `beforeinstallprompt` controller + iOS hint detection (Safari/Chrome/in-app/iPadOS/standalone, 30-day snooze); 7 tests | Building install UX |
+| [examples/03-install-prompt/](examples/03-install-prompt/) | `beforeinstallprompt` controller + iOS hint detection (Safari/Chrome/in-app/iPadOS/standalone, 14-day snooze); 7 tests | Building install UX |
+| [examples/04-kill-switch/](examples/04-kill-switch/) | Emergency `kill-sw.js` shipped as `/sw.js`: no fetch handler, deletes every cache, unregisters, reloads clients; Playwright proves it replaces a bad SW (copied into `docs/runbooks/rollback.md`) | Rollback of a bad service worker; reviewing the runbook |
 
 ## Key facts (one line each)
 - Chromium install: name/short_name, 192+512 icons, start_url, installable display, no prefer_related_applications, HTTPS.
-- Chrome's automatic prompt still wants a real (non-empty) fetch handler; menu install does not.
+- Chrome's automatic prompt wanted a real (non-empty) fetch handler as of Dec 2023 (**UNVERIFIED** now; sources unreachable 2026-11-23); menu install does not. We ship a real handler.
+- Chrome needs only 192 + 512 icons; the separate maskable icon, `id`, `scope`, screenshot are Beach Day's own rules. No `shortcuts` (no `/console` shortcut). `theme_color` = `background_color` = `#0b3b5c` (Sable); maskable and apple-touch icons are full-bleed `#0b3b5c`.
+- `start_url` is `/?source=pwa`, so `sw.js` matches the shell with `ignoreSearch: true`. iOS hint snooze is 14 days.
+- `sw.js` is deny-listed and its version is stamped at build (docs/03).
 - Maskable key art inside a centred circle of radius 40% of the width.
 - New SW waits until no client uses the old one; we skipWaiting only on the user's Refresh tap, then reload once on `controllerchange`.
+- Never cached or intercepted: `/sw.js`, `/version.json`, `/api/*`, `/generated/*`, `/vendor/*`, Console pages/modules, Supabase host. `sw.js` imports only from `public/sw/**`.
 - `/api/*` is network-only and never cached; Open-Meteo is network-first with a 4 s timeout.
 - iOS: no install prompt; iOS 16.4+ any browser's Share → Add to Home Screen; iOS 26 opens every added site as a web app unless the user turns "Open as Web App" off.
