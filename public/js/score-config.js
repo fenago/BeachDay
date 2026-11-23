@@ -55,9 +55,10 @@ export const SCORE_CONFIG = Object.freeze({
   outlookFromDayIndex: 3, // 0-based: day 4 and later
   reasons: Object.freeze({
     maxShown: 4,
-    // D3 (Dr. Lee, pending): when true, good days also list what is going well (codes dry, sunny_sky,
-    // comfortable, light_wind, calm_waves, warm_water; copy ids reason.pos.* in Wren's deck). Default off = current spec.
-    positiveOnGoodDays: false,
+    // D3 (Dr. Lee, decided): Great and Good days also list what is going well, after any driver reasons and
+    // inside the maxShown cap (codes dry, sunny_sky, comfortable, light_wind, calm_waves, warm_water;
+    // copy ids reason.pos.* in Wren's deck). Set false to show drivers only.
+    positiveOnGoodDays: true,
   }),
 });
 

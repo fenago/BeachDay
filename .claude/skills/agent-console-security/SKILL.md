@@ -42,7 +42,7 @@ On failure: **401 `step_up_required`**, and the proposal stays `pending`. A `get
 Lives in `netlify/functions/lib/allowlist.mts`. Enforce it at proposal time **and** again at approve time.
 - **Allow:** `public/**` with a text extension (`html, css, js, json, webmanifest, svg, txt, md`), `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`.
 - **Deny (deny wins):** `public/_headers`, `public/_redirects`, `public/sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `public/version.json`, `netlify/**`, `netlify.toml`, `.github/**`, `package.json`, `package-lock.json`, `scripts/**`, `**/.env*`, `.git/**`, `.gitmodules`, `.claude/settings*`, `**/*.pem`, `**/*.key`.
-- **Open for Dr. Lee:** also deny `public/console.html` and `public/js/console/**` (security-engineer's recommendation). Until he rules, they are allowed with a warning.
+- **Decided (D6, Dr. Lee 2026-11-23):** `public/console.html` and `public/js/console/**` are also denied (`denyConsoleUi: true`). Agents may read them, never propose changes to them.
 - **Validate the exact string sent to GitHub.** Use a character allow-list `[A-Za-z0-9._/-]`. Reject `..`, `.`, empty segments, a leading `/` and trailing dots. Deny is case-insensitive (`Netlify.toml`, `public/_Headers`); allow is exact-case.
 - **Limits:** at most 20 files, 200 KB per file, UTF-8 text only (no NUL, no lone surrogate), mode always `100644`, no case-insensitive duplicates.
 - **No deletions.** Every tree entry carries `content`; approve never sends `sha: null`. Deleting a file is a human change.

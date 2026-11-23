@@ -3,8 +3,8 @@ import { checkPath, checkProposal, checkReadPath, checkReadDir } from "../../../
 
 // [path, allowed?, why] — the canonical docs/04 §6 table (security-engineer example 02) plus extras.
 const CASES = [
-  ["public/index.html", true, "page"], ["public/js/console/chat.js", true, "console js (D6 off)"],
-  ["public/manifest.webmanifest", true, "manifest"], ["public/console.html", true, "console page (D6 off)"],
+  ["public/index.html", true, "page"], ["public/js/console/chat.js", false, "console js (D6 on)"],
+  ["public/manifest.webmanifest", true, "manifest"], ["public/console.html", false, "console page (D6 on)"], ["public/js/app.js", true, "beach app js"],
   ["docs/notes/readme.md", true, "docs"], ["tests/unit/score.test.js", true, "tests"],
   [".claude/agents/qa-engineer.md", true, "agent"], [".claude/skills/beach-day-scoring/SKILL.md", true, "skill"],
   ["docs/netlify/notes.md", true, "'netlify' deeper in docs"],
@@ -36,10 +36,15 @@ describe("allowlist.checkPath (docs/04 §6 canonical table)", () => {
   it("D6: denyConsoleUi=true denies the Console UI, including case variants", () => {
     for (const p of ["public/console.html", "public/js/console/chat.js", "public/JS/console/x.js"]) expect(checkPath(p, { denyConsoleUi: true }).ok).toBe(false);
     expect(checkPath("public/js/app.js", { denyConsoleUi: true }).ok).toBe(true);
-    expect(checkPath("public/console.html").ok).toBe(true); // default from SETTINGS (false)
+    expect(checkPath("public/console.html").ok).toBe(false); // default from SETTINGS (true, D6 decided)
+    expect(checkPath("public/console.html", { denyConsoleUi: false }).ok).toBe(true); // explicit false still allows
+  });
+  it("D6 denies proposing only: the read tools still read the Console UI files", () => {
+    for (const p of ["public/console.html", "public/js/console/chat.js"]) expect(checkReadPath(p)).toBeNull();
+    expect(checkReadDir("public/js/console")).toBeNull();
   });
   it("warnings for sensitive allowed paths", () => {
-    expect(checkPath("public/js/console/approve.js").warnings).toEqual(["runs in the site origin, next to the Console's tokens", "Console code (deny recommended, open for Dr. Lee)"]);
+    expect(checkPath("public/js/console/approve.js", { denyConsoleUi: false }).warnings).toEqual(["runs in the site origin, next to the Console's tokens", "Console code (denied by default, D6)"]);
     expect(checkPath("tests/unit/a.test.js").warnings).toEqual(["runs as code in CI"]);
     expect(checkPath(".claude/agents/x.md").sensitive).toBe(true);
     expect(checkPath("public/css/app.css").sensitive).toBe(false);

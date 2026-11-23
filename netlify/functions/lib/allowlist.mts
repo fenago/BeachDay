@@ -33,7 +33,7 @@ const DENY: ReadonlyArray<RegExp> = [
   /^\.claude\/settings/,
 ];
 
-// D6 (build_plan §1): Vera recommends denying the Console UI to agents; open for Dr. Lee.
+// D6: Dr. Lee decided (2026-11-23) to deny the Console UI to agents; settings.mts denyConsoleUi is true.
 const CONSOLE_UI = /^public\/(?:console\.html$|js\/console(\/|$))/;
 
 const ALLOW: ReadonlyArray<RegExp> = [
@@ -46,7 +46,7 @@ const ALLOW: ReadonlyArray<RegExp> = [
 
 const WARN: ReadonlyArray<[RegExp, string]> = [
   [/^public\/.*\.(?:js|html)$/, "runs in the site origin, next to the Console's tokens"],
-  [CONSOLE_UI, "Console code (deny recommended, open for Dr. Lee)"],
+  [CONSOLE_UI, "Console code (denied by default, D6)"],
   [/^\.claude\//, "changes agent behaviour or model"],
   [/^tests\//, "runs as code in CI"],
 ];

@@ -201,10 +201,10 @@ Links (`<a href>`) and prose don't count, so the guide and resources pages may l
 |---|---|---|---|
 | D1 | Compute budget | 180 min / rolling 31 days | `netlify/functions/lib/settings.mts` `computeBudgetMinutes` (via `limits.mts` `COMPUTE_BUDGET`) |
 | D2 | ADR-0009 read token | not accepted (`GITHUB_TOKEN`, read-only module) | `settings.mts` `githubReadTokenEnv` |
-| D3 | Positive reasons on good days | off | `public/js/score-config.js` `SCORE_CONFIG.reasons.positiveOnGoodDays` |
+| D3 | Positive reasons on good days | on (Dr. Lee, 2026-11-23) | `public/js/score-config.js` `SCORE_CONFIG.reasons.positiveOnGoodDays` |
 | D4 | 403 heading | "This account can't use Agents" | `public/js/copy/copy-deck.js` id `console.noaccess.title` (as built; lower-case) |
 | D5 | Server-side refusal fallback | none | `settings.mts` `serverRefusalFallback` |
-| D6 | Deny Console UI files to agents | not denied | `settings.mts` `denyConsoleUi` (read by `allowlist.mts`) |
+| D6 | Deny Console UI files to agents | denied (Dr. Lee, 2026-11-23) | `settings.mts` `denyConsoleUi` (read by `allowlist.mts`) |
 | D7 | Approve cap | 14 / 31 days, 5 / NY day | `settings.mts` `approveCap` (via `limits.mts` `APPROVE_CAP`) |
 | D8 | Measurable rain | > 0.02 in | `score-config.js` `rain.amountInchOver` |
 | D9 | Knowledge in the prompt and the deploy list | on | `netlify.toml` `ignore` + `lib/deploys.mts` `DEPLOY_PATHS` (parity test) + `scripts/build-agents.mjs` |

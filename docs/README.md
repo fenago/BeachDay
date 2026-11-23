@@ -80,9 +80,9 @@ Researched 2026-11-23. Each doc cites its sources inline and marks unverified it
 | D1 compute budget | 180 function-minutes per rolling 31 days (about 30 credits) | `settings.mts` `computeBudgetMinutes` |
 | D4 the 403 heading | "This account can't use Agents" | `public/js/copy/copy-deck.js` id `console.noaccess.title` |
 | Mandatory TOTP for `super_admin` | Recommended, not enforced (step-up requires `aal2` only if a factor exists) | Your Supabase account; enforcing it would be a `stepup.mts` change |
-| D6 deny the Console UI files to agents | Not denied | `settings.mts` `denyConsoleUi` |
+| D6 deny the Console UI files to agents | **Decided by Dr. Lee (2026-11-23): denied.** Agents cannot propose changes to `public/console.html` or `public/js/console/**` | `settings.mts` `denyConsoleUi: true` |
 | Approve cap window | Rolling 31 days (ADR-0008, accepted), not the calendar month | `settings.mts` `approveCap`; a calendar month would need an ADR superseding 0008 |
 | D8 measurable rain | More than 0.02 in | `public/js/score-config.js` `rain.amountInchOver` |
 | D5 server-side refusal fallback model | None | `settings.mts` `serverRefusalFallback` |
 | Custom SMTP provider | Required before launch; you pick the provider | Supabase dashboard |
-| D3 positive reasons on good days | Off, so a Great day shows no reasons (ux-designer R16-11 recommends turning it on) | `score-config.js` `SCORE_CONFIG.reasons.positiveOnGoodDays` |
+| D3 positive reasons on good days | **Decided by Dr. Lee (2026-11-23): on.** Great and Good days show why (e.g. "Mostly sunny", "Light wind") | `score-config.js` `SCORE_CONFIG.reasons.positiveOnGoodDays: true` |

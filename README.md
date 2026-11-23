@@ -209,7 +209,7 @@ Each is one value in one place. Change the value, not the code, then get securit
 | D3 | Positive reasons on good days | Off | `public/js/score-config.js` `SCORE_CONFIG.reasons.positiveOnGoodDays` |
 | D4 | Heading when the account is not allowed | "This account can't use Agents" | copy id `console.noaccess.title` in `public/js/copy/copy-deck.js` |
 | D5 | Server-side refusal fallback | None | `settings.mts` `serverRefusalFallback` |
-| D6 | Deny the Console UI files to agents | Not denied | `settings.mts` `denyConsoleUi` (read by `allowlist.mts`) |
+| D6 | Deny the Console UI files to agents (**decided by Dr. Lee**) | Denied: agents cannot propose changes to `public/console.html` or `public/js/console/**` (refused at `propose_change` and again at Approve). They can still read them. A human edits those files through normal git | `settings.mts` `denyConsoleUi` (read by `allowlist.mts`) |
 | D7 | Approve cap (ADR-0008) | 14 per rolling 31 days, 5 per New York day | `settings.mts` `approveCap` |
 | D8 | What counts as measurable rain | Over 0.02 in | `public/js/score-config.js` `rain.amountInchOver` |
 | D9 | Knowledge and skills are bundled into each agent's prompt, so changes to them deploy (**confirmed by Dr. Lee**) | On: `knowledge` and `.claude/skills` are in the `ignore` list | `netlify.toml` `ignore` and `DEPLOY_PATHS` in `netlify/functions/lib/deploys.mts` (a test keeps the two equal). Changes to either deploy at 15 credits |

@@ -10,7 +10,7 @@ describe("SETTINGS pins every decision (change deliberately)", () => {
       computeNeedJobMs: 300_000,
       githubReadTokenEnv: "GITHUB_TOKEN",
       serverRefusalFallback: false,
-      denyConsoleUi: false,
+      denyConsoleUi: true,
       approveCap: { per31Days: 14, perDay: 5, timeZone: "America/New_York" },
       approveEnabled: false,
       jwtHeaderPrecheck: false,

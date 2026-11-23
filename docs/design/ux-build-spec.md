@@ -15,7 +15,7 @@ This spec adds to, and does not replace, three worked specs. Read them for wiref
 | The wording is "Sign in" | Screen text and links say "Sign in". Buttons keep Title Case: "Sign In". Never "log in". |
 | The page is named "Agents" | Header link, `h1` and page title say "Agents". The URL stays `/console`. Strings that said "Console" now say "Agents" (see §9). |
 | 403 heading (D4, pending) | "This account can't use Agents" [console.noaccess.title]. One id to change if Dr. Lee rules otherwise. |
-| Positive reasons (D3, off) | Strings exist [reason.pos.*]. Dewey's flag `SCORE_CONFIG.reasons.positiveOnGoodDays` decides if they show. |
+| Positive reasons (D3, on) | Strings exist [reason.pos.*]. Dewey's flag `SCORE_CONFIG.reasons.positiveOnGoodDays` decides if they show. |
 
 ## 1. Site map and shell
 | URL | Page | `h1` | Notes |
@@ -110,7 +110,7 @@ Rendering rules:
 
 Ids added in the deck for neutral bands: [reason.feels] "Feels like {temp} °F" and [reason.water] "Water {temp} °F, a bit cool". [reason.short.one] is new.
 
-D3 positive reasons (off by default, `SCORE_CONFIG.reasons.positiveOnGoodDays`). Codes and ids, as ruled in build-contracts: `dry` reason.pos.dry "Low chance of rain", `sunny_sky` reason.pos.sunny "Mostly sunny", `comfortable` reason.pos.comfortable "Comfortable, feels like {temp} °F", `light_wind` reason.pos.wind "Light wind, {mph} mph", `calm_waves` reason.pos.waves "Calm, waves under 2 ft offshore", `warm_water` reason.pos.water "Warm water, {temp} °F".
+D3 positive reasons (on, decided by Dr. Lee 2026-11-23; `SCORE_CONFIG.reasons.positiveOnGoodDays`). Codes and ids, as ruled in build-contracts: `dry` reason.pos.dry "Low chance of rain", `sunny_sky` reason.pos.sunny "Mostly sunny", `comfortable` reason.pos.comfortable "Comfortable, feels like {temp} °F", `light_wind` reason.pos.wind "Light wind, {mph} mph", `calm_waves` reason.pos.waves "Calm, waves under 2 ft offshore", `warm_water` reason.pos.water "Warm water, {temp} °F".
 
 Advice ids for reference: advice.uv.moderate (`{n}`), advice.uv.high, advice.uv.veryhigh, advice.uv.extreme, advice.fog, advice.marine.missing, advice.marine.partial, advice.lightning, advice.outlook.
 

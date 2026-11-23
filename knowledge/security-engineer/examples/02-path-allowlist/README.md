@@ -29,7 +29,7 @@ It is what good looks like because the checks are layered and each layer is simp
 5. **ALLOW, matched with exact case.** `public/**` with a text extension (`html, css, js, json, webmanifest, svg, txt, md`), `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`. GitHub paths are case-sensitive, so `PUBLIC/index.html` is a *different*, unlisted path and is refused. `png` was dropped: proposals are UTF-8 text only, so a PNG could never pass anyway.
 6. **Warnings** (allowed, but the proposal card says why to look harder):
    - `public/**/*.js` and `public/**/*.html`: the code runs in the site origin, where the Console's Supabase tokens sit in `localStorage` (docs/04 §3);
-   - `public/console.html`, `public/js/console/**`: Console code. Denying them is security-engineer's recommendation and is **open for Dr. Lee**;
+   - `public/console.html`, `public/js/console/**`: Console code. Denied in the built app (D6, Dr. Lee 2026-11-23); this example shows the warn-only variant;
    - `.claude/**`: agent behaviour and model choice (cost);
    - `tests/**`: runs as code in CI.
 

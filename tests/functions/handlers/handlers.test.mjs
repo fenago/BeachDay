@@ -260,6 +260,21 @@ describe("jobs, job-run, job-status", () => {
     expect(other.status).toBe(404);
   });
 
+  it("D6 (default true): job-run refuses a proposal on public/js/console/**; public/js/app.js is proposed", async () => {
+    h.anthropic.script(turns.proposeChange({ summary: SUMMARY, files: [{ path: "public/js/console/main.js", content: "export {};\n" }] }), turns.text("Refused."));
+    const token = await t.token();
+    const { jobId } = await (await startJob(token)).json();
+    await t.settled();
+    expect(h.anthropic.requests[1].body.messages.at(-1).content[0].is_error).toBe(true);
+    expect(h.blobs.peek("jobs", jobId).proposalId ?? null).toBeNull();
+    expect(store("proposals").rows.size).toBe(0);
+
+    h.anthropic.script(turns.proposeChange({ summary: SUMMARY, files: [{ path: "public/js/app.js", content: "export {};\n" }] }), turns.text("Done."));
+    await startJob(token);
+    await t.settled();
+    expect(store("proposals").rows.size).toBe(1);
+  });
+
   it("job-run is single-use and owner-bound: a replayed or wrong nonce writes nothing", async () => {
     const token = await t.token();
     // a queued job with a known nonce, made directly
@@ -618,6 +633,7 @@ describe("POST /api/proposals/:id/approve", () => {
 
   it("re-validates policy at approve time: a proposal on a path denied since (D6) fails, no commit", async () => {
     const token = await t.token();
+    setSettings({ denyConsoleUi: false }); // allowed when proposed (the default is now true, D6)
     const id = await propose(token, [{ path: "public/console.html", content: "<p>console</p>\n" }]);
     const hash = h.blobs.peek("proposals", id).contentHash;
     setSettings({ denyConsoleUi: true });

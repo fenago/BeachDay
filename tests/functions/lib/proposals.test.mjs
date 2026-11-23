@@ -69,6 +69,7 @@ describe("content hash", () => {
     expect(revalidate(r, { denyConsoleUi: true }).ok).toBe(true);
     const c = { ...r, files: [{ path: "public/console.html", content: "x", readBlobSha: null }] };
     expect(revalidate({ ...c, contentHash: computeContentHash(c.files) }, { denyConsoleUi: true }).ok).toBe(false);
+    expect(revalidate({ ...c, contentHash: computeContentHash(c.files) }, { denyConsoleUi: false }).ok).toBe(true);
   });
 });
 
