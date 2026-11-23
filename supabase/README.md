@@ -14,14 +14,14 @@ No file here, in the app or in the tests uses the Supabase secret key or the leg
 
 Do this on a **throwaway project first**: the SQL was tested in pglite with stand-ins for Supabase's `auth` schema and roles, not on a real project.
 
-Either:
-- **SQL editor:** Dashboard → SQL Editor → New query. Paste `migrations/20261123000000_profiles.sql` and run it once. Or:
-- **CLI:** `supabase link --project-ref <project-ref>`, then `supabase db push`. The CLI applies files in `supabase/migrations/` that the project hasn't recorded yet. `manual/` is not read by the CLI.
+**Use the SQL editor:** Dashboard → SQL Editor → New query. Paste `migrations/20261123000000_profiles.sql` and run it once.
+
+Alternative, the CLI: `supabase link --project-ref <project-ref>`, then `supabase db push`. It applies the files in `supabase/migrations/` that the project hasn't recorded yet, and it does not read `manual/`. **This path may need `supabase init` first. It has not yet been checked on a real project.** Don't commit any config or seed files the CLI generates until someone has reviewed them.
 
 Then:
 1. Dashboard → Advisors → **Security Advisor**: expect no warning on `public.profiles` (pre-launch test (i), docs/04 §4.2).
 2. Create a test user, and check that a row with `role = 'user'` appears in `public.profiles`. A failing trigger blocks every sign-up, so check this straight away.
-3. Make the Dashboard settings in docs/04 §4.5 (Confirm email **and** Confirm phone on, password minimum 12, JWT expiry 600 s, Site URL and the one exact Redirect URL `https://<production host>/console`, custom SMTP, `token_hash` email templates, asymmetric signing keys, anonymous sign-ins off). The Google client setup is in the `google-oauth-signin` skill.
+3. Make the Dashboard settings in docs/04 §4.5 (Confirm email **and** Confirm phone on, password minimum 12, JWT expiry 600 s, Site URL and the one exact Redirect URL `https://<production host>/console`, custom SMTP, `token_hash` email templates, asymmetric signing keys, anonymous sign-ins off, **MFA (TOTP) on**, and **Auth rate limits: keep the defaults**). The Google client setup is in the `google-oauth-signin` skill.
 
 ## Promote Dr. Lee to super_admin (once, by hand)
 
