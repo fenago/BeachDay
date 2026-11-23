@@ -1,0 +1,223 @@
+[
+  {
+    "expect": "valid",
+    "why": "one agent card with knowledge disclosure data",
+    "data": {
+      "agents": [
+        {
+          "name": "software-architect",
+          "persona": "Rowan",
+          "description": "Owns system design.",
+          "personality": "Pragmatic systems thinker.",
+          "model": "claude-opus-5-5",
+          "modelLabel": "Opus",
+          "color": "blue",
+          "skills": [
+            "beach-day-context",
+            "claude-api"
+          ],
+          "knowledge": {
+            "path": "knowledge/software-architect/",
+            "title": "Software-architect knowledge base",
+            "docs": [
+              {
+                "file": "01-adr-practice.md",
+                "title": "Architecture Decision Records (ADR) practice"
+              }
+            ],
+            "examples": [
+              {
+                "dir": "01-c4-diagrams",
+                "title": "Example 01: C4 context and container diagrams"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "agent without colour",
+    "data": {
+      "agents": [
+        {
+          "name": "software-architect",
+          "persona": "Rowan",
+          "description": "Owns system design.",
+          "personality": "Pragmatic systems thinker.",
+          "model": "claude-opus-5-5",
+          "modelLabel": "Opus",
+          "color": null,
+          "skills": [
+            "beach-day-context",
+            "claude-api"
+          ],
+          "knowledge": {
+            "path": "knowledge/software-architect/",
+            "title": "Software-architect knowledge base",
+            "docs": [
+              {
+                "file": "01-adr-practice.md",
+                "title": "Architecture Decision Records (ADR) practice"
+              }
+            ],
+            "examples": [
+              {
+                "dir": "01-c4-diagrams",
+                "title": "Example 01: C4 context and container diagrams"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "systemPrompt leaked to the browser",
+    "data": {
+      "agents": [
+        {
+          "name": "software-architect",
+          "persona": "Rowan",
+          "description": "Owns system design.",
+          "personality": "Pragmatic systems thinker.",
+          "model": "claude-opus-5-5",
+          "modelLabel": "Opus",
+          "color": "blue",
+          "skills": [
+            "beach-day-context",
+            "claude-api"
+          ],
+          "knowledge": {
+            "path": "knowledge/software-architect/",
+            "title": "Software-architect knowledge base",
+            "docs": [
+              {
+                "file": "01-adr-practice.md",
+                "title": "Architecture Decision Records (ADR) practice"
+              }
+            ],
+            "examples": [
+              {
+                "dir": "01-c4-diagrams",
+                "title": "Example 01: C4 context and container diagrams"
+              }
+            ]
+          },
+          "systemPrompt": "You are..."
+        }
+      ]
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "model not on the Console allow-list",
+    "data": {
+      "agents": [
+        {
+          "name": "software-architect",
+          "persona": "Rowan",
+          "description": "Owns system design.",
+          "personality": "Pragmatic systems thinker.",
+          "model": "claude-fable-5-2",
+          "modelLabel": "Opus",
+          "color": "blue",
+          "skills": [
+            "beach-day-context",
+            "claude-api"
+          ],
+          "knowledge": {
+            "path": "knowledge/software-architect/",
+            "title": "Software-architect knowledge base",
+            "docs": [
+              {
+                "file": "01-adr-practice.md",
+                "title": "Architecture Decision Records (ADR) practice"
+              }
+            ],
+            "examples": [
+              {
+                "dir": "01-c4-diagrams",
+                "title": "Example 01: C4 context and container diagrams"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "knowledge doc given as a full path (contract: bare file name)",
+    "data": {
+      "agents": [
+        {
+          "name": "software-architect",
+          "persona": "Rowan",
+          "description": "Owns system design.",
+          "personality": "Pragmatic systems thinker.",
+          "model": "claude-opus-5-5",
+          "modelLabel": "Opus",
+          "color": "blue",
+          "skills": [
+            "beach-day-context",
+            "claude-api"
+          ],
+          "knowledge": {
+            "path": "knowledge/software-architect/",
+            "title": "Software-architect knowledge base",
+            "docs": [
+              {
+                "file": "knowledge/software-architect/docs/01-adr-practice.md",
+                "title": "x"
+              }
+            ],
+            "examples": [
+              {
+                "dir": "01-c4-diagrams",
+                "title": "Example 01: C4 context and container diagrams"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "bare array instead of {agents}",
+    "data": [
+      {
+        "name": "software-architect",
+        "persona": "Rowan",
+        "description": "Owns system design.",
+        "personality": "Pragmatic systems thinker.",
+        "model": "claude-opus-5-5",
+        "modelLabel": "Opus",
+        "color": "blue",
+        "skills": [
+          "beach-day-context",
+          "claude-api"
+        ],
+        "knowledge": {
+          "path": "knowledge/software-architect/",
+          "title": "Software-architect knowledge base",
+          "docs": [
+            {
+              "file": "01-adr-practice.md",
+              "title": "Architecture Decision Records (ADR) practice"
+            }
+          ],
+          "examples": [
+            {
+              "dir": "01-c4-diagrams",
+              "title": "Example 01: C4 context and container diagrams"
+            }
+          ]
+        }
+      }
+    ]
+  }
+]

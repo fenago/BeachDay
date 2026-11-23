@@ -89,7 +89,7 @@ const UV_CODES = Object.freeze(['', 'uv_moderate', 'uv_high', 'uv_very_high', 'u
 const UV_COPY = Object.freeze(['', 'advice.uv.moderate', 'advice.uv.high', 'advice.uv.veryhigh', 'advice.uv.extreme']);
 
 const emptyResult = (code, copyId) => ({
-  verdict: null, score: null, bestWindow: null,
+  verdict: null, score: null, rawScore: null, bestWindow: null,
   reasons: [{ code, copyId, params: {} }], advice: [], confidence: 'low',
   seaTempMeanF: null, wavesMaxFt: null, marineAvailable: false, numbers: null, hourScores: [],
 });
@@ -100,7 +100,7 @@ const emptyResult = (code, copyId) => ({
  * @param priorHour the hour just before the first hour (thunder there blocks the first hour)
  * @param dayIndex 0 = today. >= 3 gives confidence 'outlook'
  * @param formatTime (apiLocalTimeString) => "3 pm", for {time} placeholders. forecast.js passes a DST-aware one.
- * @returns {{verdict:'great'|'good'|'fair'|'skip'|null, score:number|null,
+ * @returns {{verdict:'great'|'good'|'fair'|'skip'|null, score:number|null, rawScore:number|null,
  *   bestWindow:{start:string,end:string,hours:number}|null, reasons:{code:string,copyId:string,params:object}[],
  *   advice:{code:string,copyId:string,params:object}[], confidence:'high'|'medium'|'low'|'outlook',
  *   seaTempMeanF:number|null, wavesMaxFt:number|null, marineAvailable:boolean, numbers:object|null,
@@ -133,11 +133,13 @@ export function scoreDay({ hours, priorHour = null, dayIndex = 0, formatTime = d
   let reasons = [];
   const advice = [];
   let score; let verdict; let bestWindow = null; let win = hours; let winRes = res;
+  let rawScore = null; // the rounded window average before any short-window cap
 
   if (best) {
     win = hours.slice(best.i, best.i + k);
     winRes = res.slice(best.i, best.i + k);
     score = Math.round(best.avg);
+    rawScore = score;
     verdict = verdictFor(score, C);
     bestWindow = { start: win[0].time, end: hourPlus1(win[k - 1].time), hours: k };
     const short = k < C.window.bestWindowHours;
@@ -186,7 +188,7 @@ export function scoreDay({ hours, priorHour = null, dayIndex = 0, formatTime = d
   const sstVals = win.filter((h) => has(h.seaTempF)).map((h) => h.seaTempF);
   const waveVals = win.filter((h) => has(h.waveFt)).map((h) => h.waveFt);
   return {
-    verdict, score, bestWindow, reasons, advice, confidence,
+    verdict, score, rawScore, bestWindow, reasons, advice, confidence,
     seaTempMeanF: sstVals.length ? round(mean(sstVals), 1) : null, // day water temp = mean over the best window
     wavesMaxFt: waveVals.length ? round(Math.max(...waveVals), 1) : null, // day waves = max inside the best window
     marineAvailable: wavesN > 0 || sstN > 0,

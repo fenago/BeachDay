@@ -1,0 +1,38 @@
+[
+  {
+    "expect": "valid",
+    "why": "from COMMIT_REF",
+    "data": {
+      "version": "0123456789ab",
+      "commit": "0123456789abcdef0123456789abcdef01234567",
+      "builtAt": "2026-11-23T15:00:00.000Z"
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "timestamp fallback has no commit",
+    "data": {
+      "version": "t20261123150000",
+      "commit": null,
+      "builtAt": "2026-11-23T15:00:00.000Z"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "unstamped placeholder",
+    "data": {
+      "version": "__BUILD_VERSION__",
+      "commit": null,
+      "builtAt": "2026-11-23T15:00:00.000Z"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "short commit cannot be compared with commitSha",
+    "data": {
+      "version": "0123456789ab",
+      "commit": "0123456",
+      "builtAt": "2026-11-23T15:00:00.000Z"
+    }
+  }
+]

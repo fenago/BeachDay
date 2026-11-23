@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/job-view.schema.json",
+  "title": "JobView",
+  "description": "200 body of GET /api/jobs/:id (job-status.mts) -> Console polling every 2-3 s (console/chat.js). Only the owner sees it (job.owner !== sub -> 404 not_found, so ids can't be probed). events are the SAME shapes as the SSE union, appended in order; text is stored per finished text block, not per token. The client renders events from the index it has already shown. Never returned: messages (conversation state), owner, nonceHash, baseSha. Contract: docs/design/build-contracts.md §5.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "agent", "status", "events", "proposalId", "createdAt", "updatedAt"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^j_[0-9A-Z]{26}$" },
+    "agent": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+    "status": { "enum": ["queued", "running", "done", "failed", "paused"] },
+    "events": {
+      "type": "array",
+      "maxItems": 500,
+      "items": { "$ref": "https://beachday.example/schemas/sse-event.schema.json" }
+    },
+    "proposalId": { "oneOf": [{ "type": "null" }, { "type": "string", "pattern": "^p_[0-9A-Z]{26}$" }] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "description": "A finished job's last event is terminal: done (done) or error (failed). A paused job ends with done {stopReason: max_tokens|tool_rounds_exhausted} or no terminal event yet.",
+      "if": { "required": ["status"], "properties": { "status": { "const": "failed" } } },
+      "then": { "properties": { "events": { "type": "array", "minItems": 1, "contains": { "type": "object", "required": ["type"], "properties": { "type": { "const": "error" } } } } } }
+    }
+  ]
+}

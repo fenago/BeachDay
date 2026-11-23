@@ -532,7 +532,7 @@ textarea.input { min-block-size: 5rem; resize: vertical; }
 .table-scroll { overflow-x: auto; }   /* give it tabindex="0" role="region" aria-label */
 .callout { padding: var(--space-3) var(--space-4); border-inline-start: 6px solid var(--banner-info-icon); background: var(--banner-info-bg); border-radius: var(--radius-s); color: var(--text); }
 .link-group { display: grid; gap: var(--space-2); }
-.link-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-m); overflow: hidden; }
+.link-list { background: var(--surface-solid); list-style: none; margin: 0; padding: 0; display: grid; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-m); overflow: hidden; }
 .link-list > li + li { border-block-start: 1px solid var(--border); }
 .link-list__item { display: grid; gap: 0.125rem; padding: var(--space-3) var(--space-4); }
 .link-list__link { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-block-size: var(--target-min); font-weight: 600; font-size: var(--fs-body); overflow-wrap: anywhere; }

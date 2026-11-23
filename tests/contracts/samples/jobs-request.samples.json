@@ -1,0 +1,51 @@
+[
+  {
+    "expect": "valid",
+    "why": "new job from a transcript",
+    "data": {
+      "agent": "software-architect",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the boring option?"
+        }
+      ]
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "Continue a paused job",
+    "data": {
+      "continueFrom": "j_01JDQ8Z5K3M7N2P4R6S8T0V9WX"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "continueFrom with a proposal id",
+    "data": {
+      "continueFrom": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "both shapes at once",
+    "data": {
+      "agent": "software-architect",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is the boring option?"
+        }
+      ],
+      "continueFrom": "j_01JDQ8Z5K3M7N2P4R6S8T0V9WX"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "client tried to send the job nonce",
+    "data": {
+      "jobId": "j_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "nonce": "abc"
+    }
+  }
+]

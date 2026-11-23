@@ -1,0 +1,183 @@
+[
+  {
+    "expect": "valid",
+    "why": "running job with events",
+    "data": {
+      "id": "j_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "running",
+      "events": [
+        {
+          "type": "tool",
+          "name": "read_file",
+          "phase": "start",
+          "summary": "Read public/js/score.js"
+        },
+        {
+          "type": "text",
+          "delta": "Reading the scorer."
+        }
+      ],
+      "proposalId": null,
+      "createdAt": "2026-11-23T15:00:00Z",
+      "updatedAt": "2026-11-23T15:00:09Z"
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "done with a proposal",
+    "data": {
+      "id": "j_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "done",
+      "events": [
+        {
+          "type": "tool",
+          "name": "read_file",
+          "phase": "start",
+          "summary": "Read public/js/score.js"
+        },
+        {
+          "type": "text",
+          "delta": "Reading the scorer."
+        },
+        {
+          "type": "proposal",
+          "proposalId": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WY",
+          "summary": "Treat null wave height as missing data.",
+          "files": [
+            {
+              "path": "public/js/score.js",
+              "bytes": 5120
+            }
+          ]
+        },
+        {
+          "type": "done",
+          "stopReason": "end_turn"
+        }
+      ],
+      "proposalId": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WY",
+      "createdAt": "2026-11-23T15:00:00Z",
+      "updatedAt": "2026-11-23T15:00:09Z"
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "failed after a refusal",
+    "data": {
+      "id": "j_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "failed",
+      "events": [
+        {
+          "type": "error",
+          "code": "refusal",
+          "message": "The agent could not help with that.",
+          "retryable": false
+        }
+      ],
+      "proposalId": null,
+      "createdAt": "2026-11-23T15:00:00Z",
+      "updatedAt": "2026-11-23T15:00:09Z"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "failed with no error event",
+    "data": {
+      "id": "j_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "failed",
+      "events": [
+        {
+          "type": "tool",
+          "name": "read_file",
+          "phase": "start",
+          "summary": "Read public/js/score.js"
+        },
+        {
+          "type": "text",
+          "delta": "Reading the scorer."
+        }
+      ],
+      "proposalId": null,
+      "createdAt": "2026-11-23T15:00:00Z",
+      "updatedAt": "2026-11-23T15:00:09Z"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "conversation state leaked into the view",
+    "data": {
+      "id": "j_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "running",
+      "events": [
+        {
+          "type": "tool",
+          "name": "read_file",
+          "phase": "start",
+          "summary": "Read public/js/score.js"
+        },
+        {
+          "type": "text",
+          "delta": "Reading the scorer."
+        }
+      ],
+      "proposalId": null,
+      "createdAt": "2026-11-23T15:00:00Z",
+      "updatedAt": "2026-11-23T15:00:09Z",
+      "messages": []
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "nonce hash leaked into the view",
+    "data": {
+      "id": "j_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "running",
+      "events": [
+        {
+          "type": "tool",
+          "name": "read_file",
+          "phase": "start",
+          "summary": "Read public/js/score.js"
+        },
+        {
+          "type": "text",
+          "delta": "Reading the scorer."
+        }
+      ],
+      "proposalId": null,
+      "createdAt": "2026-11-23T15:00:00Z",
+      "updatedAt": "2026-11-23T15:00:09Z",
+      "nonceHash": "abababababababababababababababababababababababababababababababab"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "unknown status",
+    "data": {
+      "id": "j_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "agent": "open-meteo-integrator",
+      "status": "cancelled",
+      "events": [
+        {
+          "type": "tool",
+          "name": "read_file",
+          "phase": "start",
+          "summary": "Read public/js/score.js"
+        },
+        {
+          "type": "text",
+          "delta": "Reading the scorer."
+        }
+      ],
+      "proposalId": null,
+      "createdAt": "2026-11-23T15:00:00Z",
+      "updatedAt": "2026-11-23T15:00:09Z"
+    }
+  }
+]
