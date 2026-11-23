@@ -145,6 +145,7 @@ test("deliberate Sign Out: no 'session ended' flash, and the chat transcript and
   await page.getByTestId("chat-send").click();
   await expect(page.getByTestId("msg-agent")).toContainText("An answer to forget.");
   await page.getByTestId("chat-input").fill("an unsent draft");
+  if (!(await page.getByRole("button", { name: STRINGS["btn.signOut"], exact: true }).isVisible())) await page.getByRole("link", { name: STRINGS["agents.back"] }).click(); // Sign Out lives on the list's account menu
   const seen = [];
   await page.exposeFunction("__seen", (t) => seen.push(t));
   await page.evaluate(() => new MutationObserver(() => { const t = document.body.innerText; if (/Your session ended/.test(t)) window.__seen("S7"); }).observe(document.body, { subtree: true, childList: true, characterData: true }));
