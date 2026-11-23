@@ -26,5 +26,6 @@ Date: 2026-11-23. Notes come from MDN, web.dev, developer.chrome.com and webkit.
 - `sw.js` is deny-listed and its version is stamped at build (docs/03).
 - Maskable key art inside a centred circle of radius 40% of the width.
 - New SW waits until no client uses the old one; we skipWaiting only on the user's Refresh tap, then reload once on `controllerchange`.
+- Never cached or intercepted: `/sw.js`, `/version.json`, `/api/*`, `/generated/*`, `/vendor/*`, Console pages/modules, Supabase host. `sw.js` imports only from `public/sw/**`.
 - `/api/*` is network-only and never cached; Open-Meteo is network-first with a 4 s timeout.
 - iOS: no install prompt; iOS 16.4+ any browser's Share → Add to Home Screen; iOS 26 opens every added site as a web app unless the user turns "Open as Web App" off.

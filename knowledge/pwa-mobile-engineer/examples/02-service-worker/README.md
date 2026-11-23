@@ -42,3 +42,5 @@ The offline step stops the static server **and** calls `context.setOffline(true)
 Not verified: WebKit/iOS behaviour (Playwright's WebKit does not stand in for iOS Safari service workers); test on a real iPhone.
 
 Colour update (wave 2): `theme_color`, `background_color` and the page `theme-color` meta are now `#0b3b5c`. Re-run of `node sw-test.mjs` on 2026-11-23: ALL CHECKS PASSED (Open-Meteo mock hits: 7).
+
+ADR-0006 update (2026-11-23): `sw.js` now also leaves `/sw.js`, `/version.json`, `/generated/*`, `/vendor/*`, `/console*`, `/js/console/*` and `*.supabase.co` alone (not intercepted, not precached). `sw-test.mjs` adds step 2b (none of those in Cache Storage), an offline check that the vendored bundle fails, and a check that `/version.json` is fresh through the old worker. Re-run: ALL CHECKS PASSED (Open-Meteo mock hits: 7). The Supabase host rule is a suffix match and is not exercised by the test; custom Supabase domains are UNVERIFIED and would need adding.

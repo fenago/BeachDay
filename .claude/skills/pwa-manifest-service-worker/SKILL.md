@@ -31,6 +31,9 @@ description: Beach Day web app manifest, icons and service worker — caching st
 | App shell (HTML, CSS, JS, icons, `offline.html`) | Precache on install |
 | `api.open-meteo.com`, `marine-api.open-meteo.com` | Network-first with a 4 s timeout, then cache; record fetch time for "Updated hh:mm" |
 | `/api/*` (Console) | **Network-only, never cached** |
+| `/sw.js`, `/version.json` | **Network-only**, not intercepted, never cached |
+| Supabase host (auth), `public/generated/config.js` | **Network-only, never cached** |
+| Console: `/console`, `/console.html`, `/js/console/*`, `/vendor/*` | **Network-only, not precached.** Never put them in the shell list, or a stale auth client could be served. (Alternative if offline Console is ever wanted: precache under the build version, human-reviewed.) |
 | Other images | Stale-while-revalidate |
 
 - **Fetch handler:** a service worker is not needed for menu install (Chrome 108 mobile, 112 desktop). Chrome's December 2023 post said the automatic install prompt "still requires the presence of a `fetch()` handler" and that empty handlers are ignored. **UNVERIFIED** whether that is still true today (the source pages were unreachable on 2026-11-23). We ship a real, non-empty handler anyway, and never an empty one "for install".
@@ -39,6 +42,7 @@ description: Beach Day web app manifest, icons and service worker — caching st
 ## Versioning & updates
 - `sw.js` stays at a **stable URL**. Embed a build version so every deploy changes its bytes: `const VERSION = "__BUILD_VERSION__";`
 - **The build stamps it.** `__BUILD_VERSION__` is replaced from `COMMIT_REF` by a build step; the design, fallback and smoke test are in `docs/03-architecture-netlify.md` (netlify-engineer). Don't duplicate them here.
+- **`sw.js` may import only from `public/sw/**`** (deny-listed, human-only). Never import from anywhere else.
 - **`public/sw.js` is deny-listed for the Agent Console** (and so is every file it imports): it changes only through a human-reviewed commit.
 - Name caches `beachday-shell-${VERSION}` and `beachday-data-v1`. In `activate`, delete old shell caches.
 - **Don't** call `skipWaiting()` and `clients.claim()` unconditionally. Instead:

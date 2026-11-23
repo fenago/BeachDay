@@ -44,6 +44,9 @@ description: How installing Beach Day actually works on iPhone/iPad and Android 
 | App Store listing, reliable push without install, background alerts, widgets | Capacitor: $99/yr Apple fee, a Mac with Xcode, and two store pipelines. Must add native value to pass App Store Guideline 4.2, which rejects a "repackaged website" |
 | Everything else | Stay a PWA (current decision) |
 
+## Console and install
+- The installed app's service worker never caches `/console*`, `/vendor/*`, `/generated/*`, `/version.json`, `/sw.js`, `/api/*` or the Supabase host. Offline, the Console shows a normal network error, not the beach shell. Test the Console offline on iPhone and Pixel once per release.
+
 ## Manual test matrix (each release)
 - **iPhone, Safari:** install, launch standalone, rotate, go offline, relaunch.
 - **Android, Chrome:** install prompt, WebAPK in the app drawer, offline launch, update toast.

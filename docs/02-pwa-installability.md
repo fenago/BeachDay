@@ -79,11 +79,14 @@ Sources: [MDN Caching](https://developer.mozilla.org/en-US/docs/Web/Progressive_
 | App shell (HTML, CSS, JS, icons, offline page) | **Precache** at install (cache-first) | Never changes within a version |
 | Open-Meteo forecast & marine (`api.open-meteo.com`, `marine-api.open-meteo.com`) | **Network-first**, fallback to cache, with a 3–5 s timeout; show "last updated …" | Freshness matters but stale beats nothing at the beach |
 | `/api/*` (Agent Console) | **Network-only**, never cached | Auth'd, private, streaming |
+| `/sw.js`, `/version.json` | **Network-only**, never cached, not intercepted | The update check and the Console's "Live" poll (ADR-0006) must see the live bytes |
+| Supabase host (auth requests), `public/generated/config.js` | **Network-only**, never cached | Tokens and config must never be replayed from a cache |
+| Console assets: `/console`, `/console.html`, `/js/console/*`, `/vendor/*` (vendored auth bundle) | **Network-only; not precached** | A precached copy could pin a stale auth client after an upgrade or advisory. The Console needs the network anyway, so offline gives a normal browser error, never the beach shell |
 | Images | Stale-while-revalidate (no web fonts: system fonts only) | Responsiveness |
 
 Update flow (avoid stale apps after a Netlify deploy):
 
-1. Keep `sw.js` at a **stable URL**; embed the build version so each deploy changes its bytes (`const VERSION = "__BUILD_VERSION__"`). A build step stamps it from `COMMIT_REF` (never printing env); the design, fallback, smoke test and kill-switch note live in [docs/03](03-architecture-netlify.md) (netlify-engineer). `public/sw.js` is deny-listed for Agent Console proposals, together with every file it imports.
+1. Keep `sw.js` at a **stable URL**; embed the build version so each deploy changes its bytes (`const VERSION = "__BUILD_VERSION__"`). A build step stamps it from `COMMIT_REF` (never printing env); the design, fallback, smoke test and kill-switch note live in [docs/03](03-architecture-netlify.md) (netlify-engineer). `public/sw.js` is deny-listed for Agent Console proposals, together with every file it imports. **`sw.js` may import only from `public/sw/**`** (Rowan's rule, which is also deny-listed and human-only), so the deny-list stays closed. Today it imports nothing.
 2. Versioned cache names (`beachday-shell-<VERSION>`); delete old caches in `activate`.
 3. Don't blindly `skipWaiting()` + `clients.claim()` (a page with old assets can be controlled by a new SW → 404s on removed files). Instead: detect a waiting SW → show "New version available — Refresh" → `postMessage({type:"SKIP_WAITING"})` → reload on `controllerchange`.
 4. Match precached shell requests with `ignoreSearch: true` (the `start_url` is `/?source=pwa`).
