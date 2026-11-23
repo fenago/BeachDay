@@ -14,7 +14,7 @@ import { reconcile, type Loaded } from "./lib/reconcile.mts";
 import { proposalDiffs } from "./lib/diff.mts";
 import { deploysOnCommit } from "./lib/deploys.mts";
 import { checkApproveCap } from "./lib/limits.mts";
-import { authorize, methodNotAllowed, isProduction, notProduction, badRequest, unavailable, approvalsView, type Ctx, type Settings } from "./lib/handler.mts";
+import { authorize, methodNotAllowed, isProduction, notProduction, badRequest, unavailable, approvalsView, type Ctx, type Settings, safe } from "./lib/handler.mts";
 
 const ROUTE = "GET /api/proposals/:id";
 export const PROPOSAL_DEADLINE_MS = 45_000; // a sync function stops at 60 s
@@ -22,7 +22,7 @@ export const PROPOSAL_DEADLINE_MS = 45_000; // a sync function stops at 60 s
 export interface ProposalDeps { guard: Guard; stores: Stores; settings: Settings; getReader: (o: { signal: AbortSignal }) => GitHubRead; now: () => number }
 
 export function createProposalHandler(deps: ProposalDeps) {
-  return async function proposal(req: Request, context: Ctx): Promise<Response> {
+  return safe(ROUTE, async function proposal(req: Request, context: Ctx): Promise<Response> {
     const startedAt = deps.now();
     const requestId = context?.requestId;
     if (req.method !== "GET") return methodNotAllowed("GET");
@@ -80,7 +80,7 @@ export function createProposalHandler(deps: ProposalDeps) {
       approveEnabled: deps.settings.approveEnabled === true,
       approvals,
     });
-  };
+  });
 }
 
 export function realDeps(): ProposalDeps {

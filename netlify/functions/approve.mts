@@ -16,13 +16,12 @@ import { githubWriteFromEnv, type GitHubWrite } from "./lib/github-write.mts";
 import {
   loadProposal, transition, hashMatches, revalidate, acquireApproveLock, releaseApproveLock, writeAudit,
 } from "./lib/proposals.mts";
-import { reconcile, type Loaded } from "./lib/reconcile.mts";
-import { checkApproveCap, recordApproval } from "./lib/limits.mts";
+import { reconcile, recordApprovalOnce, type Loaded } from "./lib/reconcile.mts";
+import { checkApproveCap } from "./lib/limits.mts";
 import { deploysOnCommit } from "./lib/deploys.mts";
 import {
   authorize, methodNotAllowed, isProduction, notProduction, badRequest, readJson, isPlainObject, onlyKeys,
-  unavailable, internal, approvalsView, logLine, MAX_SMALL_BODY, type Ctx, type Settings,
-} from "./lib/handler.mts";
+  unavailable, internal, approvalsView, logLine, MAX_SMALL_BODY, type Ctx, type Settings, safe } from "./lib/handler.mts";
 
 const ROUTE = "POST /api/proposals/:id/approve";
 const HASH_RE = /^sha256:[0-9a-f]{64}$/;
@@ -41,7 +40,7 @@ export interface ApproveDeps {
 const conflict = (msg = "This changed while you were looking. Reload it.") => error(409, "conflict", msg);
 
 export function createApproveHandler(deps: ApproveDeps) {
-  return async function approve(req: Request, context: Ctx): Promise<Response> {
+  return safe(ROUTE, async function approve(req: Request, context: Ctx): Promise<Response> {
     const requestId = context?.requestId;
     if (req.method !== "POST") return methodNotAllowed("POST");
     const g = await authorize(deps.guard, req, ROUTE, requestId);
@@ -131,7 +130,7 @@ export function createApproveHandler(deps: ApproveDeps) {
         // 7a RECORD, then 7b MARK. If either fails, main HAS moved: answer 200 with the SHA, leave it committing.
         let status: "committed" | "committing" = "committing";
         try {
-          await recordApproval(deps.stores.ratelimit, at());
+          await recordApprovalOnce(deps.stores, id, at()); // idempotent per proposal (R11)
           const done = await transition(deps.stores.proposals, cur, "committed", { commitSha: out.commitSha });
           if (done.ok) { status = "committed"; cur = { record: done.record, etag: done.etag }; }
         } catch {
@@ -166,7 +165,7 @@ export function createApproveHandler(deps: ApproveDeps) {
     } finally {
       await releaseApproveLock(deps.stores.proposals, lock);
     }
-  };
+  });
 }
 
 export function realDeps(): ApproveDeps {

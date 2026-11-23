@@ -294,6 +294,47 @@ describe("jobs, job-run, job-status", () => {
     expect(schemaErrors("job-view", v)).toEqual([]);
   });
 
+  it("a running job with no write for over 16 min shows as failed with an internal error; nothing is written", async () => {
+    const token = await t.token();
+    const id = "j_01JCCCCCCCCCCCCCCCCCCCCCCC";
+    const old = new Date(Date.now() - 17 * 60_000).toISOString();
+    const rec = { id, owner: sub(), agent: "agent-console-engineer", status: "running", nonceHash: null, messages: [], baseSha: null, readShas: {}, usage: { tokens: 0, rounds: 0 }, events: [], proposalId: null, createdAt: old, updatedAt: old };
+    h.blobs.seed("jobs", id, rec);
+    const v = await (await t.call("GET /api/jobs/:id", t.req("GET", `/api/jobs/${id}`, { token }))).json();
+    expect(v.status).toBe("failed");
+    expect(v.events.at(-1)).toMatchObject({ type: "error", code: "internal" });
+    expect(schemaErrors("job-view", v)).toEqual([]);
+    expect(h.blobs.peek("jobs", id).status).toBe("running");
+    h.blobs.seed("jobs", id, { ...rec, updatedAt: new Date(Date.now() - 15 * 60_000).toISOString() });
+    expect((await (await t.call("GET /api/jobs/:id", t.req("GET", `/api/jobs/${id}`, { token }))).json()).status).toBe("running");
+  });
+
+  it("startJob gives up after 3 s on a slow jobs-run, so the chat hand-off ends inside 60 s (R13-1)", async () => {
+    const { createStartJob, START_JOB_TIMEOUT_MS } = await import("../../../netlify/functions/lib/jobs.mts");
+    expect(START_JOB_TIMEOUT_MS).toBe(3_000);
+    const slow = (_u, init) => new Promise((resolve, reject) => {
+      const t0 = setTimeout(() => resolve(new Response(null, { status: 202 })), 5_000);
+      init.signal.addEventListener("abort", () => { clearTimeout(t0); reject(init.signal.reason); });
+    });
+    const started = Date.now();
+    await expect(createStartJob(slow)("Bearer x", { jobId: "j_x", nonce: "n" }, "http://127.0.0.1:1")).rejects.toBeTruthy();
+    expect(Date.now() - started).toBeGreaterThanOrEqual(2_900);
+    expect(Date.now() - started).toBeLessThan(4_000);
+  });
+
+  it("chat hand-off with a jobs-run that never answers: error{upstream} within ~3 s and the job is marked failed", async () => {
+    setSettings({ chatDeadlineMs: 10_000 });
+    const { createStartJob } = await import("../../../netlify/functions/lib/jobs.mts");
+    const hang = (_u, init) => new Promise((_r, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
+    h.registerDeps("chat", (bag) => ({ ...bag, startJob: createStartJob(hang) }));
+    const started = Date.now();
+    const evs = await sse(await chat(await t.token()));
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(evs.at(-1)).toMatchObject({ type: "error", code: "upstream" });
+    const [jobKey] = [...store("jobs").rows.keys()];
+    expect(h.blobs.peek("jobs", jobKey).status).toBe("failed");
+  });
+
   it("job limits: 429 rate_limited at 20 jobs a day", async () => {
     const token = await t.token();
     h.blobs.seed("ratelimit", `jobs/${sub()}/${localDay(new Date())}`, { count: 20 });
@@ -332,6 +373,17 @@ describe("jobs, job-run, job-status", () => {
       expect(job.messages.at(-1).role).toBe("user"); // never a prefill
       expect(h.blobs.peek("jobs", paused().id).continuedBy).toBe(jobId);
       expect((await cont(token, paused().id)).status).toBe(409); // second click
+      await t.settled();
+    });
+    it("a pending Continue claim blocks for 60 s, then may be taken over (R13-3)", async () => {
+      const token = await t.token();
+      h.blobs.seed("jobs", paused().id, paused({ continuedBy: { pending: true, at: new Date(Date.now() - 10_000).toISOString() } }));
+      expect((await cont(token, paused().id)).status).toBe(409);
+      h.blobs.seed("jobs", paused().id, paused({ continuedBy: { pending: true, at: new Date(Date.now() - 61_000).toISOString() } }));
+      h.anthropic.script(turns.text("continued"));
+      const res = await cont(token, paused().id);
+      expect(res.status).toBe(202);
+      expect(h.blobs.peek("jobs", paused().id).continuedBy).toBe((await res.json()).jobId);
       await t.settled();
     });
   });
@@ -561,18 +613,31 @@ describe("POST /api/proposals/:id/approve", () => {
     expect(h.github.state.commitCount).toBe(commitsBefore);
   });
 
-  it("reconciler: a stuck committing record whose commit is on main is recorded, then marked committed (on GET)", async () => {
-    const token = await t.token();
+  /** Approve for real, then put the record back to a stuck `committing` (decidedAt 3 min ago). */
+  async function landedButStuck(token) {
     const id = await propose(token);
-    const hash = h.blobs.peek("proposals", id).contentHash;
-    expect((await approveReq(token, id, hash)).status).toBe(200);
-    // Simulate "PATCH landed, recording never ran": back to committing, decidedAt 3 min ago, no slot recorded.
-    const rec = h.blobs.peek("proposals", id);
-    const { commitSha, ...rest } = rec;
+    expect((await approveReq(token, id, h.blobs.peek("proposals", id).contentHash)).status).toBe(200);
+    const { commitSha, ...rest } = h.blobs.peek("proposals", id);
     h.blobs.seed("proposals", id, { ...rest, status: "committing", decidedAt: new Date(Date.now() - 180_000).toISOString() });
+    return { id, commitSha };
+  }
+
+  it("reconciler: commit on main, never recorded -> recorded, then marked committed (on GET)", async () => {
+    const token = await t.token();
+    const { id, commitSha } = await landedButStuck(token);
     h.blobs.seed("ratelimit", "site:approvals", { times: [] });
+    store("proposals").rows.delete(`approval-recorded/${id}`);
     const { body } = await view(token, id);
     expect(body.proposal).toMatchObject({ status: "committed", commitSha });
+    expect(h.blobs.peek("ratelimit", "site:approvals").times).toHaveLength(1);
+  });
+
+  it("reconciler: recorded but not marked (7b failed) -> marked committed WITHOUT a second count (R11 idempotency)", async () => {
+    const token = await t.token();
+    const { id } = await landedButStuck(token);
+    expect(h.blobs.peek("ratelimit", "site:approvals").times).toHaveLength(1);
+    const { body } = await view(token, id);
+    expect(body.proposal.status).toBe("committed");
     expect(h.blobs.peek("ratelimit", "site:approvals").times).toHaveLength(1);
   });
 
@@ -623,6 +688,25 @@ describe("POST /api/proposals/:id/reject", () => {
     expect((await reject(token, id, { why: "x" })).status).toBe(400);
     expect((await reject(token, id, { reason: "Not now" })).status).toBe(200);
     expect(h.blobs.peek("proposals", id).rejectReason).toBe("Not now");
+  });
+});
+
+// ------------------------------------------------------------------------------------------------
+describe("escaping throws (R11)", () => {
+  it("a body stream that errors mid-read becomes our 500 internal with the security headers", async () => {
+    const token = await t.token();
+    const body = new ReadableStream({ pull(c) { c.error(new Error("socket reset")); } });
+    const req = new Request(`${t.base}/api/chat`, { method: "POST", body, duplex: "half", headers: { authorization: `Bearer ${token}`, "content-type": "application/json", origin: t.base, "sec-fetch-site": "same-origin" } });
+    const res = await t.call("POST /api/chat", req);
+    expect(res.status).toBe(500);
+    expect(secHeadersOk(res)).toBe(true);
+    expect((await res.json()).error.code).toBe("internal");
+  });
+  it("job-run keeps its silent 202 on a throw", async () => {
+    const token = await t.token();
+    const body = new ReadableStream({ pull(c) { c.error(new Error("socket reset")); } });
+    const req = new Request(`${t.base}/api/jobs-run`, { method: "POST", body, duplex: "half", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" } });
+    expect((await t.call("POST /api/jobs-run", req)).status).toBe(202);
   });
 });
 

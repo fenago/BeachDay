@@ -1,10 +1,10 @@
 // Verdict card, reasons, advice, key numbers, day strip and hourly list. Pure functions that return elements.
-import { t, STRINGS, VERDICTS, verdictFor } from "../copy/copy-deck.js";
+import { t, STRINGS, VERDICTS } from "../copy/copy-deck.js";
 import { formatClock } from "../data/beach-window.js";
 import { h, icon, spoken } from "./dom.js";
 import { dayParts, num, roundHalf } from "./format.js";
 
-const safeT = (id, params) => { try { return t(id, params ?? {}); } catch { return null; } };
+const safeT = (id, params) => { try { return t(id, params ?? {}); } catch { console.warn("copy_missing", id); return null; } };
 
 export function VerdictChip(verdictKey, { large = true } = {}) {
   const v = VERDICTS[verdictKey];
@@ -95,18 +95,17 @@ export function HourlyList(day, { id } = {}) {
   const best = day.bestWindow;
   const inBest = (time) => {
     if (!best) return false;
-    const hhmm = time.slice(11, 16);
-    return hhmm >= best.start && hhmm < best.end;
+    return time >= best.start && time < best.end; // both "HH:MM" beach wall clock
   };
   // A short window caps the day at Good, so no hour may read better than the card.
   const capped = day.verdict && day.rawScore != null && day.score != null && day.score < day.rawScore;
   const rows = (day.hourScores ?? []).map((hs) => {
     const stopId = (hs.hardStops ?? []).map((c) => STOP_COPY[c]).find(Boolean);
-    let v = hs.score == null ? null : stopId ? VERDICTS.skip : verdictFor(hs.score);
+    let v = stopId ? VERDICTS.skip : hs.verdict ? VERDICTS[hs.verdict] ?? null : null;
     if (v && capped && ORDER.indexOf(v.id.split(".")[1]) > ORDER.indexOf(day.verdict)) v = VERDICTS[day.verdict];
     const isBest = inBest(hs.time);
     const cls = `hourly-row${isBest ? " hourly-row--best" : stopId ? " hourly-row--stop" : ""}`;
-    return h("li", {}, h("div", { class: cls, "data-time": hs.time.slice(11, 16) },
+    return h("li", {}, h("div", { class: cls, "data-time": hs.time },
       h("span", { class: "hourly-row__time" }, formatClock(hs.time)),
       v ? icon(v.icon) : icon("info"),
       h("span", { class: "hourly-row__detail" }, stopId ? t(stopId) : isBest ? t("ui.hourly.best") : ""),

@@ -89,3 +89,18 @@ export function approvalsView(v: ApproveVerdict, caps: { per31Days: number; perD
 
 export const unavailable = (): Response => error(503, "unavailable", "Something we depend on is unavailable. Try again in a minute.");
 export const internal = (): Response => error(500, "internal", "Something went wrong on our side.");
+
+/**
+ * Last line of defence (R11): a throw that escapes a handler becomes our own 500 `internal` with the security
+ * headers, never the platform's default error page. `onThrow` lets job-run keep its silent 202.
+ */
+export function safe(route: string, h: (req: Request, ctx: Ctx) => Promise<Response>, onThrow: () => Response = internal) {
+  return async (req: Request, ctx: Ctx): Promise<Response> => {
+    try {
+      return await h(req, ctx);
+    } catch (e) {
+      logLine({ msg: "handler_threw", route, requestId: ctx?.requestId, error: (e as Error)?.name ?? "unknown" });
+      return onThrow();
+    }
+  };
+}

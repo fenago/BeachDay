@@ -5,7 +5,7 @@ import { checkOrigin, originDenyResponse } from "../../netlify/functions/lib/ori
 const SITE = "https://beachday.example";
 const post = (headers = {}, url = `${SITE}/api/chat`, method = "POST") => new Request(url, { method, headers, body: method === "POST" ? "{}" : undefined });
 
-describe("checkOrigin: the no paths (403 forbidden)", () => {
+describe("checkOrigin: the no paths (403 bad_origin, never the no-access code)", () => {
   const rows = [
     ["Sec-Fetch-Site cross-site", { "sec-fetch-site": "cross-site" }, "cross_site"],
     ["Sec-Fetch-Site same-site (a sibling subdomain)", { "sec-fetch-site": "same-site" }, "cross_site"],
@@ -18,7 +18,7 @@ describe("checkOrigin: the no paths (403 forbidden)", () => {
     ["Origin with a trailing slash (not an origin serialisation)", { origin: "https://beachday.example/" }, "bad_origin"],
   ];
   for (const [why, headers, reason] of rows) {
-    it(why, () => expect(checkOrigin(post(headers), SITE)).toEqual({ ok: false, status: 403, code: "forbidden", reason }));
+    it(why, () => expect(checkOrigin(post(headers), SITE)).toEqual({ ok: false, status: 403, code: "bad_origin", reason }));
   }
   it("PUT, PATCH and DELETE are checked like POST", () => {
     for (const m of ["PUT", "PATCH", "DELETE"]) {
@@ -50,12 +50,12 @@ describe("checkOrigin: the yes paths", () => {
 });
 
 describe("originDenyResponse", () => {
-  it("403 forbidden with no reason in the body and no CORS headers", async () => {
-    const res = originDenyResponse({ ok: false, status: 403, code: "forbidden", reason: "bad_origin" });
+  it("403 bad_origin (not forbidden, so the Console never shows S6) with no reason in the body and no CORS headers", async () => {
+    const res = originDenyResponse({ ok: false, status: 403, code: "bad_origin", reason: "cross_site" });
     expect(res.status).toBe(403);
     const text = await res.text();
-    expect(JSON.parse(text).error.code).toBe("forbidden");
-    expect(text).not.toContain("bad_origin");
+    expect(JSON.parse(text).error.code).toBe("bad_origin");
+    expect(text).not.toContain("cross_site"); // the reason is for logs only
     expect([...res.headers.keys()].some((k) => k.startsWith("access-control-"))).toBe(false);
   });
 });

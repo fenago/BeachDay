@@ -95,6 +95,7 @@ export async function openApproveSheet({ auth, api, card, hasDraft = () => false
 
   let busy = false;
   let confirmedUntil = 0;
+  let passwordDone = false; // password step-up succeeded but its TOTP failed: retry only the code (R14-3)
   let expiryTimer = null;
 
   const setBusy = (on) => {
@@ -150,7 +151,13 @@ export async function openApproveSheet({ auth, api, card, hasDraft = () => false
     const password = pw.value;
     pw.value = "";
     const code = totp.value.trim();
-    if (password) {
+    if (passwordDone || (confirmedUntil && account.hasVerifiedFactor && !password)) {
+      if (!/^[0-9]{6}$/.test(code)) return fieldError(totp, totpErr, say("auth.error.totp.empty"));
+      setBusy(true);
+      const r = await auth.mfa.verifyTotp(code);
+      if (!r?.ok) { setBusy(false); return fieldError(totp, totpErr, say("auth.error.totp")); }
+      passwordDone = false;
+    } else if (password) {
       if (account.hasVerifiedFactor && !/^[0-9]{6}$/.test(code)) return fieldError(totp, totpErr, say("auth.error.totp.empty"));
       setBusy(true);
       const r = await auth.stepUpWithPassword(password, account.hasVerifiedFactor ? code : undefined);
@@ -158,17 +165,16 @@ export async function openApproveSheet({ auth, api, card, hasDraft = () => false
         setBusy(false);
         const c = r?.error?.code ?? "unknown";
         if (c === "invalid_credentials") return fieldError(pw, pwErr, say("console.error.password"));
-        if (/totp|mfa/.test(c)) return fieldError(totp, totpErr, say("auth.error.totp"));
+        if (/totp|mfa/.test(c)) { passwordDone = c !== "totp_required" && c !== "totp_invalid_format"; return fieldError(totp, totpErr, say("auth.error.totp")); }
         if (c === "over_request_rate_limit" || r?.error?.status === 429) return clear(alert, h("p", { class: "form-error" }, icon("alert"), say("console.error.throttle")));
         return clear(alert, h("p", { class: "form-error" }, icon("alert"), say(r?.error?.retryable ? "auth.error.network" : "console.error.password")));
       }
-    } else if (confirmedUntil && account.hasVerifiedFactor) {
-      if (!/^[0-9]{6}$/.test(code)) return fieldError(totp, totpErr, say("auth.error.totp.empty"));
-      setBusy(true);
-      const r = await auth.mfa.verifyTotp(code);
-      if (!r?.ok) { setBusy(false); return fieldError(totp, totpErr, say("auth.error.totp")); }
     } else if (!confirmedUntil && methods.password) {
       return fieldError(pw, pwErr, say("auth.error.password.empty"));
+    } else if (!confirmedUntil) {
+      // Google-only and not confirmed yet: ask for Google instead of sending a doomed Approve (R14-2).
+      announce(status, say("console.stepup.required", { minutes: STEP_UP_MINUTES }));
+      return google.focus();
     }
     // 2. Approve. The server re-checks everything (step-up, hash, allow-list, cap) and decides.
     setBusy(true);

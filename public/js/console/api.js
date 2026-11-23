@@ -2,7 +2,8 @@
 // - Before EVERY call: await auth.getAccessToken() (refreshes when < 120 s are left, docs/04 §4.1).
 // - 401 unauthorized: refresh once, resend once (only before a chat stream opens). Then onSessionEnded().
 // - 401 step_up_required: no refresh, no retry; thrown to the Approve sheet.
-// - 403: onNoAccess(), and every later call is refused locally (S6 makes no more /api calls).
+// - 403 forbidden: onNoAccess(), and every later call is refused locally (S6 makes no more /api calls).
+//   403 bad_origin (Origin check) is thrown as a generic error, never S6.
 // - 429: our JSON code, or rate_limited when the body isn't ours (Netlify's own rule). Never retried.
 // - 502 on approve: thrown; the caller re-loads the proposal and never re-sends Approve.
 // - Network error or timeout: ApiError {status: 0, code: "unavailable", network: true}, shown like a 503.
@@ -11,7 +12,7 @@
 const ID_RE = /^[pj]_[0-9A-Z]{26}$/;
 const AGENT_RE = /^[a-z][a-z0-9-]{1,63}$/;
 const CODES = new Set(["invalid_request", "unauthorized", "step_up_required", "forbidden", "not_found", "conflict", "stale",
-  "rate_limited", "budget_exhausted", "approve_cap", "refusal", "upstream", "timeout", "unavailable", "internal"]);
+  "rate_limited", "budget_exhausted", "approve_cap", "refusal", "upstream", "timeout", "unavailable", "internal", "bad_origin"]);
 const SSE_TYPES = new Set(["text", "tool", "proposal", "handoff", "error", "done"]);
 export const MAX_CHAT_BODY_BYTES = 64 * 1024;      // chat-request schema: whole body <= 64 KB
 export const MAX_USER_MESSAGE_BYTES = 32 * 1024;   // SETTINGS.perTurn.maxUserMessageBytes
@@ -141,7 +142,8 @@ export function createApi({ auth, fetchImpl = (...a) => globalThis.fetch(...a), 
     }
     if (res.ok) return res;
     const err = await errorFrom(res);
-    if (res.status === 403) { stopped = true; onNoAccess(); }
+    // Only the role denial is S6. An Origin denial (bad_origin, R14-4) is a generic error and stops nothing.
+    if (res.status === 403 && err.code === "forbidden") { stopped = true; onNoAccess(); }
     throw err;
   }
 

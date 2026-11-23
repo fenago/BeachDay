@@ -4,8 +4,8 @@
 import { test, expect } from "@playwright/test";
 import { consoleApp, seedUsers, loginAs, proposeViaChat, STRINGS, t, ADMIN, turns as T, harnessClient } from "../helpers/e2e.mjs";
 
-let c, h;
-test.beforeEach(async ({ page, baseURL }) => { c = await consoleApp(page, baseURL); h = c.h; await seedUsers(h); });
+let c, h, BASE;
+test.beforeEach(async ({ page, baseURL }) => { c = await consoleApp(page, baseURL); h = c.h; await seedUsers(h); BASE = (await h.github.state()).commitCount; }); // the fake repo starts with one seed commit
 test.afterEach(() => { c.guard.assertClean(); expect(c.csp, "CSP violations").toEqual([]); });
 
 const DOC = { summary: "Add a short note about parking to the beach guide so visitors know where to leave a car", files: [{ path: "docs/parking-note.md", content: "# Parking\n\nArrive early on weekends.\n" }] };
@@ -39,7 +39,7 @@ test.describe("the proposal card", () => {
     await expect(diff.getByText(STRINGS["agents.proposal.added"], { exact: false }).first()).toBeAttached(); // spoken label for the marker
     // usage line is not on the card but on the sheet
     await openSheet(page);
-    await expect(page.getByTestId("usage-line")).toContainText(t("console.cap.usage", { used: 0 }));
+    await expect(page.getByTestId("usage-line")).toContainText(t("console.cap.usage", { used: 0, per31Days: 14 }));
     await expect(sheet(page).getByRole("heading", { level: 2 })).toHaveText(STRINGS["agents.sheet.title"]);
     expect(approveRequests(c), "opening the sheet approves nothing").toHaveLength(0);
   });
@@ -49,7 +49,7 @@ test.describe("the proposal card", () => {
     await proposeViaChat(page, h, T, DOC);
     await card(page).getByTestId("proposal-reject").click();
     await expect(page.getByText(STRINGS["console.status.rejected"])).toBeVisible();
-    expect((await h.github.state()).commitCount).toBe(0);
+    expect((await h.github.state()).commitCount).toBe(BASE);
     expect(approveRequests(c)).toHaveLength(0);
   });
 });
@@ -73,7 +73,7 @@ test.describe("Approve", () => {
     const commit = await lastCommit(h);
     expect(commit.parents).toHaveLength(1);
     expect(commit.message.trimEnd().split("\n").pop()).toMatch(/^Beach-Day-Proposal: p_[0-9A-Z]{26}$/);
-    expect(commit.author).toMatch(/Beach Day Agent \(.+\)/);
+    expect(commit.author.name).toMatch(/^Beach Day Agent \(.+\)$/);
     expect(await h.github.fileText({ path: "docs/parking-note.md" })).toBe(DOC.files[0].content);
     const gh = st.calls.filter((x) => /POST|PATCH|PUT|DELETE/.test(x));
     expect(gh.some((x) => /^POST .*git\/trees/.test(x))).toBe(true);
@@ -113,7 +113,7 @@ test.describe("Approve", () => {
     await sheet(page).getByTestId("sheet-approve").click();
     await expect(sheet(page).getByTestId("sheet-status")).toContainText(/Confirm it's you to approve/);
     await expect(sheet(page)).toBeVisible();
-    expect((await h.github.state()).commitCount).toBe(0);
+    expect((await h.github.state()).commitCount).toBe(BASE);
     await expect(card(page)).toHaveAttribute("data-status", "pending");
     await confirmWithPassword(page);
     await sheet(page).getByTestId("sheet-approve").click();
@@ -179,11 +179,11 @@ test.describe("limits and switches", () => {
     await seedApprovals(5, 1000);
     await proposeViaChat(page, h, T, DOC).catch(() => {});
     await expect(page.getByTestId("approve-cap")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(STRINGS["console.cap.day"])).toBeVisible();
+    await expect(page.getByText(t("console.cap.day", { perDay: 5, used: 5 }))).toBeVisible(); // "5 of 5 approvals used today. More open up at midnight Eastern."
     await expect(page.getByTestId("approve-cap").locator("..").or(page.getByTestId("proposal-alert"))).toHaveAttribute("role", "alert");
     await expect(card(page).getByTestId("proposal-reject")).toBeVisible();
     await expect(card(page).getByTestId("proposal-review")).toHaveCount(0);
-    expect((await h.github.state()).commitCount).toBe(0);
+    expect((await h.github.state()).commitCount).toBe(BASE);
   });
 
   test("14 approvals in 31 days: the monthly message with a New York date", async ({ page }) => {
@@ -210,7 +210,7 @@ test.describe("limits and switches", () => {
     await proposeViaChat(page, h, T, DOC).catch(() => {});
     await expect(page.getByTestId("approve-off")).toContainText(STRINGS["console.approve.disabled"], { timeout: 15_000 });
     await expect(card(page).getByTestId("proposal-review")).toHaveAttribute("aria-disabled", "true");
-    expect((await h.github.state()).commitCount).toBe(0);
+    expect((await h.github.state()).commitCount).toBe(BASE);
   });
 });
 
@@ -223,7 +223,7 @@ test.describe("nothing in the URL ever approves", () => {
       await page.goto(`/console${suffix}`);
       await page.waitForTimeout(1200);
       expect(approveRequests(c).length).toBe(before);
-      expect((await h.github.state()).commitCount).toBe(0);
+      expect((await h.github.state()).commitCount).toBe(BASE);
     });
   }
 });
@@ -244,7 +244,7 @@ test.describe("Google step-up", () => {
     await expect(sheet(page)).toBeVisible({ timeout: 15_000 });
     await expect(sheet(page).getByTestId("sheet-status")).toContainText(/Confirmed\. Nothing is approved yet/);
     expect(approveRequests(c).length, "returning from Google approves nothing").toBe(before);
-    expect((await h.github.state()).commitCount).toBe(0);
+    expect((await h.github.state()).commitCount).toBe(BASE);
     await sheet(page).getByTestId("sheet-approve").click();
     await expect(page.getByTestId("proposal-status")).toContainText(/Committed/, { timeout: 15_000 });
   });

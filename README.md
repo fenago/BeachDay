@@ -171,7 +171,9 @@ It checks that `sw.js` is stamped and `no-cache`, that `/version.json` matches, 
 | f | A real access token's header has `alg` `ES256` or `RS256` and a `kid`. Only then switch `jwtHeaderPrecheck` on (D12) |
 | g | With Supabase unreachable from the function, Approve answers 503, not 401 |
 | h | Netlify secret scanning does not flag the `sb_publishable_` key in `config.js` (fallback above) |
-| i | The Security Advisor shows no `profiles` warning, and a second throwaway user cannot read another row or change their own `role` through the REST API |
+| i | The Security Advisor shows no `profiles` warning, and a second throwaway user cannot read another row, change another row, or change their own `role` through the REST API with the publishable key |
+
+If (a) fails, security-engineer re-specifies rule 2 before launch.
 
 ### 10. Turn Approve on, and know the rollback
 

@@ -6,14 +6,14 @@ import { realStores, type Stores } from "./lib/blobs.mts";
 import { error, json } from "./lib/http.mts";
 import { isProposalId } from "./lib/ids.mts";
 import { loadProposal, transition, writeAudit } from "./lib/proposals.mts";
-import { authorize, methodNotAllowed, badRequest, readJson, isPlainObject, onlyKeys, unavailable, MAX_SMALL_BODY, type Ctx } from "./lib/handler.mts";
+import { authorize, methodNotAllowed, badRequest, readJson, isPlainObject, onlyKeys, unavailable, MAX_SMALL_BODY, type Ctx, safe } from "./lib/handler.mts";
 
 const ROUTE = "POST /api/proposals/:id/reject";
 
 export interface RejectDeps { guard: Guard; stores: Stores; now: () => number }
 
 export function createRejectHandler(deps: RejectDeps) {
-  return async function reject(req: Request, context: Ctx): Promise<Response> {
+  return safe(ROUTE, async function reject(req: Request, context: Ctx): Promise<Response> {
     const requestId = context?.requestId;
     if (req.method !== "POST") return methodNotAllowed("POST");
     const g = await authorize(deps.guard, req, ROUTE, requestId);
@@ -37,7 +37,7 @@ export function createRejectHandler(deps: RejectDeps) {
     } catch {
       return unavailable();
     }
-  };
+  });
 }
 
 export function realDeps(): RejectDeps {

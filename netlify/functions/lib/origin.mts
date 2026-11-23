@@ -8,7 +8,7 @@
 // Reference: knowledge/security-engineer/examples/01-bearer-step-up-and-origin/stepup.mjs (checkOrigin).
 import { error } from "./http.mts";
 
-export type OriginResult = { ok: true } | { ok: false; status: 403; code: "forbidden"; reason: "cross_site" | "bad_origin" };
+export type OriginResult = { ok: true } | { ok: false; status: 403; code: "bad_origin"; reason: "cross_site" | "bad_origin" };
 
 const SAFE = new Set(["GET", "HEAD"]);
 
@@ -16,9 +16,9 @@ export function checkOrigin(req: Request, siteOrigin?: string): OriginResult {
   if (SAFE.has(req.method)) return { ok: true };
   const expected = siteOrigin ?? new URL(req.url).origin;
   const sfs = req.headers.get("sec-fetch-site");
-  if (sfs !== null && sfs !== "same-origin") return { ok: false, status: 403, code: "forbidden", reason: "cross_site" };
+  if (sfs !== null && sfs !== "same-origin") return { ok: false, status: 403, code: "bad_origin", reason: "cross_site" };
   const origin = req.headers.get("origin");
-  if (origin !== null && origin !== expected) return { ok: false, status: 403, code: "forbidden", reason: "bad_origin" };
+  if (origin !== null && origin !== expected) return { ok: false, status: 403, code: "bad_origin", reason: "bad_origin" };
   return { ok: true };
 }
 

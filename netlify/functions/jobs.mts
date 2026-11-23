@@ -16,8 +16,7 @@ import { isJobId } from "./lib/ids.mts";
 import { launchJob, createStartJob, updateJob, continueClaimFree, type StartJob, type JobRecord } from "./lib/jobs.mts";
 import {
   authorize, methodNotAllowed, badRequest, readJson, isPlainObject, onlyKeys, unavailable, internal,
-  MAX_JSON_BODY, type Ctx, type Settings,
-} from "./lib/handler.mts";
+  MAX_JSON_BODY, type Ctx, type Settings, safe } from "./lib/handler.mts";
 
 const ROUTE = "POST /api/jobs";
 const AGENT_RE = /^[a-z][a-z0-9-]{1,63}$/;
@@ -28,7 +27,7 @@ export const CONTINUE_TEXT = "Your previous work was paused. Continue from where
 export interface JobsDeps { guard: Guard; stores: Stores; registry: () => Promise<AgentRegistry>; settings: Settings; startJob: StartJob; now: () => number }
 
 export function createJobsHandler(deps: JobsDeps) {
-  return async function jobs(req: Request, context: Ctx): Promise<Response> {
+  return safe(ROUTE, async function jobs(req: Request, context: Ctx): Promise<Response> {
     if (req.method !== "POST") return methodNotAllowed("POST");
     const g = await authorize(deps.guard, req, ROUTE, context?.requestId);
     if (g instanceof Response) return g;
@@ -94,7 +93,7 @@ export function createJobsHandler(deps: JobsDeps) {
     if (launched.code === "budget_exhausted") return error(429, "budget_exhausted", "The Console's compute budget is used up for now.", { retryAt: launched.retryAt });
     if (launched.code === "upstream") return error(502, "upstream", "The job couldn't start. Try again in a minute.");
     return unavailable();
-  };
+  });
 }
 
 export function realDeps(): JobsDeps {

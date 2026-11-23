@@ -19,7 +19,7 @@ import { writeAudit } from "./lib/proposals.mts";
 import { checkComputeBudget, recordCompute } from "./lib/limits.mts";
 import { isJobId } from "./lib/ids.mts";
 import { updateJob, appendEvents, nonceMatches, type JobRecord, type JobStatus } from "./lib/jobs.mts";
-import { isProduction, readJson, isPlainObject, onlyKeys, logLine, MAX_SMALL_BODY, type Ctx, type Settings } from "./lib/handler.mts";
+import { isProduction, readJson, isPlainObject, onlyKeys, logLine, MAX_SMALL_BODY, type Ctx, type Settings, safe } from "./lib/handler.mts";
 
 const ROUTE = "POST /api/jobs-run";
 const accepted = (): Response => new Response(null, { status: 202, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } });
@@ -35,7 +35,7 @@ export interface JobRunDeps {
 }
 
 export function createJobRunHandler(deps: JobRunDeps) {
-  return async function jobRun(req: Request, context: Ctx): Promise<Response> {
+  return safe(ROUTE, async function jobRun(req: Request, context: Ctx): Promise<Response> {
     const requestId = context?.requestId;
     const quiet = (why: string) => { logLine({ msg: "job_run_refused", route: ROUTE, requestId, why }); return accepted(); };
     if (req.method !== "POST") return quiet("method");
@@ -154,7 +154,7 @@ export function createJobRunHandler(deps: JobRunDeps) {
     }
     await queue;
     return accepted();
-  };
+  }, accepted);
 }
 
 export function realDeps(): JobRunDeps {

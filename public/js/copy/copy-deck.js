@@ -1361,6 +1361,10 @@ export const DECK = deepFreeze({
     {
       "id": "agents.sheet.meta",
       "text": "Base {base} · hash {hash}"
+    },
+    {
+      "id": "agents.proposal.warn.hidden",
+      "text": "Hidden characters appear as ⟨U+XXXX⟩ in the diff. Check them before you approve."
     }
   ],
   "placeholders": {

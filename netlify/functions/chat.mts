@@ -19,8 +19,7 @@ import { hit, windowKey, checkComputeBudget, recordCompute, nextLocalMidnight } 
 import { launchJob, createStartJob, type StartJob } from "./lib/jobs.mts";
 import {
   authorize, methodNotAllowed, isProduction, notProduction, badRequest, readJson, isPlainObject, onlyKeys,
-  unavailable, internal, logLine, MAX_JSON_BODY, type Ctx, type Settings,
-} from "./lib/handler.mts";
+  unavailable, internal, logLine, MAX_JSON_BODY, type Ctx, type Settings, safe } from "./lib/handler.mts";
 
 const ROUTE = "POST /api/chat";
 const AGENT_RE = /^[a-z][a-z0-9-]{1,63}$/;
@@ -38,7 +37,7 @@ export interface ChatDeps {
 }
 
 export function createChatHandler(deps: ChatDeps) {
-  return async function chat(req: Request, context: Ctx): Promise<Response> {
+  return safe(ROUTE, async function chat(req: Request, context: Ctx): Promise<Response> {
     const startedAt = deps.now();
     const requestId = context?.requestId;
     if (req.method !== "POST") return methodNotAllowed("POST");
@@ -124,7 +123,7 @@ export function createChatHandler(deps: ChatDeps) {
         await recordCompute(deps.stores.ratelimit, deps.now() - startedAt, new Date(deps.now())).catch(() => logLine({ msg: "compute_record_failed", route: ROUTE, requestId }));
       }
     });
-  };
+  });
 }
 
 export function realDeps(): ChatDeps {

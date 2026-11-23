@@ -11,6 +11,24 @@ import { logLine } from "./handler.mts";
 
 export type Loaded = { record: ProposalRecord; etag: string };
 
+/** Marker key (store `proposals`): never matches ^p_, so proposal listings skip it (R9). */
+export const recordedKey = (proposalId: string): string => `approval-recorded/${proposalId}`;
+
+/**
+ * Count one committed approval per proposal (R11 idempotency). Record FIRST, then write the marker: if the marker
+ * write fails or the function dies in between, a later call records again (overcount by one, the safe direction,
+ * ADR-0008); it never undercounts. A marker that is already there means this proposal was counted: skip.
+ * Throws when the record can't be written (the caller leaves the proposal `committing`).
+ */
+export async function recordApprovalOnce(stores: Stores, proposalId: string, now: Date): Promise<"recorded" | "already"> {
+  if (await stores.proposals.getWithMetadata(recordedKey(proposalId), { type: "json" })) return "already";
+  await recordApproval(stores.ratelimit, now);
+  await stores.proposals.setJSON(recordedKey(proposalId), { at: now.toISOString() }, { onlyIfNew: true }).catch(() => {
+    logLine({ msg: "approval_marker_write_failed", proposalId });
+  });
+  return "recorded";
+}
+
 export async function reconcile(
   d: { stores: Stores; now: () => number },
   loaded: Loaded,
@@ -32,7 +50,7 @@ export async function reconcile(
   }
   if (v.verdict === "found") {
     try {
-      await recordApproval(d.stores.ratelimit, new Date(d.now()));
+      await recordApprovalOnce(d.stores, id, new Date(d.now()));
     } catch {
       logLine({ msg: "reconcile_record_failed", proposalId: id, commitSha: v.commitSha, requestId: meta.requestId });
       return loaded; // never mark committed before it is counted

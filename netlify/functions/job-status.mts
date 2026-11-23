@@ -6,14 +6,14 @@ import { realStores, type Stores } from "./lib/blobs.mts";
 import { error, json } from "./lib/http.mts";
 import { isJobId } from "./lib/ids.mts";
 import { jobView, type JobRecord } from "./lib/jobs.mts";
-import { authorize, methodNotAllowed, badRequest, unavailable, type Ctx } from "./lib/handler.mts";
+import { authorize, methodNotAllowed, badRequest, unavailable, type Ctx, safe } from "./lib/handler.mts";
 
 const ROUTE = "GET /api/jobs/:id";
 
 export interface JobStatusDeps { guard: Guard; stores: Stores; now?: () => number }
 
 export function createJobStatusHandler(deps: JobStatusDeps) {
-  return async function jobStatus(req: Request, context: Ctx): Promise<Response> {
+  return safe(ROUTE, async function jobStatus(req: Request, context: Ctx): Promise<Response> {
     if (req.method !== "GET") return methodNotAllowed("GET");
     const g = await authorize(deps.guard, req, ROUTE, context?.requestId);
     if (g instanceof Response) return g;
@@ -27,7 +27,7 @@ export function createJobStatusHandler(deps: JobStatusDeps) {
     }
     if (!job || job.owner !== g.userId) return error(404, "not_found", "That job no longer exists.");
     return json(200, jobView(job, (deps.now ?? Date.now)()));
-  };
+  });
 }
 
 export function realDeps(): JobStatusDeps {

@@ -93,3 +93,35 @@ test("the Agents page is not indexed and not cached", async ({ request }) => {
   expect(r.status()).toBe(200);
   expect(await r.text()).toMatch(/<meta name="robots" content="noindex"/);
 });
+
+test("session ends while a chat draft is typed: S7 with 'Your draft and proposal are saved'; signing in again brings the draft and the transcript back", async ({ page }) => {
+  const { turns } = await import("../helpers/e2e.mjs");
+  await c.h.anthropic.script({ turns: [turns.text(["First answer."])] });
+  await loginAs(page, ADMIN);
+  await page.getByTestId("agent-card").first().getByTestId("agent-chat").click();
+  await page.getByTestId("chat-input").fill("first question");
+  await page.getByTestId("chat-send").click();
+  await expect(page.getByTestId("msg-agent")).toContainText("First answer.");
+  await page.getByTestId("chat-input").fill("a half-written second question");
+  // The server stops accepting the token (global sign-out elsewhere / expiry): every call answers 401 until the person signs in again.
+  await page.route("**/api/chat", (r) => r.fulfill({ status: 401, headers: { "content-type": "application/json", "cache-control": "no-store", "www-authenticate": "Bearer" }, body: JSON.stringify({ error: { code: "unauthorized", message: "Sign in to continue." } }) }));
+  await page.getByTestId("chat-send").click();
+  await expect(page.getByText(STRINGS["console.session.expired"])).toBeVisible();
+  await expect(page.getByText(STRINGS["console.session.kept"])).toBeVisible();
+  await page.unroute("**/api/chat");
+  await signIn(page, ADMIN);
+  await expect(page.getByTestId("agent-list").or(page.getByTestId("chat"))).toBeVisible();
+  if (!(await page.getByTestId("chat").isVisible())) await page.getByTestId("agent-card").first().getByTestId("agent-chat").click();
+  await expect(page.getByTestId("msg-user").first()).toContainText("first question");
+  await expect(page.getByTestId("msg-agent").first()).toContainText("First answer.");
+  await expect(page.getByTestId("chat-input")).toHaveValue("a half-written second question");
+});
+
+test("an Origin denial (403 bad_origin) is NOT the no-access screen", async ({ page }) => {
+  await loginAs(page, ADMIN);
+  await expect(page.getByTestId("agent-list")).toBeVisible();
+  await page.route("**/api/agents", (r) => r.fulfill({ status: 403, headers: { "content-type": "application/json", "cache-control": "no-store" }, body: JSON.stringify({ error: { code: "bad_origin", message: "That request didn't come from this site." } }) }));
+  await page.reload();
+  await expect(page.getByTestId("no-access")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: STRINGS["console.noaccess.title"] })).toHaveCount(0);
+});

@@ -122,3 +122,8 @@
   --agent-blue: #1f6fb5; --agent-cyan: #0f8fa3; --agent-green: #1d7f46; --agent-orange: #c9600f;
   --agent-pink: #b83280; --agent-purple: #6b46c1; --agent-red: #b3261e; --agent-yellow: #b58300;
 }
+
+/* Diff lines wrap so code pushed far right cannot hide off-screen (Vera-B R12 S2). */
+.diff__line { white-space: pre-wrap; overflow-wrap: anywhere; min-inline-size: 0; }
+/* Hidden or bidi Unicode shown as a visible chip, e.g. <span class="diff__hidden">⟨U+202E⟩</span>. --text on --banner-warn-bg passes 4.5:1 in both schemes. */
+.diff__hidden { display: inline-block; padding: 0 0.35em; margin-inline: 0.15em; border: 1.5px solid var(--banner-warn-icon); border-radius: var(--radius-xs); background: var(--banner-warn-bg); color: var(--text); font-family: var(--font-mono); font-size: 0.85em; font-weight: 700; white-space: nowrap; }

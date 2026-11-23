@@ -4,14 +4,14 @@ import type { Config } from "@netlify/functions";
 import { guardFromEnv, type Guard } from "./lib/guard.mts";
 import { loadAgentRegistry, type AgentRegistry } from "./lib/agents.mts";
 import { json } from "./lib/http.mts";
-import { authorize, methodNotAllowed, internal, logLine, type Ctx } from "./lib/handler.mts";
+import { authorize, methodNotAllowed, internal, logLine, type Ctx, safe } from "./lib/handler.mts";
 
 const ROUTE = "GET /api/agents";
 
 export interface AgentsDeps { guard: Guard; registry: () => Promise<AgentRegistry> }
 
 export function createAgentsHandler(deps: AgentsDeps) {
-  return async function agents(req: Request, context: Ctx): Promise<Response> {
+  return safe(ROUTE, async function agents(req: Request, context: Ctx): Promise<Response> {
     if (req.method !== "GET") return methodNotAllowed("GET");
     const g = await authorize(deps.guard, req, ROUTE, context?.requestId);
     if (g instanceof Response) return g;
@@ -22,7 +22,7 @@ export function createAgentsHandler(deps: AgentsDeps) {
       logLine({ msg: "agents_registry_failed", route: ROUTE, requestId: context?.requestId });
       return internal();
     }
-  };
+  });
 }
 
 export function realDeps(): AgentsDeps {

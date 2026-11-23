@@ -45,6 +45,7 @@ async function boot() {
   let screens = null;               // mounted auth screens
   let reopenStepUp = null;          // proposal id to reopen confirmed after a Google step-up
   let redirectResult = { kind: "none" };
+  let signingOut = false;           // true while a Sign Out button runs (R14-1)
   let pendingNotice = null;         // e.g. auth.reset.done after S5; shown once on the next page bar
 
   const api = createApi({ auth, onSessionEnded: () => showAuth("sessionExpired"), onNoAccess: () => showNoAccess() });
@@ -94,7 +95,10 @@ async function boot() {
   async function signOutControls(prominent = false) {
     const mod = await loadScreens();
     if (!mod?.createSignOutControls) return null;
-    return mod.createSignOutControls({ auth, copy, prominent, onSignedOut: ({ notice }) => {
+    // Wrap signOut so the SIGNED_OUT event from a deliberate sign-out doesn't flash S7.
+    const deliberate = { ...auth, signOut: (o) => { signingOut = true; return auth.signOut(o); } };
+    return mod.createSignOutControls({ auth: deliberate, copy, prominent, onSignedOut: ({ notice }) => {
+      signingOut = false;
       chats.clear(); access = "unknown"; accountId = null;
       showAuth(notice);
     } });
@@ -234,7 +238,9 @@ async function boot() {
   }
 
   window.addEventListener("hashchange", () => { if (!screens) render(); });
-  auth.onChange((event) => { if (event === "SIGNED_OUT" && !screens && access !== "denied") { chats.clear(); access = "unknown"; showAuth("signedOut"); } });
+  // SIGNED_OUT that we didn't ask for (revoked elsewhere, refresh ticker) is S7: keep the drafts and transcripts (R14-1).
+  // A deliberate sign-out clears them in signOutControls' onSignedOut instead.
+  auth.onChange((event) => { if (event === "SIGNED_OUT" && !signingOut && !screens && access !== "denied") showAuth("sessionExpired"); });
 
   // ---- start ----
   redirectResult = await auth.completeRedirect().catch(() => ({ kind: "none" }));
