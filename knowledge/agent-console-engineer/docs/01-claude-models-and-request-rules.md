@@ -85,8 +85,8 @@ SDK facts, checked in the installed package source (`client.js`):
 - **Nuance:** Sonnet 5.5 defaults to `high` effort, not `medium`, and Fable 5.2 also defaults to `high`. The `claude-api` skill only mentions the Opus default.
 
 ## Beach Day notes
-- Map `.claude/agents/*.md` `model:` aliases to exact IDs at build time (`opus` → `claude-opus-5-5`, `sonnet` → `claude-sonnet-5-5`, `haiku` → `claude-haiku-5-5`, `fable` → `claude-fable-5-2`). Fail the build on an unknown alias.
+- Map `.claude/agents/*.md` `model:` aliases to exact IDs at build time (`opus`/`inherit`/missing → `claude-opus-5-5`, `sonnet` → `claude-sonnet-5-5`, `haiku` → `claude-haiku-5-5`). The Console allow-list is these three IDs only: `fable`, full IDs and anything else fail the build, and the functions re-check the ID (docs/04 §11).
 - Always send `output_config.effort`: `low` for `/api/chat`, `high` for `/api/jobs` code-change work. Leave room in `max_tokens`, because thinking counts toward it.
 - Never forward `thinking` blocks to the browser, and never parse them as data. Keep them in the stored conversation for tool rounds.
-- Pin `baseURL` in function code so a stray `ANTHROPIC_BASE_URL` env var can't redirect traffic, and with it the key, somewhere else.
-- `timeout` in ms below the Netlify limits (ADR-0001): ~50_000 in the 60 s chat function, ~840_000 in the 15 min background function.
+- Pass `baseURL: "https://api.anthropic.com"` **and** `apiKey: process.env.ANTHROPIC_API_KEY` explicitly in function code, so a stray `ANTHROPIC_BASE_URL` or a Netlify AI-Gateway variable can't redirect traffic, the key or the billing (docs/03 §5). Create the client only after the production-context check (docs/04 §4.6).
+- `timeout` in ms below the Netlify limits (docs/03 §5): ~50_000 in the 60 s chat function, ~840_000 in the 15 min background function. `timeout` is per attempt, so chat also passes a per-turn deadline as the request option `{ signal }` (docs/04 §8, example 01).

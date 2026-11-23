@@ -63,6 +63,7 @@
       "if": {
         "properties": {
           "error": {
+            "type": "object",
             "properties": {
               "code": {
                 "const": "approve_cap"

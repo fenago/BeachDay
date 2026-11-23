@@ -77,8 +77,8 @@ Prefill is not allowed, so don't resume with a partial assistant turn. Instead, 
 Tool-use and thinking blocks "cannot be partially recovered" ([streaming § Error recovery](https://platform.claude.com/docs/en/build-with-claude/streaming)).
 
 ## Beach Day notes
-- `/api/chat` is a Netlify **streaming** function. It has a 60 s limit and a 20 MB response limit (docs/03, ADR-0001). The SDK `timeout` is ~50_000 ms, and at ~45 s the function hands off to the background job.
-- Re-emit a **simplified** SSE stream to the browser: `text`, `tool`, `proposal`, `handoff`, `refusal`, `error`, `done`. Never forward raw Anthropic events, thinking blocks, signatures or error internals. Ignore unknown event types.
+- `/api/chat` is a Netlify **streaming** function. It has a 60 s limit and a 20 MB response limit (docs/03 §5). The SDK `timeout` is ~50_000 ms per attempt, a 55 s per-turn `signal` bounds retries, and a new tool round starts only with ≥ 15 s left; otherwise the turn hands off to `/api/jobs-run` (docs/04 §8).
+- Re-emit only the docs/04 §2.1 events to the browser: `text`, `tool`, `proposal`, `handoff`, `error`, `done`. A refusal is `error {code: "refusal"}`. Never forward raw Anthropic events, thinking blocks, signatures or error internals. Ignore unknown event types.
 - Response headers: `content-type: text/event-stream`, `cache-control: no-store`, `x-content-type-options: nosniff`. `_headers` doesn't cover function responses. The service worker must never cache `/api/*`.
-- In the UI, the chat log is `role="log"` with `aria-busy="true"` while streaming. On `refusal`, remove the partial bubble and show a plain message.
+- In the UI, the chat log is `role="log"` with `aria-busy="true"` while streaming. On `error {code: "refusal"}`, remove the partial bubble and show a plain message.
 - Worked example with tests: `examples/01-streaming-chat-function/`.

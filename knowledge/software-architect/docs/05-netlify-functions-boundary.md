@@ -47,7 +47,7 @@ ADR-0006 (which superseded and restated ADR-0001): functions exist **only** for 
 | `POST /api/jobs-run` | background | Claude, GitHub (GET), Blobs | re-checks Bearer + role, consumes nonce (CAS) |
 | `GET /api/jobs/:id` | sync | Blobs | job events |
 | `GET /api/proposals/:id` | sync | Blobs | Proposal record (`proposal.schema.json`) |
-| `POST /api/proposals/:id/approve` | sync | Blobs, GitHub | step-up, re-validate, cap (ADR-0008) → atomic commit (ADR-0003) |
+| `POST /api/proposals/:id/approve` | sync | Blobs, GitHub | step-up; under the approve lock: re-validate, **check** cap (read-only, ADR-0008) → atomic commit (ADR-0003) → **record** cap only once `main` moved (docs/04 §7) |
 | `POST /api/proposals/:id/reject` | sync | Blobs | status → rejected |
 
 **Never on the server side:**

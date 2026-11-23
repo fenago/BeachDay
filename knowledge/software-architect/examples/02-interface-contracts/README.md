@@ -11,10 +11,14 @@ Four contracts that builders can code against in parallel. All are JSON Schema 2
 | `schemas/sse-event.schema.json` | `/api/chat` function → Console UI | `oneOf` union of the six docs/04 §2.1 event types: `text`, `tool`, `proposal`, `handoff`, `error`, `done`. `additionalProperties: false` everywhere, so an error can't leak a `stack`. Tool names are limited to the Console's three tools. ≤20 files, ≤200 KB each. `error.code` includes `unauthorized` (401) and `forbidden` (403, not `super_admin`). IDs `p_`/`j_` + 26-char ULID |
 | `schemas/proposal.schema.json` | `propose_change` → Blobs → approve | ID `^p_[0-9A-Z]{26}$`. Status enum `pending/committing/committed/failed/stale/rejected` (docs/04 §2.1). 40-hex SHAs, `sha256:` content hash, `decidedBy` = Supabase user id. Path shape mirrors the **canonical list** in docs/04 §6: ALLOW `public/**` text types, `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`; DENY wins: `public/_headers`, `public/_redirects`, `public/sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `public/version.json`, `..`, `.env*`, `*.pem`, `*.key`. `committed` requires `commitSha` + `decidedAt`; `failed`/`stale` require `error`; only `committed` may carry `commitSha` |
 
+| `schemas/api-error.schema.json` | every `/api/*` route (and `/api/chat` before its stream opens) → Console fetch wrapper | `{error:{code,message,retryAt?}, approvals?}`. **One code list** shared with the SSE `error` event (docs/04 §2.1), including `step_up_required` (401) and `budget_exhausted` (429). Every 429 code requires `retryAt`; `approve_cap` also requires `approvals`. No `stack` field can appear |
+| `schemas/approvals.schema.json` | `checkApproveCap()` → Approve sheet | `{used31, usedToday, per31Days: 14, perDay: 5, retryAt}`; `retryAt` is `null` when a slot is free. Advisory only; the check inside the approve lock decides (ADR-0008) |
+| `schemas/proposal-view.schema.json` | `GET /api/proposals/:id` → proposal card and Approve sheet | `{proposal (proposal.schema.json), diffs[], deploys, approveEnabled, approvals or null}`. Diffs sit beside the stored record, never inside it. `deploys` is required so the UI never guesses |
+
 `validate.mjs` performs four checks:
 
-1. Compiles every schema in Ajv **strict** mode.
-2. Runs 25 valid and invalid samples in `samples/`, asserting each outcome.
+1. Adds every schema first (so cross-file `$ref`s by `$id` resolve), then compiles each in Ajv **strict** mode.
+2. Runs every valid and invalid sample in `samples/` (55 since wave 3), asserting each outcome.
 3. Normalizes a **real Open-Meteo Forecast response** (`fixtures/forecast-miami-beach-2026-11-23.json`) into 24 `ForecastHour`s and validates them.
 4. Serializes four SSE events to the wire format, parses them back with the client parser from `docs/04-sse-and-streams.md`, and validates each one.
 
@@ -37,6 +41,42 @@ cd /tmp/scratch/contracts && node validate.mjs
 ```
 
 ## Verified
+
+**Re-run 2026-11-23, wave 3** (Node v22.23.5, ajv 8.20.0, ajv-formats 3.0.1), after docs/04 §2.1 gained the shared error table, `step_up_required`, `budget_exhausted` and the proposal payload for the Approve sheet. 16 new samples (7 api-error, 4 approvals, 4 proposal-view, 1 SSE `budget_exhausted`); 55 sample checks plus the fixture and SSE round trip, all PASS. Excerpt:
+
+```
+compiled  api-error.schema.json
+compiled  approvals.schema.json
+compiled  day-verdict.schema.json
+compiled  forecast-hour.schema.json
+compiled  proposal-view.schema.json
+compiled  proposal.schema.json
+compiled  sse-event.schema.json
+PASS  api-error#0 expect=valid got=valid — step-up needed at Approve (401)
+PASS  api-error#1 expect=valid got=valid — compute budget used up (429) with retryAt
+PASS  api-error#2 expect=valid got=valid — approve cap (429) carries approvals
+PASS  api-error#3 expect=invalid got=invalid — budget_exhausted without retryAt [/error must have required property 'retryAt'; /error must match "then" schema]
+PASS  api-error#4 expect=invalid got=invalid — approve_cap without approvals [/ must have required property 'approvals'; / must match "then" schema]
+PASS  api-error#5 expect=invalid got=invalid — unknown code (old password-era code) [/error/code must be equal to one of the allowed values]
+PASS  api-error#6 expect=invalid got=invalid — error leaks a stack field [/error must NOT have additional properties]
+PASS  approvals#0 expect=valid got=valid — slot free now
+PASS  approvals#1 expect=valid got=valid — at the daily cap: retryAt is next NY midnight
+PASS  approvals#2 expect=invalid got=invalid — per31Days must be the ADR-0008 constant 14 [/per31Days must be equal to constant]
+PASS  approvals#3 expect=invalid got=invalid — retryAt is required (null when free), never omitted [/ must have required property 'retryAt']
+PASS  proposal-view#0 expect=valid got=valid — pending proposal with usage, deploys
+PASS  proposal-view#1 expect=valid got=valid — docs-only proposal: no deploy, still shows usage; usage read failed → null
+PASS  proposal-view#2 expect=invalid got=invalid — deploys missing (UI must not guess; it would fall back to deploy wording) [/ must have required property 'deploys']
+PASS  proposal-view#3 expect=invalid got=invalid — diff inlined into the stored record instead of diffs[] [/proposal must NOT have additional properties]
+PASS  sse-event#12 expect=valid got=valid — handoff could not start its job: compute budget used up
+PASS  real fixture: units ok, 24 hours normalized, 24 valid ForecastHour (marine null: no marine fixture)
+PASS  SSE round trip: 438 bytes on the wire → 4 events, all valid, ends with done
+ALL CONTRACT CHECKS PASSED
+exit=0
+```
+
+One strict-mode error on the way: a nested `properties` inside an `if` needed `"type": "object"` beside it. Fixed in the schema.
+
+**Earlier re-run:**
 
 **Re-run 2026-11-23 after ADR-0006/0007 and the canonical list** (Node v22.23.5, ajv 8.20.0, ajv-formats 3.0.1). Changes: IDs `p_`/`j_` + ULID; statuses `committing` and `failed` added; `forbidden` error code; `_headers` sample flipped to invalid; new deny samples for `sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `public/version.json`, `_redirects` and `.claude/settings.json`; old `prop_`/`job_` prefixes now rejected. 39 sample checks plus the fixture and SSE round trip:
 

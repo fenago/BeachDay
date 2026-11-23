@@ -1,4 +1,4 @@
-# 0009 — Hash-route single-page app with plain ES modules, no framework
+# 0010 — Hash-route single-page app with plain ES modules, no framework
 - Status: Proposed
 - Date: 2026-11-23
 - Deciders: Dr. Lee (+ software-architect, pwa-mobile-engineer, ux-designer-apple-hig consulted)
