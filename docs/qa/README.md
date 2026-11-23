@@ -32,6 +32,15 @@ Run log for the Beach Day v1 build. Numbers here are copied from runs; anything 
 | `tests/functions/matrix.test.mjs`, `matrix-selftest.test.mjs` | 8 routes x 40 cells against the real handlers, and against stand-ins plus 5 planted-bug guards |
 | `tests/static/*.test.mjs` | Pages, no inline script or style, import graph (only approve imports github-write), token names, no secrets in `public/`, copy ids |
 
-## Findings and results
+## W3 gate run (2026-11-23, commit b828c82 plus spec edits)
 
-See the HANDOFF of the run that produced them; this file is updated by the W3 gate run.
+| Run | Result |
+|---|---|
+| `npm test` | 50 files, 1459 passed, 1 skipped, 0 failed |
+| `TZ=UTC` and `TZ=Pacific/Auckland` date-sensitive files | 10 files, 338 passed, 1 skipped, in each |
+| `--project=pixel --project=iphone-chromium` | 273 passed, 1 failed on the first complete run; the one failure was my spec (Android button on the iOS UA) and is now skipped on that project (6 passed, 1 skipped when re-run). A first attempt lost its harness mid-run (ECONNREFUSED after test 28), cause unknown and not reproduced in two re-runs |
+| `a11y.spec` on both projects | 38 passed; 198 axe scans (33 screens x light, dark, contrast:more x 2 projects), 0 violations; 135 `incomplete` items, all `color-contrast` over glass or gradient (66 light, 66 dark, 3 contrast-more), logged in `test-results/axe-incomplete.log` for manual review |
+| `--project=offline-sw` | 14 passed |
+| Screenshots | 32 PNGs, 5.7 MB (over the 4 MB budget), DPR 2, in `docs/qa/screenshots/` |
+
+Not run: WebKit, real devices, VoiceOver/TalkBack, reduced-transparency emulation, post-deploy smoke, @prod specs, Lighthouse, Supabase pre-launch tests (a)-(i), the CI workflow (D11).

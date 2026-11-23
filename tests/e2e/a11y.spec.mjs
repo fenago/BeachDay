@@ -2,6 +2,8 @@
 // Zero violations. "incomplete" items (usually contrast over glass) are attached to the test as annotations for the manual review: never hidden, never a pass by themselves.
 // Reduced transparency: Chromium has no emulation switch for it, so that pass is "not run" (docs/qa/README.md).
 import { test, expect } from "@playwright/test";
+import { appendFileSync, mkdirSync } from "node:fs";
+mkdirSync("test-results", { recursive: true });
 import { beachApp, consoleApp, seedUsers, loginAs, openFirstChat, sendMessage, proposeViaChat, axe, noHorizontalScroll, signIn, STRINGS, ADMIN, PLAIN, turns as T } from "../helpers/e2e.mjs";
 
 const MODES = [{ name: "light", media: { colorScheme: "light", contrast: "no-preference" } }, { name: "dark", media: { colorScheme: "dark", contrast: "no-preference" } }, { name: "contrast-more", media: { colorScheme: "light", contrast: "more" } }];
@@ -13,7 +15,8 @@ async function scanAllModes(page, testInfo, label) {
     await page.waitForTimeout(150);
     const r = await axe(page);
     if (r.violations.length) failures.push(`${label} [${m.name}]: ${r.violations.join(" | ")}`);
-    for (const i of r.incomplete) testInfo.annotations.push({ type: "axe-incomplete", description: `${label} [${m.name}] ${i}` });
+    for (const i of r.incomplete) { testInfo.annotations.push({ type: "axe-incomplete", description: `${label} [${m.name}] ${i}` }); appendFileSync("test-results/axe-incomplete.log", `${testInfo.project.name}\t${label}\t${m.name}\t${i}\n`); }
+    appendFileSync("test-results/axe-scans.log", `${testInfo.project.name}\t${label}\t${m.name}\t${r.violations.length} violations\n`);
   }
   expect(failures, "axe violations").toEqual([]);
 }

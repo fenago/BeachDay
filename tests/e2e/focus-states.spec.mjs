@@ -61,7 +61,8 @@ test("error state: Try Again takes focus on arrival, and after it is used focus 
   expect(await activeIsBody(page)).toBe(false);
 });
 
-test("Android install: 'Not Now' hides the button, says so, and focus moves to the heading", async ({ page, baseURL }) => {
+test("Android install: 'Not Now' hides the button, says so, and focus moves to the heading", async ({ page, baseURL }, testInfo) => {
+  test.skip(testInfo.project.name === "iphone-chromium", "the iPhone user agent gets the Add to Home Screen sheet, not the Android button (sheet: offline.spec)");
   await beachApp(page, { baseURL, fixture: "good" });
   await page.goto("/");
   await expect(page.getByTestId("verdict-card")).toBeVisible();
