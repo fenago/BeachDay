@@ -536,15 +536,15 @@ export const DECK = deepFreeze({
     },
     {
       "id": "console.cap.usage",
-      "text": "{used} of 14 approvals used in the last 31 days."
+      "text": "{used} of {per31Days} approvals used in the last 31 days."
     },
     {
       "id": "console.cap.month",
-      "text": "{used} of 14 approvals used in the last 31 days. Next slot frees {date}."
+      "text": "{used} of {per31Days} approvals used in the last 31 days. Next slot frees {date}."
     },
     {
       "id": "console.cap.day",
-      "text": "5 of 5 approvals used today. More open up at midnight Eastern."
+      "text": "{perDay} of {perDay} approvals used today. More open up at midnight Eastern."
     },
     {
       "id": "console.cap.waiting",
@@ -845,6 +845,26 @@ export const DECK = deepFreeze({
     {
       "id": "auth.totp.copied",
       "text": "Key copied."
+    },
+    {
+      "id": "console.status.stilldeploying",
+      "text": "Still deploying. Check Netlify."
+    },
+    {
+      "id": "console.error.approve",
+      "text": "Couldn't approve right now. Try again in a minute."
+    },
+    {
+      "id": "console.error.screens",
+      "text": "The sign-in screen didn't load. Reload the page to try again."
+    },
+    {
+      "id": "auth.totp.qr.alt",
+      "text": "QR code to set up your authenticator app"
+    },
+    {
+      "id": "auth.error.generic",
+      "text": "That didn't work. Try again."
     }
   ],
   "nav": [
@@ -1033,6 +1053,14 @@ export const DECK = deepFreeze({
     {
       "id": "ui.offline.refresh",
       "text": "Refresh is off while you are offline."
+    },
+    {
+      "id": "ui.favorites",
+      "text": "Favorites"
+    },
+    {
+      "id": "ui.hourly.best",
+      "text": "Best"
     }
   ],
   "install": [
@@ -1067,6 +1095,14 @@ export const DECK = deepFreeze({
     {
       "id": "install.dismissed",
       "text": "Got it. No reminder for 14 days."
+    },
+    {
+      "id": "install.ios.open.safari",
+      "text": "To add Beach Day to your Home Screen, open this page in Safari."
+    },
+    {
+      "id": "install.ios.open.browser",
+      "text": "To add Beach Day to your Home Screen, open this page in Safari first."
     }
   ],
   "agents": [
@@ -1205,6 +1241,122 @@ export const DECK = deepFreeze({
     {
       "id": "agents.back",
       "text": "Back to Agents"
+    },
+    {
+      "id": "agents.account",
+      "text": "Signed in as {email}"
+    },
+    {
+      "id": "agents.you",
+      "text": "You"
+    },
+    {
+      "id": "agents.chat.refusal",
+      "text": "The agent can't help with that request. Try asking another way."
+    },
+    {
+      "id": "agents.chat.unavailable",
+      "text": "The agent is unavailable right now. Your message is still here."
+    },
+    {
+      "id": "agents.chat.ratelimited",
+      "text": "Too many messages for now. Try again after {time}."
+    },
+    {
+      "id": "agents.chat.ratelimited.nodate",
+      "text": "Too many messages for now. Try again in a minute."
+    },
+    {
+      "id": "agents.chat.toolong",
+      "text": "That message is too long. Shorten it and send again."
+    },
+    {
+      "id": "agents.chat.session",
+      "text": "Your session ended before the reply finished. Sign in and send again."
+    },
+    {
+      "id": "agents.chat.tool.read_file",
+      "text": "Reading a file"
+    },
+    {
+      "id": "agents.chat.tool.list_files",
+      "text": "Looking through folders"
+    },
+    {
+      "id": "agents.chat.tool.propose_change",
+      "text": "Writing a proposal"
+    },
+    {
+      "id": "agents.chat.background",
+      "text": "This is taking longer, so it moved to the background. Results appear here."
+    },
+    {
+      "id": "agents.chat.paused",
+      "text": "The background job paused at its time limit."
+    },
+    {
+      "id": "agents.chat.continue",
+      "text": "Continue"
+    },
+    {
+      "id": "agents.chat.jobfailed",
+      "text": "The background job stopped. Nothing was committed."
+    },
+    {
+      "id": "agents.proposal.meta",
+      "text": "Base {base} · hash {hash}"
+    },
+    {
+      "id": "agents.proposal.diff.for",
+      "text": "Changes in {path}"
+    },
+    {
+      "id": "agents.proposal.bytes",
+      "text": "{bytes} bytes"
+    },
+    {
+      "id": "agents.proposal.allowed",
+      "text": "Allowed path"
+    },
+    {
+      "id": "agents.proposal.denied",
+      "text": "Not allowed"
+    },
+    {
+      "id": "agents.proposal.loading",
+      "text": "Getting the proposal…"
+    },
+    {
+      "id": "agents.proposal.missing",
+      "text": "That proposal couldn't be found."
+    },
+    {
+      "id": "agents.proposal.committing",
+      "text": "The commit is still being confirmed. Check back in a minute."
+    },
+    {
+      "id": "agents.proposal.failed",
+      "text": "The commit failed. Nothing was deployed. Ask the agent to propose it again."
+    },
+    {
+      "id": "agents.proposal.warn.code",
+      "text": "Runs in the browser next to sign-in tokens. Read every line."
+    },
+    {
+      "id": "agents.proposal.warn.agents",
+      "text": "Changes how an agent behaves or which model it uses."
+    },
+    {
+      "id": "agents.proposal.warn.tests",
+      "text": "Runs in CI."
+    },
+    {
+      "id": "agents.sheet.commit",
+      "text": "One commit to main: “{summary}”"
+    },
+    {
+      "id": "agents.sheet.meta",
+      "text": "Base {base} · hash {hash}"
     }
   ],
   "placeholders": {
