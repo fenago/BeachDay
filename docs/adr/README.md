@@ -25,5 +25,6 @@ One file per decision: `NNNN-short-title.md`, using the template below. ADRs are
 | [0007](0007-agent-reads-from-github-main.md) | Agent read tools read from GitHub `main` | Accepted |
 | [0008](0008-site-wide-approve-cap.md) | Site-wide Approve cap: 14 per rolling month, 5 per day | Accepted |
 | [0009](0009-public-read-token-for-agent-reads.md) | Separate public-read GitHub token (`GITHUB_READ_TOKEN`) for the agent read tools (would supersede 0007) | Proposed |
+| [0010](0010-diff-and-smol-toml-dependencies.md) | Two new npm dependencies: `diff` (runtime) and `smol-toml` (dev) | Proposed |
 
 Note: ADR-0004's consequence about the "Console password gate" and its `/api/login` rate-limit rule are outdated since ADR-0006. ADR-0004's decision (stay on Netlify Free) still stands.

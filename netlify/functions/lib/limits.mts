@@ -151,12 +151,12 @@ export function evaluateCompute(days: Days | undefined, now: Date, needMs: numbe
   const usedMs = live.reduce((n, [, ms]) => n + ms, 0);
   const remainingMs = Math.max(0, limitMs - usedMs);
   if (remainingMs >= needMs) return { allowed: true, usedMs, remainingMs };
-  // Earliest moment enough of the oldest buckets have expired (a bucket leaves 32 days after its day starts).
+  // Earliest moment enough of the oldest buckets have expired (a New York day bucket leaves at the New York midnight after day + 31 days).
   let freed = 0;
   let retryAt: string | null = null;
   for (const [d, ms] of live) {
     freed += ms;
-    if (remainingMs + freed >= needMs) { retryAt = new Date(Date.parse(`${d}T00:00:00Z`) + 32 * DAY_MS).toISOString(); break; }
+    if (remainingMs + freed >= needMs) { retryAt = nextLocalMidnight(new Date(Date.parse(`${d}T12:00:00Z`) + 31 * DAY_MS)).toISOString(); break; }
   }
   return { allowed: false, usedMs, remainingMs, retryAt };
 }

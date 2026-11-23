@@ -9,7 +9,7 @@ export const SETTINGS = Object.freeze({
   approveEnabled: false,                     // D10, pre-launch switch (docs/04 §1 step 5, §4.2)
   jwtHeaderPrecheck: false,                  // D12, on after pre-launch test (f)
   perUserDaily: Object.freeze({ chat: 200, jobs: 20 }),
-  perTurn: Object.freeze({ maxToolRounds: 15, maxTokens: 1_000_000, maxUserMessageBytes: 32_768 }),
+  perTurn: Object.freeze({ maxToolRounds: 15, maxToolCallsPerRound: 10, maxTokens: 1_000_000, maxUserMessageBytes: 32_768 }),
   chatDeadlineMs: 55_000, chatSdkTimeoutMs: 50_000, jobWallClockMs: 14 * 60_000,
   stepUpWindowS: 600,
   allowedModels: Object.freeze(["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]),

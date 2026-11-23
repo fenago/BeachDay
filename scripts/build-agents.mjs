@@ -20,7 +20,7 @@
 //    knowledge README, a model outside opus / inherit / (missing) / sonnet / haiku, or a prompt over 350 KB.
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const MAX_PROMPT_BYTES = 350 * 1024;
 export const MODELS = Object.freeze({
@@ -158,7 +158,7 @@ export function buildAgents({ root }) {
 }
 
 // CLI: node scripts/build-agents.mjs [--root <dir>] [--out <file>]
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2);
   const arg = (flag, fallback) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : fallback; };
   const root = arg("--root", join(dirname(fileURLToPath(import.meta.url)), ".."));

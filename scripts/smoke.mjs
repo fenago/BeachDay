@@ -2,6 +2,7 @@
 // right after an Approve deploy goes live). Usage:
 //   BASE_URL=https://<site>.netlify.app EXPECT_COMMIT=<40-hex> node scripts/smoke.mjs
 // Prints PASS/FAIL lines only. Never sends credentials. Exit 1 on any FAIL.
+import { pathToFileURL } from "node:url";
 export async function smoke(base, expectCommit, fetchImpl = fetch) {
   const results = [];
   const check = (ok, msg) => results.push({ ok, msg });
@@ -34,11 +35,13 @@ export async function smoke(base, expectCommit, fetchImpl = fetch) {
     const r = await get(path, { method });
     check(r.status === 401, `${method} ${path} without a token -> 401 (got ${r.status})`);
     check((r.headers.get("cache-control") ?? "") === "no-store", `${path} sets its own cache-control: no-store`);
+    check((r.headers.get("x-content-type-options") ?? "") === "nosniff", `${path} sets x-content-type-options: nosniff`);
+    check(!r.headers.has("access-control-allow-origin") && !r.headers.has("set-cookie"), `${path} sends no CORS or Set-Cookie header`);
   }
   return results;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const base = process.env.BASE_URL;
   if (!base) { console.error("BASE_URL required"); process.exit(1); }
   const results = await smoke(base, process.env.EXPECT_COMMIT);

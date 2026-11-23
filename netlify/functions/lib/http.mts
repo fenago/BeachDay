@@ -35,8 +35,16 @@ export interface ErrorOptions {
 
 const JSON_TYPE = "application/json; charset=utf-8";
 
+// A handler must never add CORS or cookies (our CSRF model forbids both): fail loudly instead of shipping them.
+export function assertSafeHeaders(headers: Record<string, string> | Headers = {}): void {
+  const names = headers instanceof Headers ? [...headers.keys()] : Object.keys(headers);
+  if (names.some((k) => /^(access-control-|set-cookie$)/i.test(k))) throw new Error("forbidden response header (access-control-* / set-cookie)");
+}
+
 export function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
-  const h: Record<string, string> = { ...SECURITY_HEADERS, ...headers, "content-type": JSON_TYPE };
+  assertSafeHeaders(headers);
+  // Caller headers go FIRST so SECURITY_HEADERS and the content type always win (no-store, nosniff, CSP).
+  const h: Record<string, string> = { ...headers, ...SECURITY_HEADERS, "content-type": JSON_TYPE };
   if (status === 401) h["www-authenticate"] = "Bearer";
   return new Response(JSON.stringify(body), { status, headers: h });
 }

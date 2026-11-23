@@ -8,6 +8,7 @@
 // Version: first 12 hex chars of COMMIT_REF; else `git rev-parse HEAD`; else a
 //          timestamp ("t" + yyyymmddhhmmss). A fallback is used only so the
 //          bytes still change; the build log says which source was used.
+// Rule   : the placeholder must occur EXACTLY ONCE (the VERSION constant); 0 or 2+ fails the build.
 // Safety : prints ONE line and never prints env. Exits 1 (fails the build) if
 //          the placeholder is missing, the file is missing, or the version
 //          string is not [A-Za-z0-9._-]. Refuses to edit files outside a
@@ -15,6 +16,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 export const PLACEHOLDER = "__BUILD_VERSION__";
 const HEX40 = /^[0-9a-f]{40}$/;
@@ -47,7 +49,9 @@ export function stamp({ file, env, git, now }) {
   } catch {
     throw new Error(`cannot read ${file}`);
   }
-  if (!text.includes(PLACEHOLDER)) throw new Error(`${PLACEHOLDER} not found in ${file} (already stamped or removed)`);
+  const count = text.split(PLACEHOLDER).length - 1;
+  if (count === 0) throw new Error(`${PLACEHOLDER} not found in ${file} (already stamped or removed)`);
+  if (count !== 1) throw new Error(`${PLACEHOLDER} must occur exactly once in ${file} (found ${count})`);
   const out = text.split(PLACEHOLDER).join(version);
   if (out.includes(PLACEHOLDER)) throw new Error("placeholder still present after stamping");
   writeFileSync(file, out);
@@ -57,7 +61,7 @@ export function stamp({ file, env, git, now }) {
 }
 
 // CLI: node scripts/stamp-sw.mjs [--file public/sw.js] [--force]
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2);
   const fi = args.indexOf("--file");
   const file = fi >= 0 ? args[fi + 1] : "public/sw.js";

@@ -17,6 +17,7 @@
 //          error: a rejected key may be a secret key, and build logs are not private.
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { pickVersion } from "./stamp-sw.mjs";
 
 export const KEY_PREFIX = "sb_publishable_";
@@ -40,14 +41,19 @@ export function checkKey(raw) {
 }
 
 // The CSP host check. `headersText` is the content of public/_headers.
-// Every Content-Security-Policy line's connect-src must list `origin`, and no
-// supabase.co wildcard or other *.supabase.co host may appear anywhere in it.
+// Every Content-Security-Policy line's connect-src is split into tokens and must be EXACTLY
+// 'self', the two Open-Meteo hosts and `origin`: a missing one fails, and so does any extra token
+// (a wildcard such as *.supabase.co or wss://*.supabase.co, a scheme such as https:, a bare *, or another host).
+// No other supabase.co host may appear anywhere in the line either.
+export const CONNECT_BASE = ["'self'", "https://api.open-meteo.com", "https://marine-api.open-meteo.com"];
 export function checkCspHost(headersText, origin) {
   const csp = headersText.split("\n").map((l) => l.trim()).filter((l) => /^content-security-policy:/i.test(l));
   if (csp.length === 0) throw new Error("public/_headers has no Content-Security-Policy line");
+  const want = [...CONNECT_BASE, origin];
   for (const line of csp) {
-    const connect = /(?:^|;\s*|:\s*)connect-src\s+([^;]*)/i.exec(line)?.[1]?.split(/\s+/) ?? [];
-    if (!connect.includes(origin)) throw new Error("CSP connect-src in public/_headers does not list the SUPABASE_URL origin (values not shown)");
+    const connect = /(?:^|;\s*|:\s*)connect-src\s+([^;]*)/i.exec(line)?.[1]?.trim().split(/\s+/).filter(Boolean) ?? [];
+    if (want.some((w) => !connect.includes(w))) throw new Error("CSP connect-src in public/_headers does not list every required source (values not shown)");
+    if (connect.some((t) => !want.includes(t))) throw new Error("CSP connect-src has a source other than 'self', Open-Meteo and the SUPABASE_URL origin (values not shown)");
     const hosts = line.match(/https?:\/\/[^\s;]*supabase\.co/gi) ?? [];
     if (hosts.some((h) => h !== origin)) throw new Error("CSP names a supabase.co host other than SUPABASE_URL, or a wildcard (values not shown)");
   }
@@ -76,7 +82,7 @@ export function genConfig({ outDir, env, git, now, headersFile }) {
 
 // CLI: node scripts/gen-config.mjs [--out public/generated] [--headers public/_headers] [--force]
 // In the real build the headers check is always on (default public/_headers); --no-headers-check exists only for tests.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2);
   const oi = args.indexOf("--out");
   const outDir = oi >= 0 ? args[oi + 1] : "public/generated";
