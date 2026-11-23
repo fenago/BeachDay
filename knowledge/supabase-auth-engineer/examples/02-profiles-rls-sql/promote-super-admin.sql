@@ -7,6 +7,8 @@ select u.id,
        u.email,
        u.email_confirmed_at,
        u.last_sign_in_at,
+       nullif(u.email_change, '') as pending_email_change,   -- column names from the Auth server source;
+       u.email_change_sent_at,                                -- UNVERIFIED on the hosted schema
        array_agg(i.provider order by i.provider) filter (where i.provider is not null) as providers,
        (select array_agg(f.factor_type::text || ' ' || f.status::text || ' ' || to_char(f.created_at, 'YYYY-MM-DD')
                          order by f.created_at)
@@ -15,12 +17,14 @@ select u.id,
 from auth.users u
 left join auth.identities i on i.user_id = u.id
 where u.email = '<EMAIL>'
-group by u.id, u.email, u.email_confirmed_at, u.last_sign_in_at;
+group by u.id, u.email, u.email_confirmed_at, u.last_sign_in_at, u.email_change, u.email_change_sent_at;
 -- Check, and stop if any answer is wrong:
 --   exactly one row;
 --   email_confirmed_at is not null;
 --   last_sign_in_at is your own recent sign-in, made the way you will normally sign in;
 --   providers lists only methods you set up yourself ('email' = password, 'google' = Google);
+--   pending_email_change is empty. A new address you did not ask for means someone tried to move the account:
+--   STOP, click no email-change link, and ask supabase-auth-engineer before editing auth.users.
 --   mfa_factors is empty, or lists only factors you enrolled yourself, on the dates you remember.
 --   A factor you did not enrol (verified or not) means someone else has held a session for this account: STOP.
 --   Do not promote. Reset the password, remove that factor (see the end of this file), sign in again, then rerun STEP 1.

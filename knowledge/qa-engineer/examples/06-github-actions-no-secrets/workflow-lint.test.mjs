@@ -35,6 +35,10 @@ const mutations = [
   ["push to every branch", (t) => t.replace("    branches: [main]\n", ""), "limited to branches"],
   ["github.token passed on", (t) => t.replace("node scripts/smoke.mjs", "node scripts/smoke.mjs --t ${{ github.token }}"), "github.token"],
   ["unpinned npx download", (t) => t.replace("npx --no-install lhci autorun", "npx lhci autorun"), "npx may download"],
+  ["second npx on one line is unpinned", (t) => t.replace("npm run e2e -- --trace off   #", "npx --no-install a && npx b   #"), "npx may download"],
+  ["npm exec", (t) => t.replace("run: npm ci\n      - run: npm test", "run: npm ci\n      - run: npm exec foo\n      - run: npm test"), "npm exec may download"],
+  ["pnpm dlx", (t) => t.replace("run: npm ci\n      - run: npm test", "run: npm ci\n      - run: pnpm dlx foo\n      - run: npm test"), "pnpm dlx may download"],
+  ["yarn dlx", (t) => t.replace("run: npm ci\n      - run: npm test", "run: npm ci\n      - run: yarn dlx foo\n      - run: npm test"), "yarn dlx may download"],
   ["no timeout", (t) => t.replace("    timeout-minutes: 10\n", ""), "timeout-minutes"],
 ];
 for (const [name, mutate, expected] of mutations) {
@@ -46,4 +50,8 @@ for (const [name, mutate, expected] of mutations) {
 test("repository variables (vars.SITE_URL) are allowed: they are plain text, not secrets", () => {
   assert.ok(template.includes("vars.SITE_URL"));
   assert.deepEqual(lintWorkflow(template, { strict: false }), []);
+});
+test("npx --no-install twice on one line passes", () => {
+  const ok = template.replace("npm run e2e -- --trace off   #", "npx --no-install a && npx --no-install b   #");
+  assert.deepEqual(lintWorkflow(ok, { strict: false }), []);
 });

@@ -64,7 +64,7 @@
       "maxLength": 2000,
       "allOf": [
         {
-          "pattern": "^[^\\u0000-\\u001f\\u007f\\u2028\\u2029]*$"
+          "pattern": "^[^\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]*$"
         },
         {
           "not": {
@@ -72,7 +72,7 @@
           }
         }
       ],
-      "description": "What, why, how tested (change-proposal-protocol). ONE line: no control or line-break characters (incl. U+2028/2029) and no 'Beach-Day-Proposal' text in any case, so it can never forge the commit trailer the reconciler matches (docs/04 §6, §7)."
+      "description": "What, why, how tested (change-proposal-protocol). ONE line, 20-2000 code points: no control, format or line-break characters (\\p{Cc}, \\p{Cf} incl. bidi overrides/isolates and zero-width, \\p{Zl}, \\p{Zp}) and no 'Beach-Day-Proposal' text in any case, so it can never forge or disguise the commit trailer (docs/04 §6, §7). Lone surrogates are rejected in code (isWellFormed()); JSON Schema can't express that."
     },
     "files": {
       "type": "array",

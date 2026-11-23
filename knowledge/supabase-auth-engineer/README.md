@@ -23,7 +23,7 @@ Notes and runnable examples for Beach Day's Console sign-in: Supabase Auth with 
 | Example | Demonstrates | Verified |
 |---|---|---|
 | [examples/01-token-and-role-check/](examples/01-token-and-role-check/) | auth-js `getClaims` (real signatures, mocked JWKS), `iss`/`aud`, role from `profiles`; optional JWT header pre-check; 401 / 403 / **503** when the check can't run | 31/31 `node:test` |
-| [examples/02-profiles-rls-sql/](examples/02-profiles-rls-sql/) | `profiles.sql`: cascade, default role, trigger, own-row select, no role self-update; `promote-super-admin.sql`: look first (identities and MFA factors), refuse an unconfirmed email | 13/13 in pglite (stubbed `auth`; not run on real Supabase) |
+| [examples/02-profiles-rls-sql/](examples/02-profiles-rls-sql/) | `profiles.sql`: cascade, default role, trigger, own-row select, no role self-update; `promote-super-admin.sql`: look first (identities and MFA factors), refuse an unconfirmed email | 14/14 in pglite (stubbed `auth`; not run on real Supabase) |
 | [examples/03-browser-auth-calls/](examples/03-browser-auth-calls/) | auth-js PKCE client with `autoRefreshToken: true` and `ensureFresh(120)`, Google URL, log in/up/reset, resend, `token_hash` email links, `scope: 'local'` log-out; one exact redirect | 13/13 `node:test` |
 
 ## Open items

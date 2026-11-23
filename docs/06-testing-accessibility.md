@@ -67,7 +67,7 @@ Every test also asserts `cache-control: no-store`, the explicit `content-type`, 
 
 ### 3.1 Auth on every function (ADR-0006, docs/04 §4.1 and §12)
 
-**JWT header pre-check.** A token whose header has an unsupported `alg` (`none`, `HS256`, `ES384`), a missing `kid` or a header that is not JSON → **401 with no network call at all** (assert the fake `fetch` call count is 0, before JWKS). The accepted algorithms (ES256, RS256) come from pre-launch check (h).
+**JWT header pre-check.** A token whose header has an unsupported `alg` (`none`, `HS256`, `ES384`), a missing `kid` or a header that is not JSON → **401 with no network call at all** (assert the fake `fetch` call count is 0, before JWKS). The accepted algorithms (ES256, RS256) come from pre-launch check (f).
 
 **Returned retryable errors.** supabase-js often *returns* `{ error: AuthRetryableFetchError }` instead of throwing. For `getClaims`/`getUser` on **every function and on Approve**, a returned `AuthRetryableFetchError` (and a thrown network error) → **503**, never 401 or 403, with nothing touched. Add it as a matrix case once the real guard is in place (Example 05's stand-in uses `fetch` directly, so it does not exercise this).
 
@@ -116,12 +116,13 @@ For every `POST` route with a valid `super_admin`: `Sec-Fetch-Site: cross-site`,
 | **Re-validation at approve time** | Allow-list, size, text-only and secret scan run again on the **stored** contents. Mutate the stored record to contain a denied path, a 201 KB file, a NUL byte and a secret in turn; each is refused and nothing reaches GitHub. |
 | **Commit sequence** (MSW as GitHub, assert the **order and bodies**) | `GET ref` → `GET commit` → `POST tree` **with `base_tree`** → `POST commit` (message ends with the `Beach-Day-Proposal: p_…` trailer; parent is `headSha`) → `PATCH ref` with `force: false`. Requests are serial. Mode is always `100644`. Base moved and a file's blob SHA differs → `stale`, 409, nothing recorded. Base moved but every file unchanged → proceeds on the new head. **422 on the ref update** → one retry, then `stale`. |
 | **Unknown outcome on the ref update** | Timeout or 5xx on `PATCH ref`, then: `GET ref` equals `commitSha` → `committed` and **counted**; re-read succeeded and differs → `failed`, **not** counted; every re-read fails → stays `committing`, the lock is released, answer 502 `upstream`. |
-| **Reconciler** | A record `committing` for > 120 s: `main` has a commit whose message has the exact trailer line → recorded in `site:approvals` and `committed`; a near-miss trailer (`Beach-Day-Proposal: p_other`, or the text in the middle of a line) does not match; re-read ok and not found → `failed`, nothing counted; GitHub down → still `committing`. The lock is taken, and a held lock makes the reconciler skip. |
+| **Reconciler** | A record `committing` for > 120 s: `main` has a commit whose message has the exact trailer line → recorded in `site:approvals` and `committed`; a near-miss trailer (`Beach-Day-Proposal: p_other`, or the text in the middle of a line) does not match; a commit **by a human** carrying the trailer, a **merge commit** carrying it, and a commit with the trailer but a **different blob** for the proposal's files are not accepted as the proposal's commit; a result page that is full (the trailer might be on the next page) leaves the record `committing`, never `failed`; re-read ok and not found → `failed`, nothing counted; GitHub down → still `committing`. The lock is taken, and a held lock makes the reconciler skip. |
 | **`committed ⇒ counted`** | Crash points: after the ref update and before `recordApproval` (reconciler repairs it); `recordApproval` succeeds and the status CAS fails (reconciler counts it **again**: an overcount of one, asserted as the accepted direction); never an undercount. Step 7 failing after retries still answers 200 `committed` with `commitSha`. |
 | **Lock** | `onlyIfNew` lock; a lock younger than 90 s blocks; older than 90 s is taken over with `onlyIfMatch`; released on every exit path, including a thrown error (try/finally test). |
 | **Payload** | `GET /api/proposals/:id` returns `approvals`, `deploys` and `approveEnabled`; `approvals` is `null` (and Approve is not blocked) when the Blobs read fails; `deploys` equals `deploysOnCommit(paths)`; a **drift test** feeds `DEPLOY_PATHS` and the `ignore` command in `netlify.toml` the same 12 paths and requires the same answer; a no-deploy approval **still counts** toward the cap. `approveEnabled: false` → approve answers 503 `unavailable` until the §4.2 a–e pre-launch tests have passed (the switch is data, tested both ways). |
 | **Client branching** (e2e, §4.4) | `401 step_up_required` reopens "Confirm it's you"; any **other** 401 refreshes the session once and retries once, then shows "session ended"; the Approve request is **never resent automatically**. `502 upstream` from approve shows "Couldn't confirm the commit yet" and sends **no second approve** (count requests) |
 | **Approve 200 shape** | A `200` may carry `proposal.status: "committing"` (normal: the reconciler finishes it) as well as `committed`; `deploys` is **required** in both (a response without it fails the schema test); the client treats `committing` as success, shows the SHA, and does not resend |
+| **Summary and content hygiene** | A proposal `summary` containing a newline, U+2028/U+2029, a bidi override (U+202A–U+202E, U+2066–U+2069), the text `Beach-Day-Proposal:` or a nested trailer is rejected or neutralised **before** it reaches the commit message (a test reads the message sent to MSW's `POST commits`: exactly one trailer, on the last line, ours). File content with a lone surrogate is refused as non-text. Approve never sends `sha: null` (or `undefined`) in a tree entry. |
 | **Audit** | Every proposal, approve, step-up failure, reject and commit result writes a record with actor = user id and without bodies, tokens or env. |
 
 ### 3.5 Limits (docs/04 §9, ADR-0008)
@@ -162,7 +163,7 @@ Display: `approvals` in the proposal payload and in a `429 approve_cap` body is 
 
 A test greps the whole `public/` tree and the **build output** for `sk-ant-`, `github_pat_`, `ghp_`, `gho_`, `sb_secret_`, a three-part JWT, and the literal env names `ANTHROPIC_API_KEY` and `GITHUB_TOKEN`; the only Supabase strings allowed are the project URL and an `sb_publishable_` key, and only in `public/generated/config.js`. It runs in Actions on the checkout (where `config.js` is a fixture) and in `@prod` against the live `/generated/config.js`. **Open (pre-launch, on the real deploy):** Netlify's secret scan must not fail the build on `sb_publishable_…` in `config.js` (UNVERIFIED, docs/03 §9.5); the first real deploy is the test.
 
-### 3.9 Pre-launch tests on the real Supabase project (docs/04 §4.2 a–e)
+### 3.9 Pre-launch tests on the real Supabase project (docs/04 §4.2 a–i)
 
 Approve stays **disabled** (`approveEnabled: false`) until these pass. They need the real project, a throwaway user and a human, so they are **manual** and recorded in the handoff with date and result. Nothing in CI can mark them done. All five are **UNVERIFIED today** (supabase.com was unreachable from the research sandbox).
 
@@ -173,10 +174,10 @@ Approve stays **disabled** (`approveEnabled: false`) until these pass. They need
 | c | `last_sign_in_at` changes on password and Google sign-in and **not** on refresh | same |
 | d | `getUser` after `signOut({ scope: "local" })`: if it still succeeds, a signed-out token works until `exp` (600 s). Accepted, but write the result down | record it in docs/04 §4.2 |
 | e | A TOTP verify yields `aal2` | same |
-| f | Netlify secret scanning does not flag `sb_publishable_…` in `config.js` | `SECRETS_SCAN_OMIT_KEYS` (docs/03 §9.5) |
-| g | The RLS Security Advisor shows no warning on `profiles`; a second throwaway user cannot read or change another row or their own `role` through the REST API with the publishable key | fix the SQL before launch |
-| h | A real access token's header has `alg` `ES256` or `RS256` **and a `kid`** (decode one, record it). The guard's pre-check refuses other `alg` values and a missing `kid` | update the pre-check or switch the project's signing keys |
-| i | **Approve answers 503** when Supabase is unreachable (block the host from the function in a throwaway deploy, or pause the project), not 401 and not a silent pass | fix the `getUser` error mapping |
+| f | A real access token's header has `alg` `ES256` or `RS256` **and a `kid`** (decode one, record it). The guard's pre-check refuses other `alg` values and a missing `kid` | update the pre-check or switch the project's signing keys |
+| g | **Approve answers 503** when Supabase is unreachable (block the host from the function in a throwaway deploy, or pause the project), not 401 and not a silent pass | fix the `getUser` error mapping |
+| h | Netlify secret scanning does not flag `sb_publishable_…` in `config.js` | `SECRETS_SCAN_OMIT_KEYS` (docs/03 §9.5) |
+| i | The RLS Security Advisor shows no warning on `profiles`; a second throwaway user cannot read or change another row or their own `role` through the REST API with the publishable key | fix the SQL before launch |
 
 ## 4. End-to-end (Playwright)
 
@@ -308,7 +309,7 @@ Leave `wcag22aa` out and axe stops checking target size; there is no `wcag22a` t
 
 Agents cannot create `.github/workflows/*`: the path is deny-listed in the Console and the PAT has no Workflows permission (ADR-0005). The reviewed **template** is `knowledge/qa-engineer/examples/06-github-actions-no-secrets/tests.yml`. A human copies it to `.github/workflows/tests.yml`, replaces every `<PIN-SHA>` with the full 40-character commit SHA of the release named in the comment (the sandbox could not resolve them, and no SHA is invented here), and sets one repository **variable** (not a secret) named `SITE_URL`.
 
-Rules, enforced by `workflow-lint.mjs` (Example 06: 21 tests; it flags 18 planted violations and the unpinned template):
+Rules, enforced by `workflow-lint.mjs` (Example 06: 26 tests; it flags 22 planted violations and the unpinned template):
 
 | Rule | Why |
 |---|---|
@@ -366,4 +367,4 @@ Mark **PASS** only when every required item was **run** and passed. Otherwise **
 | 14-day snooze = 14 × 24 h elapsed (coordinator's call; Pip/Wren may overrule) | pwa-mobile-engineer + ux-designer-apple-hig |
 | GitHub Actions docs (`permissions`, `secure-use`, minutes on a public repo), `actionlint`, real action SHAs | A human with access |
 | WebKit (`iphone` project) has never run in the research sandbox | CI |
-| Supabase pre-launch tests §3.9 a–g | Dr. Lee + security-engineer |
+| Supabase pre-launch tests §3.9 a–i | Dr. Lee + security-engineer |

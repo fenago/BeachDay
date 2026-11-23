@@ -44,7 +44,8 @@ export function lintWorkflow(text, { strict = true } = {}) {
         if (!SHA.test(ref) && !(placeholder && !strict)) p.push(`${at}: ${action} is not pinned to a full commit SHA`);
         if (/^actions\/checkout$/.test(action) && s.with?.["persist-credentials"] !== false) p.push(`${at}: checkout must set persist-credentials: false (keeps the token out of .git/config, where a test could read it)`);
       }
-      if (s.run && /\bnpx\b/.test(s.run) && s.run.split("\n").some((ln) => /\bnpx\b/.test(ln) && !/npx\s+(--no-install|--no)\b/.test(ln))) p.push(`${at}: npx may download an unpinned package; use npx --no-install with a devDependency`);
+      // every launcher occurrence is checked, not every line: `npx --no-install a && npx b` must still fail
+      if (s.run) for (const m of s.run.matchAll(/\b(npx|npm\s+exec|pnpm\s+dlx|yarn\s+dlx|bunx)\b(\s+(--no-install|--no)\b)?/g)) if (!m[2] || /dlx|bunx|exec/.test(m[1])) p.push(`${at}: ${m[1]} may download an unpinned package; use npx --no-install with a devDependency`);
       if (s.run && /\$\{\{/.test(s.run)) p.push(`${at}: no \${{ }} inside run (pass values through env and quote "$VAR": script-injection guard)`);
     }
   }

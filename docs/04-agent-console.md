@@ -411,9 +411,12 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
         author:{name:"Beach Day Agent (<agent>)", email:"…"} } → commitSha
         message = buildCommitMessage(summary, id), built by the server only:
           "<summary as ONE line>\n\nBeach-Day-Proposal: p_…"
-        The summary line has every control/line-break character (incl. U+2028/2029) replaced by a
-        space, every "Beach-Day-Proposal" (any case) removed, and is cut to 200 chars. The trailer
-        is always the LAST line, and the agent's text can never produce a trailer line.
+        The summary is made well-formed (toWellFormed), every \p{Cc}/\p{Cf}/\p{Zl}/\p{Zp}
+        character becomes a space, "Beach-Day-Proposal" (any case) is removed IN A LOOP until the
+        text stops changing (one pass would leave "Beach-DayBeach-Day-Proposal-Proposal" behind),
+        and the line is cut to 200 CODE POINTS (never splitting a surrogate pair). Empty → "Agent
+        proposal". The trailer is always the LAST line, and the agent's text can never produce one.
+        Reference with tests: knowledge/security-engineer/examples/02-path-allowlist/commitmsg.mjs.
 6. PATCH /repos/.../git/refs/heads/main { sha: commitSha, force:false }
    a. 200 → main moved; go to 7.
    b. 422 not fast-forward (a definite "no": main moved first) → redo steps 1–6 once, else CAS "stale".
@@ -435,14 +438,15 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
    answer 502 upstream. Nothing is recorded, so no slot is used.
 ```
 
-**Reconciler** (runs from `GET /api/proposals/:id` and from approve, for a record in `committing` whose `decidedAt` is more than 120 s old; it takes the approve lock and skips if the lock is held):
+**Reconciler** (runs from `GET /api/proposals/:id` and from approve, for a record in `committing` whose `decidedAt` is more than 120 s old; it takes the approve lock and skips if the lock is held). It only **reads** GitHub. From the GET it runs after the production-context check (§4.6) with the read-only GitHub module only (ADR-0007; `github-read.mts` / `GITHUB_READ_TOKEN` if ADR-0009 is accepted); from approve it uses approve's own GETs. `isProposalCommit()` and `reconcileVerdict()` in `commitmsg.mjs` (above) are the reference:
 1. Look for the proposal's commit on `main`: `GET /repos/.../commits?sha=main&since=<decidedAt − 5 min>&per_page=50`. A commit is **this proposal's commit only if all three hold** (an agent's summary must never be able to claim another proposal's slot):
    - the message's **final** line is exactly `Beach-Day-Proposal: <this id>` (not anywhere in the body);
    - the commit author name is exactly `Beach Day Agent (<proposal.agent>)`;
    - for every file in the proposal, the blob SHA at that commit (`GET /repos/.../contents/{path}?ref=<commitSha>`, serially, ≤20 calls) equals the git blob SHA of the proposal's content (`sha1("blob " + byteLength + "\0" + bytes)`), and the commit has one parent.
    A candidate that fails any check is ignored (logged), never matched.
 2. **Found** → record, then mark, exactly as step 7a–7b (the reconciled commit **counts**, ADR-0008). If an earlier 7a had already succeeded, this records it a second time: an overcount of one, which is the safe direction.
-3. **Re-read succeeded and not found** → CAS `failed` {error: "commit did not reach main"}. No slot is used.
+3. **Re-read succeeded, the page was not full (fewer than 50 commits) and nothing matched** → CAS `failed` {error: "commit did not reach main"}. No slot is used.
+   **A full page (50 commits) with no match is "unknown", not "not found"**: older commits in the window weren't seen, so leave it `committing` (and log it) for a human to check; never `failed`.
 4. **GitHub unreachable** → leave it `committing` and try again on the next GET.
 
 **Check-then-record, in one place.** The cap is **checked** read-only in step 0, inside the approve lock and before any GitHub call, and **recorded** only in step 7a or the reconciler, when `main` has actually moved. Because only one approve holds the lock, the check and the record can't race (ADR-0008 point 3). `failed`, `stale`, `rejected` and `approve_cap` never record, so nothing is ever refunded (§9). The functions are `checkApproveCap()` and `recordApproval()` in `netlify/functions/lib/limits.mts`, shaped like `knowledge/netlify-engineer/examples/03-cas-rate-limit-counter/`.

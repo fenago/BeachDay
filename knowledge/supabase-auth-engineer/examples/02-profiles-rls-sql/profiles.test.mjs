@@ -13,7 +13,8 @@ const STUBS = `
   create role anon nologin; create role authenticated nologin;
   create schema auth;
   create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz,
-    last_sign_in_at timestamptz, raw_user_meta_data jsonb default '{}');
+    last_sign_in_at timestamptz, email_change text default '', email_change_sent_at timestamptz,
+    raw_user_meta_data jsonb default '{}');
   create table auth.identities (id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users (id) on delete cascade, provider text not null);
   create type auth.factor_type as enum ('totp', 'webauthn', 'phone');
@@ -92,6 +93,16 @@ test('step 1 also lists every MFA factor, so a factor he did not enrol is visibl
   await db.exec(`insert into auth.mfa_factors (user_id, factor_type, status, created_at) values
     ('${A}', 'totp', 'verified', '2026-11-20T10:00:00Z'), ('${A}', 'totp', 'unverified', '2026-11-21T10:00:00Z');`);
   assert.deepEqual((await db.query(step1)).rows[0].mfa_factors, ['totp verified 2026-11-20', 'totp unverified 2026-11-21']);
+});
+test('step 1 also shows a pending email change (new address and when it was requested)', async () => {
+  const step1 = step(1).replaceAll('<EMAIL>', 'a@example.com');
+  let r = (await db.query(step1)).rows[0];
+  assert.deepEqual([r.pending_email_change, r.email_change_sent_at], [null, null], 'none pending');
+  await db.exec(`update auth.users set email_change = 'attacker@example.net', email_change_sent_at = '2026-11-22T09:00:00Z' where id = '${A}'`);
+  r = (await db.query(step1)).rows[0];
+  assert.equal(r.pending_email_change, 'attacker@example.net');
+  assert.ok(r.email_change_sent_at);
+  await db.exec(`update auth.users set email_change = '', email_change_sent_at = null where id = '${A}'`);
 });
 test('Dr. Lee by hand: a confirmed user is promoted (1 row); the user then sees super_admin', async () => {
   await db.exec(`update auth.users set email_confirmed_at = now() where id = '${A}'`);
