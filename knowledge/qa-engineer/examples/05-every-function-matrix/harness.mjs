@@ -41,6 +41,7 @@ export function makeWorld({ key, profiles = { "user-1": "super_admin" }, jwksDow
     }
     if (u.pathname === "/rest/v1/profiles") {
       if (restFailure === "network") throw new TypeError("fetch failed");
+      if (restFailure === "nonjson") return new Response("<html>oops</html>", { status: 200, headers: { "content-type": "text/html" } });
       if (restFailure) return new Response("{}", { status: restFailure });
       const id = u.searchParams.get("id").replace("eq.", "");
       return Response.json(id in profiles ? [{ role: profiles[id] }] : []);
@@ -77,7 +78,8 @@ export function makeGuard({ fetchImpl, skipSignature = false, trustJwtRole = fal
     } catch { return deny(503, "unavailable"); }
     if (res.status === 401) return deny(401, "rejected_by_postgrest");
     if (!res.ok) return deny(503, "unavailable");
-    const rows = await res.json();
+    let rows;
+    try { rows = await res.json(); } catch { return deny(503, "unavailable"); }
     const role = trustJwtRole && claims.user_role ? claims.user_role : rows[0]?.role;   // trustJwtRole is a planted bug (mutant)
     if ((rows.length !== 1 && !(trustJwtRole && claims.user_role)) || role !== "super_admin") return deny(403, "forbidden");
     return { ok: true, claims, token: `${m[1]}.${m[2]}.${m[3]}` };
@@ -169,6 +171,8 @@ export function buildCases() {
       mk("JWT claims role=super_admin but profiles says user", 403, T({ role: "super_admin", user_role: "super_admin" }), { profiles: { "user-1": "user" } }),
       mk("profiles returns 500", 503, T(), { restFailure: 500 }),
       mk("profiles returns 502", 503, T(), { restFailure: 502 }),
+      mk("profiles returns 404 (other non-2xx)", 503, T(), { restFailure: 404 }),
+      mk("profiles returns 200 but not JSON", 503, T(), { restFailure: "nonjson" }),
       mk("profiles network error", 503, T(), { restFailure: "network" }),
       mk("JWKS unreachable (cold instance)", 503, T(), { jwksDown: true }),
     ],
