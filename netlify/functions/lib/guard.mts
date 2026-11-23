@@ -59,6 +59,23 @@ const MAX_TOKEN_LENGTH = 4096;
 const BEARER = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/;
 const ALLOWED_ALGS = new Set(["ES256", "RS256"]);
 
+// Always on, whatever SETTINGS.jwtHeaderPrecheck says: the header and payload must each decode (base64url) to a
+// JSON object. auth-js THROWS on a non-JSON header, and the guard maps a throw to 503; a malformed token is the
+// caller's fault, so it gets 401 here, before any network call. Verifies nothing else (getClaims does).
+function decodesToObject(part: string): boolean {
+  try {
+    const v: unknown = JSON.parse(Buffer.from(part, "base64url").toString("utf8"));
+    return !!v && typeof v === "object" && !Array.isArray(v);
+  } catch {
+    return false;
+  }
+}
+export function wellFormedJwt(token: string): boolean {
+  if (typeof token !== "string") return false;
+  const parts = token.split(".");
+  return parts.length === 3 && parts.every((p) => /^[A-Za-z0-9_-]+$/.test(p)) && decodesToObject(parts[0]) && decodesToObject(parts[1]);
+}
+
 // docs/04 §4.1 step 1 header pre-check. Verifies nothing (getClaims does). It stops cheap forgeries (HS*, none,
 // no kid) before getClaims falls back to GET /auth/v1/user for them. On only after pre-launch test (f).
 export function precheckJwtHeader(token: string): boolean {
@@ -169,6 +186,7 @@ export function createGuard(opts: GuardOptions = {}): Guard {
       if (!m) return deny(401, "no_token");
       const token = m[1];
       if (headerPrecheck && !precheckJwtHeader(token)) return deny(401, "bad_header"); // no network call
+      if (!wellFormedJwt(token)) return deny(401, "malformed_token"); // no network call; a throw later stays 503
 
       // 2. Signature + exp via getClaims (JWKS, local WebCrypto). Token passed explicitly. Never allowExpired.
       //    auth-js RETURNS network/5xx failures as { error: AuthRetryableFetchError }; it does not throw them.

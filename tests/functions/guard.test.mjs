@@ -89,7 +89,7 @@ describe("401: identity not proven", () => {
     expect(f.calls).toEqual([]);
   });
   it("garbage three-part token -> 401", async () => {
-    expect(view(await guard(mockFetch()).check(req("Bearer not.a-jwt.at-all"), meta))).toEqual([false, 401, "unauthorized", "invalid_token"]);
+    expect(view(await guard(mockFetch()).check(req("Bearer not.a-jwt.at-all"), meta))).toEqual([false, 401, "unauthorized", "malformed_token"]);
   });
   it("malformed three-part tokens (header or payload not a base64url JSON object) -> 401 invalid_token, no network call, whatever the pre-check setting", async () => {
     const enc = (v) => b64u(typeof v === "string" ? v : JSON.stringify(v));

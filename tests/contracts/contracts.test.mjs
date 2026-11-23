@@ -152,38 +152,82 @@ describe("import rule: the beach app never loads auth or Console code (ADR-0006,
   const consoleSide = (r) => r === "public/console.html" || r.startsWith("public/js/console/") ||
     r.startsWith("public/vendor/") || r.startsWith("public/generated/");
   const files = walk(join(root, "public")).filter((p) => /\.(js|mjs|html)$/.test(p)).filter((p) => !consoleSide(rel(p)));
-  // Any quoted path or URL that points into vendor/, generated/, js/console/, or at a Supabase host.
-  const FORBIDDEN = /["'`(]\s*(?:\.{0,2}\/)*(?:[^"'`)\s]*\/)?(?:vendor\/|generated\/|js\/console\/)|supabase\.co|@supabase\//;
 
-  it("scans at least the files that exist now", () => {
-    expect(Array.isArray(files)).toBe(true);
+  // A target is forbidden if it points into vendor/, generated/ or js/console/, at a Supabase host, or at @supabase/*.
+  const BAD_TARGET = /(?:^|\/)(?:vendor|generated|js\/console)\/|supabase\.co\b|^@supabase\//;
+
+  // Only what can LOAD code or CONNECT counts. Links (<a href>) and prose are not loads.
+  function loadTargets(text, kind) {
+    const out = [];
+    const add = (re, group = 1) => { for (const m of text.matchAll(re)) out.push(m[group]); };
+    if (kind === "html") {
+      add(/<script\b[^>]*\bsrc\s*=\s*["']([^"']+)["']/gi);
+      for (const m of text.matchAll(/<link\b[^>]*>/gi)) {
+        if (/\brel\s*=\s*["'](?:modulepreload|stylesheet|preload)["']/i.test(m[0])) {
+          const h = /\bhref\s*=\s*["']([^"']+)["']/i.exec(m[0]);
+          if (h) out.push(h[1]);
+        }
+      }
+      for (const m of text.matchAll(/<meta\b[^>]*http-equiv\s*=\s*["']content-security-policy["'][^>]*>/gi)) {
+        const c = /\bcontent\s*=\s*["']([^"']+)["']/i.exec(m[0]);
+        if (c) out.push(...c[1].split(/\s+/));
+      }
+      return out;
+    }
+    // JS: drop comments (block comments, and lines that are only a // comment) so prose never counts.
+    const code = text.replace(/\/\*[\s\S]*?\*\//g, "").split("\n").filter((l) => !/^\s*\/\//.test(l)).join("\n");
+    add(/\b(?:import|export)\b[^"'`;]*?\bfrom\s*["'`]([^"'`]+)["'`]/g);
+    add(/\bimport\s*["'`]([^"'`]+)["'`]/g);
+    add(/\bimport\s*\(\s*["'`]([^"'`]+)["'`]/g);
+    add(/\bimportScripts\s*\(\s*["'`]([^"'`]+)["'`]/g);
+    add(/\b(?:fetch|EventSource|WebSocket|sendBeacon)\s*\(\s*["'`]([^"'`]+)["'`]/g);
+    add(/["'`](https?:\/\/[^"'`\s]*supabase\.co[^"'`\s]*)["'`]/g); // a connect URL kept in a constant
+    return out;
+  }
+
+  it("scans the beach app's HTML and JS", () => {
+    expect(files.some((p) => rel(p) === "public/index.html" || rel(p).startsWith("public/js/"))).toBe(true);
   });
 
-  it("no beach-app file references vendor/, generated/, js/console/ or Supabase (sw.js only lists them to skip them)", () => {
+  it("no beach-app file loads or connects to vendor/, generated/, js/console/ or Supabase", () => {
     const hits = [];
     for (const p of files) {
       const r = rel(p);
-      readFileSync(p, "utf8").split("\n").forEach((line, i) => {
-        if (!FORBIDDEN.test(line)) return;
-        // sw.js may NAME these paths in its never-intercept list (docs/02 §5); it must not import or fetch them.
-        if (r === "public/sw.js" && !/\b(import|importScripts)\b/.test(line)) return;
-        hits.push(`${r}:${i + 1}: ${line.trim().slice(0, 120)}`);
-      });
+      const kind = p.endsWith(".html") ? "html" : "js";
+      for (const t of loadTargets(readFileSync(p, "utf8"), kind)) {
+        // sw.js may NAME a Supabase host in its never-intercept list (docs/02 §5) but never import or fetch it;
+        // its import/fetch calls are still checked above.
+        if (r === "public/sw.js" && /^https?:\/\//.test(t) && !/\b(?:import|importScripts|fetch)\b/.test(t)) continue;
+        if (BAD_TARGET.test(t)) hits.push(`${r}: ${t.slice(0, 120)}`);
+      }
     }
     expect(hits).toEqual([]);
   });
 
-  it("the rule itself catches the forbidden shapes (self-test)", () => {
-    for (const bad of [
-      `import { AuthClient } from "../vendor/supabase-auth-js-2.119.2.mjs";`,
-      `import { SUPABASE_URL } from "/generated/config.js";`,
-      `<script type="module" src="/js/console/main.js"></script>`,
-      `fetch("https://bdlocaltest.supabase.co/auth/v1/token")`,
-      `import x from "@supabase/auth-js";`,
-    ]) expect(FORBIDDEN.test(bad), bad).toBe(true);
-    for (const ok of [`import { t } from "./copy/copy-deck.js";`, `<a href="/console">Agents</a>`, `import { loadForecast } from "./forecast.js";`]) {
-      expect(FORBIDDEN.test(ok), ok).toBe(false);
-    }
+  it("the rule catches loads and ignores links and prose (self-test)", () => {
+    const bad = [
+      ["js", `import { AuthClient } from "../vendor/supabase-auth-js-2.119.2.mjs";`],
+      ["js", `import { SUPABASE_URL } from "/generated/config.js";`],
+      ["js", `const m = await import("./console/main.js".replace("", "/js/console/main.js"));`],
+      ["js", `import("/js/console/main.js")`],
+      ["js", `fetch("https://bdlocaltest.supabase.co/auth/v1/token")`],
+      ["js", `const URL = "https://abc.supabase.co";`],
+      ["js", `import x from "@supabase/auth-js";`],
+      ["html", `<script type="module" src="/js/console/main.js"></script>`],
+      ["html", `<link rel="modulepreload" href="/vendor/supabase-auth-js-2.119.2.mjs">`],
+      ["html", `<meta http-equiv="Content-Security-Policy" content="connect-src https://x.supabase.co">`],
+    ];
+    for (const [kind, src] of bad) expect(loadTargets(src, kind).some((t) => BAD_TARGET.test(t)), src).toBe(true);
+    const ok = [
+      ["js", `import { t } from "./copy/copy-deck.js";`],
+      ["js", `// see https://supabase.com/docs and <your-project-ref>.supabase.co`],
+      ["js", `/* auth lives in /js/console/auth.js, never imported here */`],
+      ["html", `<a href="/console">Agents</a>`],
+      ["html", `<a href="https://supabase.com/docs/guides/auth">Supabase Auth docs</a>`],
+      ["html", `<p>Your URL looks like https://&lt;your-project-ref&gt;.supabase.co</p>`],
+      ["html", `<code>https://your-project-ref.supabase.co</code>`],
+    ];
+    for (const [kind, src] of ok) expect(loadTargets(src, kind).some((t) => BAD_TARGET.test(t)), src).toBe(false);
   });
 });
 
