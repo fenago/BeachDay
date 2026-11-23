@@ -66,7 +66,7 @@ export const MIN_PASSWORD_LENGTH = 12; // docs/04 §4.5: minimum length 12
  * @param {string} [opts.publishableKey]
  * @param {() => number} [opts.now]         ms clock; tests can move it with setNow()
  * @param {string} [opts.siteUrl]           Site URL used when redirect_to is not allow-listed
- * @param {string[]} [opts.allowedRedirectOrigins]
+ * @param {string[]} [opts.allowedRedirectUrls]   exact redirect URLs (string match, like Supabase's allow-list)
  * @param {boolean} [opts.autoconfirm]      true = sign-up returns a session (Confirm email OFF; do not use for the real model)
  */
 export async function createFakeSupabase(opts = {}) {
@@ -91,7 +91,7 @@ export async function createFakeSupabase(opts = {}) {
     failures: [],              // { target, mode, times }
     google: { email: "google.user@example.test", deny: false },
     siteUrl: opts.siteUrl ?? "http://127.0.0.1:4173",
-    allowedRedirectOrigins: new Set(opts.allowedRedirectOrigins ?? []),
+    allowedRedirectUrls: new Set(opts.allowedRedirectUrls ?? []),
     autoconfirm: !!opts.autoconfirm,
     hangMs: 30_000,
     releases: new Set(),
@@ -209,7 +209,7 @@ export async function createFakeSupabase(opts = {}) {
       const f = takeFailure("user"); if (f) return applyFailure(f, request);
       if (!bearer) return authErr(401, "no_authorization", "This endpoint requires a Bearer token");
       const v = await verifyJwt(key, bearer, nowMs());
-      if (!v.ok) return authErr(401, "bad_jwt", `invalid JWT: ${v.why}`);
+      if (!v.ok) return authErr(403, "bad_jwt", `invalid JWT: ${v.why}`);
       const sess = s.sessions.get(v.claims.session_id);
       if (!sess || sess.revoked) return authErr(403, "session_not_found", "Session from session_id claim in JWT does not exist");
       const u = s.users.get(v.claims.sub);
@@ -230,10 +230,12 @@ export async function createFakeSupabase(opts = {}) {
         return j(200, await sessionJson(u, sid));
       }
       if (grant === "pkce") {
+        if (!b.auth_code || !b.code_verifier) return authErr(400, "validation_failed", "auth code and code verifier should be non-empty");
         const c = s.codes.get(b.auth_code);
-        if (!c) return authErr(400, "flow_state_not_found", "invalid flow state, no valid flow state found");
+        if (!c) return authErr(404, "flow_state_not_found", "invalid flow state, no valid flow state found");
+        if (nowMs() - c.createdAt > 300_000) { s.codes.delete(b.auth_code); return authErr(422, "flow_state_expired", "invalid flow state, flow state has expired"); }
+        if (sha256b64u(b.code_verifier) !== c.challenge) return authErr(400, "bad_code_verifier", "invalid flow state, code verifier does not match"); // NOT consumed
         s.codes.delete(b.auth_code);
-        if (c.challenge && sha256b64u(b.code_verifier ?? "") !== c.challenge) return authErr(400, "bad_code_verifier", "invalid flow state, flow state has expired or code verifier mismatch");
         const u = s.users.get(c.userId);
         const sid = newSession(u, c.method ?? "oauth", { amr: c.amr, aal: c.aal });
         return j(200, await sessionJson(u, sid));
@@ -242,10 +244,11 @@ export async function createFakeSupabase(opts = {}) {
         const r = s.refresh.get(b.refresh_token);
         if (!r) return authErr(400, "refresh_token_not_found", "Invalid Refresh Token: Refresh Token Not Found");
         const sess = s.sessions.get(r.sessionId);
-        if (r.used || sess.revoked) return authErr(400, "refresh_token_already_used", "Invalid Refresh Token: Already Used");
+        if (sess.revoked) return authErr(400, "refresh_token_already_used", "Invalid Refresh Token: Already Used");
+        if (r.used) { sess.revoked = true; return authErr(400, "refresh_token_already_used", "Invalid Refresh Token: Already Used"); } // reuse = theft signal: the session dies
         r.used = true;
         const u = s.users.get(sess.userId);
-        sess.amr = [...sess.amr, { method: "token_refresh", timestamp: nowS() }]; // refreshing is NOT a sign-in (docs/04 §4.2)
+        // Real GoTrue adds no amr row on refresh (R4-6); the amr keeps the original sign-in. A "token_refresh" amr is only minted via mint(over).
         return j(200, await sessionJson(u, r.sessionId));
       }
       return authErr(400, "validation_failed", "unsupported grant_type");
@@ -289,7 +292,9 @@ export async function createFakeSupabase(opts = {}) {
       const f = takeFailure("verify"); if (f) return applyFailure(f, request);
       const b = await body();
       const t = s.emailTokens.get(b.token_hash);
-      if (!t || t.used || t.type !== b.type) return authErr(403, "otp_expired", "Email link is invalid or has expired");
+      // Real GoTrue: type "email" matches a stored confirmation OR recovery token (auth.js sends "email"); signup/recovery stay exact.
+      const typeOk = t && (t.type === b.type || (b.type === "email" && (t.type === "signup" || t.type === "recovery")));
+      if (!typeOk || t.used) return authErr(403, "otp_expired", "Email link is invalid or has expired");
       t.used = true;
       const u = s.users.get(t.userId);
       if (t.type === "signup") u.confirmed = true;
@@ -301,8 +306,10 @@ export async function createFakeSupabase(opts = {}) {
     if (method === "GET" && ep === "/authorize") {
       const f = takeFailure("authorize"); if (f) return applyFailure(f, request);
       if (url.searchParams.get("provider") !== "google") return authErr(400, "validation_failed", "Unsupported provider");
+      const challenge = url.searchParams.get("code_challenge") ?? "";
+      if (challenge.length < 43 || challenge.length > 128 || (url.searchParams.get("code_challenge_method") ?? "").toLowerCase() !== "s256") return authErr(400, "validation_failed", "PKCE required: code_challenge (43-128 chars) and code_challenge_method=s256"); // no implicit flow
       let back = url.searchParams.get("redirect_to") ?? s.siteUrl;
-      try { const o = new URL(back).origin; if (o !== new URL(s.siteUrl).origin && !s.allowedRedirectOrigins.has(o)) back = s.siteUrl; } catch { back = s.siteUrl; }
+      if (back !== s.siteUrl && !s.allowedRedirectUrls.has(back)) back = s.siteUrl; // EXACT string match against the allow-list, else the Site URL
       const dest = new URL(back);
       if (s.google.deny) {
         dest.searchParams.set("error", "access_denied"); dest.searchParams.set("error_code", "oauth_provider_denied"); dest.searchParams.set("error_description", "User denied access");
@@ -314,7 +321,7 @@ export async function createFakeSupabase(opts = {}) {
         if (!u.providers.includes("google")) { u.providers.push("google"); u.confirmed = true; }
       }
       const code = randomUUID();
-      s.codes.set(code, { userId: u.id, challenge: url.searchParams.get("code_challenge"), method: "oauth", amr: [{ method: "oauth", timestamp: nowS() }], aal: "aal1" });
+      s.codes.set(code, { userId: u.id, createdAt: nowMs(), challenge, method: "oauth", amr: [{ method: "oauth", timestamp: nowS() }], aal: "aal1" });
       dest.searchParams.set("code", code);
       return new Response(null, { status: 302, headers: { location: dest.toString() } });
     }
@@ -324,10 +331,12 @@ export async function createFakeSupabase(opts = {}) {
       const f = takeFailure("factors"); if (f) return applyFailure(f, request);
       if (!bearer) return authErr(401, "no_authorization", "This endpoint requires a Bearer token");
       const v = await verifyJwt(key, bearer, nowMs());
-      if (!v.ok) return authErr(401, "bad_jwt", `invalid JWT: ${v.why}`);
+      if (!v.ok) return authErr(403, "bad_jwt", `invalid JWT: ${v.why}`);
       const u = s.users.get(v.claims.sub);
       const sessionId = v.claims.session_id;
+      const callerAal = s.sessions.get(sessionId)?.aal ?? "aal1";
       if (method === "POST" && ep === "/factors") {
+        if (hasVerifiedFactor(u) && callerAal !== "aal2") return authErr(403, "insufficient_aal", "AAL2 required to enroll a new factor");
         const b = await body();
         const secret = b32encode(randomBytes(20));
         const fid = randomUUID();
@@ -349,10 +358,11 @@ export async function createFakeSupabase(opts = {}) {
         s.challenges.delete(b.challenge_id);
         fac.status = "verified";
         const sess = s.sessions.get(sessionId);
-        sess.aal = "aal2"; sess.amr = [...sess.amr, { method: "totp", timestamp: nowS() }];
+        sess.aal = "aal2"; sess.amr = [{ method: "totp", timestamp: nowS() }, ...sess.amr]; // newest first
         return j(200, await sessionJson(u, sessionId));
       }
-      if (method === "DELETE" && !m[2]) { u.factors = u.factors.filter((x) => x.id !== fac.id); return j(200, { id: fac.id }); }
+      if (method === "DELETE" && !m[2]) {
+        if (fac.status === "verified" && callerAal !== "aal2") return authErr(422, "insufficient_aal", "AAL2 required to unenroll a verified factor"); u.factors = u.factors.filter((x) => x.id !== fac.id); return j(200, { id: fac.id }); }
       return authErr(405, "method_not_allowed", "method not allowed");
     }
 
@@ -395,8 +405,11 @@ export async function createFakeSupabase(opts = {}) {
     get key() { return key; },
     otherKey,
     jwks: () => ({ keys: [key.jwk] }),
-    rotateKey: async () => { key = await newSigningKey(); },
+    /** Revocation: the old kid disappears from the JWKS, so every issued token stops verifying. */
+    revokeKey: async () => { key = await newSigningKey(); },
+    /** Moves the FAKE clock only (PostgREST exp, /user, TOTP, amr timestamps, PKCE expiry). auth-js getClaims checks exp against the REAL Date.now(), so use mintExpired() for an expired token. */
     setNow(ms) { nowFn = typeof ms === "function" ? ms : () => ms; },
+    /** Same caveat as setNow: the fake only. */
     advance(ms) { const base = nowFn(); nowFn = () => base + ms; },
     /** Create a user. role is written to the `profiles` table (trigger default 'user'). */
     addUser({ email, password = "correct horse battery staple", confirmed = true, role = "user", provider = "email" }) {
@@ -414,7 +427,7 @@ export async function createFakeSupabase(opts = {}) {
     getUser: (email) => userByEmail(email),
     confirm(email) { const u = userByEmail(email); if (u) u.confirmed = true; },
     setGoogle({ email, deny } = {}) { if (email) s.google.email = email; if (deny !== undefined) s.google.deny = deny; },
-    allowRedirectOrigin(o) { s.allowedRedirectOrigins.add(o); },
+    allowRedirectUrl(u) { s.allowedRedirectUrls.add(u); },
     setSiteUrl(u) { s.siteUrl = u; },
     /** The latest email of a type for an address, as the link the person would tap. */
     lastEmail(to, type) { return [...s.outbox].reverse().find((m) => m.to === String(to).toLowerCase() && (!type || m.type === type)) ?? null; },
@@ -439,6 +452,8 @@ export async function createFakeSupabase(opts = {}) {
       };
       return signJwt(opts.key ?? key, claims, opts);
     },
+    /** A correctly signed token that is already expired for any verifier (iat 700 s ago, exp 100 s ago). */
+    mintExpired(email, over = {}, opts = {}) { const iat = Math.floor(Date.now() / 1000) - 700; return api.mint(email, { iat, exp: iat + 600, ...over }, opts); },
     /** Sign-in as the browser would, returning the session JSON (for function tests that need a real refresh token). */
     async signIn(email, password) {
       const res = await handle(new Request(`${origin}/auth/v1/token?grant_type=password`, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ email, password }) }));

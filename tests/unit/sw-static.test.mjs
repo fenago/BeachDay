@@ -196,6 +196,15 @@ describe("sw.js behaviour (vm harness)", () => {
     expect(await res.text()).toBe("shell:" + ORIGIN + "/js/app.js");
   });
 
+  it("cache-first reads only its own version's shell cache, not another version's", async () => {
+    const h = makeHarness({ fetchImpl: () => Promise.resolve(new Response("network")) });
+    const other = await h.caches.open("beachday-shell-newer");
+    await other.put(ORIGIN + "/js/app.js", new Response("from-newer-cache"));
+    expect(await (await h.fetchEvent(ORIGIN + "/js/app.js", { destination: "script" })).text()).toBe("network");
+    h.fire("install", {}); await Promise.all(h.waits);
+    expect(await (await h.fetchEvent(ORIGIN + "/js/app.js", { destination: "script" })).text()).toBe("shell:" + ORIGIN + "/js/app.js");
+  });
+
   it("Open-Meteo: network response is cached with a fetched-at stamp, and served from cache when offline", async () => {
     let online = true;
     const h = makeHarness({ fetchImpl: () => (online ? Promise.resolve(new Response('{"ok":1}', { headers: { "content-type": "application/json" } })) : offline()) });

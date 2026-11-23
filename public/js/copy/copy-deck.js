@@ -1,7 +1,7 @@
 // Beach Day copy deck: every user-facing string, as a frozen ES module (Wren, build W1).
 // Source of truth for the app. Derived from knowledge/ux-designer-apple-hig/examples/02-copy-deck/copy-deck.json
 // plus the new groups below. Deliberate text differences from that JSON (Dr. Lee: open sign-up, "Agents", "Sign in"):
-//   auth.signin.title, auth.signin.sub, auth.signup.title, auth.signout.done, console.error.budget(.nodate).
+//   reason.short (usable hours), advice.confidence.medium, auth.signin.title, auth.signin.sub, auth.signup.title, auth.signout.done, console.error.budget(.nodate).
 // Verdict and reason wording changes need open-meteo-integrator review (scoring wording gate).
 // Placeholders such as {time} are filled by t(). Use textContent only; never innerHTML.
 
@@ -64,7 +64,7 @@ export const DECK = deepFreeze({
     },
     {
       "id": "reason.short",
-      "text": "Only {hours} beach hours left"
+      "text": "Only {hours} usable beach hours"
     },
     {
       "id": "reason.unusual",
@@ -156,7 +156,11 @@ export const DECK = deepFreeze({
     },
     {
       "id": "reason.water",
-      "text": "Water {temp} °F"
+      "text": "Water {temp} °F, a bit cool"
+    },
+    {
+      "id": "reason.short.one",
+      "text": "Only 1 usable beach hour"
     }
   ],
   "positiveReasons": [
@@ -224,7 +228,7 @@ export const DECK = deepFreeze({
     },
     {
       "id": "advice.confidence.medium",
-      "text": "Fairly sure. Some data is missing."
+      "text": "Fairly sure."
     },
     {
       "id": "advice.confidence.low",
@@ -1212,97 +1216,9 @@ export const DECK = deepFreeze({
     "{in}": "total precipitation over the best window, two decimals",
     "{time}": "start of the first hour concerned, like 2 pm, local time",
     "{hours}": "number of usable beach hours, integer"
-  },
-  "reasonBands": {
-    "reason.rain.chance": "rain chance [21,61)",
-    "reason.rain": "rain chance [61,100]",
-    "reason.cloudy.part": "cloud cover [41,71)",
-    "reason.cloudy": "cloud cover [71,100]",
-    "reason.waves.rough": "waves >= 5 ft",
-    "reason.waves.choppy": "waves [2,5) ft"
   }
 });
 
-export const REASON_IDS = deepFreeze({
-  "storm_outside_window": [
-    "reason.storm.outside"
-  ],
-  "thunderstorms": [
-    "reason.thunder"
-  ],
-  "thunder_wait": [
-    "reason.thunder.wait"
-  ],
-  "too_windy": [
-    "reason.wind.stop"
-  ],
-  "dangerous_heat": [
-    "reason.heat.stop"
-  ],
-  "short_window": [
-    "reason.short"
-  ],
-  "unusual_weather": [
-    "reason.unusual"
-  ],
-  "storm_risk": [
-    "reason.storms.risk",
-    "reason.storms.possible"
-  ],
-  "rain_chance": [
-    "reason.rain.chance",
-    "reason.rain"
-  ],
-  "rain_code": [
-    "reason.drizzle",
-    "reason.rain.code",
-    "reason.showers"
-  ],
-  "rain_amount": [
-    "reason.rain.amount"
-  ],
-  "clouds": [
-    "reason.cloudy.part",
-    "reason.cloudy"
-  ],
-  "feels_like": [
-    "reason.sunny",
-    "reason.hot",
-    "reason.cool",
-    "reason.feels"
-  ],
-  "wind": [
-    "reason.wind.light",
-    "reason.wind.breezy"
-  ],
-  "waves": [
-    "reason.waves.calm",
-    "reason.waves.choppy",
-    "reason.waves.rough"
-  ],
-  "water_temp": [
-    "reason.water.warm",
-    "reason.water.cool",
-    "reason.water"
-  ]
-});
-export const ADVICE_IDS = deepFreeze({
-  "uv_moderate": "advice.uv.moderate",
-  "uv_high": "advice.uv.high",
-  "uv_very_high": "advice.uv.veryhigh",
-  "uv_extreme": "advice.uv.extreme",
-  "fog": "advice.fog",
-  "marine_missing": "advice.marine.missing",
-  "marine_partial": "advice.marine.partial"
-});
-export const POSITIVE_REASON_IDS = deepFreeze({
-  "dry": "reason.pos.dry",
-  "sunny_sky": "reason.pos.sunny",
-  "comfortable": "reason.pos.comfortable",
-  "light_wind": "reason.pos.wind",
-  "calm_waves": "reason.pos.waves",
-  "warm_water": "reason.pos.water"
-});
 
 const GROUPS = ['verdicts', 'reasons', 'positiveReasons', 'advice', 'status', 'errors', 'empty', 'buttons', 'console', 'nav', 'ui', 'install', 'agents'];
 
@@ -1350,50 +1266,3 @@ export function verdictFor(keyOrScore) {
   return v;
 }
 
-/**
- * Reason object -> copy id. Variant fields are the best-window values from docs/01 section 5.2:
- *   rain_chance {pct}  [21,61) "N% chance of rain", [61,100] "Rain likely"
- *   rain_code {weatherCode} 51/53/55 drizzle, 61/63/65 rain, 80-82 showers
- *   clouds {cloudPct}  [41,71) partly, [71,100] mostly
- *   feels_like {temp, cloudPct}  < 72 cool, [78,91) and cloudPct < 41 sunny, >= 91 hot, else "Feels like {temp} °F"
- *   wind {mph} < 13 light, else breezy;  waves {ft} < 2 calm, [2,5) choppy, >= 5 rough
- *   water_temp {temp} >= 78 warm, < 74 cool, else "Water {temp} °F";  storm_risk {time} present -> "after {time}"
- * A reason may also carry an explicit "variant" (the id suffix list in REASON_IDS order) which wins.
- */
-export function reasonId(r) {
-  const ids = REASON_IDS[r.code];
-  if (!ids) return null;
-  if (Number.isInteger(r.variant) && ids[r.variant]) return ids[r.variant];
-  switch (r.code) {
-    case 'storm_risk': return r.time ? ids[1] : ids[0];
-    case 'rain_chance': return r.pct >= 61 ? ids[1] : ids[0];
-    case 'rain_code': {
-      const c = r.weatherCode;
-      if (c >= 80 && c <= 82) return ids[2];
-      if (c === 61 || c === 63 || c === 65) return ids[1];
-      return ids[0];
-    }
-    case 'clouds': return r.cloudPct >= 71 ? ids[1] : ids[0];
-    case 'feels_like':
-      if (r.temp < 72) return ids[2];
-      if (r.temp >= 91) return ids[1];
-      if (r.temp >= 78 && r.cloudPct < 41) return ids[0];
-      return ids[3];
-    case 'wind': return r.mph >= 13 ? ids[1] : ids[0];
-    case 'waves': return r.ft >= 5 ? ids[2] : r.ft >= 2 ? ids[1] : ids[0];
-    case 'water_temp': return r.temp >= 78 ? ids[0] : r.temp < 74 ? ids[1] : ids[2];
-    default: return ids[0];
-  }
-}
-
-/** Reason object -> display text, or null for an unknown code. */
-export function reasonText(r) {
-  const id = reasonId(r);
-  return id ? t(id, r) : null;
-}
-
-/** Advice object -> display text, or null for an unknown code. */
-export function adviceText(a) {
-  const id = ADVICE_IDS[a.code];
-  return id ? t(id, { n: a.n ?? a.uv ?? '', ...a }) : null;
-}

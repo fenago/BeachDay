@@ -34,7 +34,7 @@ Class names are semantic and TBD until Sable's inventory lands; swap them for he
 <a class="skip-link" href="#main">Skip to content</a>
 <header class="site-header">
   <nav class="site-nav" aria-label="Main">
-    <a class="site-nav__brand" href="/" aria-current="page">Beach Day</a>
+    <a class="brand" href="/" aria-current="page">Beach Day</a>
     <ul class="site-nav__list">
       <li><a href="/how-it-works/">How it works</a></li>
       <li><a href="/resources/">Resources</a></li>
@@ -96,35 +96,23 @@ Use `verdictFor(score)` or the verdict key from `copy-deck.js`. The label is the
 | fair | Fair — pick your hours | cloud |
 | skip | Skip it | storm |
 
-A short window caps the label at "Good". The card then always shows [reason.short] "Only {hours} beach hours left". Outlook days (day 4 and later) show the tag [ui.outlook] and the line [advice.outlook].
+A short window caps the label at "Good". The card then always shows [reason.short] "Only {hours} usable beach hours". Outlook days (day 4 and later) show the tag [ui.outlook] and the line [advice.outlook].
 
 ### 2.2 Reason and advice codes to strings
-Reasons arrive as codes (docs/01 §5.2). `copy-deck.js` exports `reasonText(reason)` and `adviceText(advice)`; `REASON_IDS` and `ADVICE_IDS` hold the tables. Dewey: confirm the variant field names (`pct`, `weatherCode`, `cloudPct`, `temp`, `mph`, `ft`, `time`, `hours`, `in`). A reason may carry an explicit integer `variant` that picks the id by position and wins over the rules.
+Render `t(reason.copyId, reason.params)` and `t(advice.copyId, advice.params)`. `score.js` owns the variant choice (it picks the copy id from the unrounded best-window value); the UI never re-derives a band. `copy-deck.js` exports no reason or advice helper on purpose. Tess: a test must check that every emitted `copyId` is in `STRINGS`.
 
-| Code | Variant rule (best-window value) | Ids, in order |
-|---|---|---|
-| `storm_outside_window` | always first | reason.storm.outside |
-| `thunderstorms` | | reason.thunder |
-| `thunder_wait` | pairs with advice.lightning | reason.thunder.wait |
-| `too_windy` | | reason.wind.stop |
-| `dangerous_heat` | | reason.heat.stop |
-| `short_window` | | reason.short |
-| `unusual_weather` | | reason.unusual |
-| `storm_risk` | `time` present picks the second | reason.storms.risk, reason.storms.possible |
-| `rain_chance` | pct [21,61) first, [61,100] second | reason.rain.chance, reason.rain |
-| `rain_code` | 51/53/55 first, 61/63/65 second, 80-82 third | reason.drizzle, reason.rain.code, reason.showers |
-| `rain_amount` | | reason.rain.amount |
-| `clouds` | [41,71) first, [71,100] second | reason.cloudy.part, reason.cloudy |
-| `feels_like` | [78,91) and cloud < 41 first; ≥ 91 second; < 72 third; otherwise fourth | reason.sunny, reason.hot, reason.cool, reason.feels |
-| `wind` | < 13 first, else second | reason.wind.light, reason.wind.breezy |
-| `waves` | < 2 first, [2,5) second, ≥ 5 third | reason.waves.calm, reason.waves.choppy, reason.waves.rough |
-| `water_temp` | ≥ 78 first, < 74 second, otherwise third | reason.water.warm, reason.water.cool, reason.water |
+Rendering rules:
+- The reasons list shows at most 4 items. If a Great day has no reasons, hide the empty list (no heading, no bullets).
+- A verdict of `skip` with `bestWindow: null` (no eligible window, only hard-stop reasons) shows no "Best hours" line. The stop reasons carry the explanation.
+- Short window: [reason.short] "Only {hours} usable beach hours", or [reason.short.one] "Only 1 usable beach hour" (score.js picks). It always sits next to a label capped at Good.
+- Confidence line: show only for `medium` ([advice.confidence.medium] "Fairly sure.") and `low` ([advice.confidence.low] "Less sure. Check again later."). `high` shows nothing. `outlook` shows the tag [ui.outlook] and [advice.outlook].
+- Never write "clear" for an unknown weather code.
 
-Added ids [reason.feels] "Feels like {temp} °F" and [reason.water] "Water {temp} °F" cover the neutral middle bands, which had no wording before.
+Ids added in the deck for neutral bands: [reason.feels] "Feels like {temp} °F" and [reason.water] "Water {temp} °F, a bit cool". [reason.short.one] is new.
 
-D3 positive reasons (off by default; `POSITIVE_REASON_IDS` maps the code to the id): `dry` → reason.pos.dry "Low chance of rain", `sunny_sky` → reason.pos.sunny "Mostly sunny", `comfortable` → reason.pos.comfortable "Comfortable, feels like {temp} °F", `light_wind` → reason.pos.wind "Light wind, {mph} mph", `calm_waves` → reason.pos.waves "Calm, waves under 2 ft offshore", `warm_water` → reason.pos.water "Warm water, {temp} °F". Dewey, if you emit these, use exactly these code names or tell me the names.
+D3 positive reasons (off by default, `SCORE_CONFIG.reasons.positiveOnGoodDays`). Codes and ids, as ruled in build-contracts: `dry` reason.pos.dry "Low chance of rain", `sunny_sky` reason.pos.sunny "Mostly sunny", `comfortable` reason.pos.comfortable "Comfortable, feels like {temp} °F", `light_wind` reason.pos.wind "Light wind, {mph} mph", `calm_waves` reason.pos.waves "Calm, waves under 2 ft offshore", `warm_water` reason.pos.water "Warm water, {temp} °F".
 
-Advice: `uv_moderate` advice.uv.moderate (uses `{n}`), `uv_high` advice.uv.high, `uv_very_high` advice.uv.veryhigh, `uv_extreme` advice.uv.extreme, `fog` advice.fog, `marine_missing` advice.marine.missing, `marine_partial` advice.marine.partial. Confidence: `medium` advice.confidence.medium, `low` advice.confidence.low, `outlook` advice.outlook. Never write "clear" for an unknown weather code.
+Advice ids for reference: advice.uv.moderate (`{n}`), advice.uv.high, advice.uv.veryhigh, advice.uv.extreme, advice.fog, advice.marine.missing, advice.marine.partial, advice.lightning, advice.outlook.
 
 ### 2.3 Install hints (never nag)
 | Platform | What shows | When | Dismiss |
@@ -156,7 +144,7 @@ Primary question: "Which agent do I want to talk to?" Primary action on each car
 Never show "no access" for a 503. The 403 screen makes no further Console calls.
 
 ### 3.2 Agent card content
-Each card is an `<article>` with an `h2`. Fields come from `GET /api/agents` (no `systemPrompt`).
+Each card is an `<article>`. Its heading level follows the page outline (`h2` under the page `h1`). The knowledge list is a native `<details>` whose `<summary>` is the counts line [agents.knowledge.counts]; skills sit inside the body. The brand link is a sibling `.brand` of the nav list, not part of it. Fields come from `GET /api/agents` (no `systemPrompt`).
 
 | Part | Source field | Rendered as |
 |---|---|---|
@@ -166,7 +154,7 @@ Each card is an `<article>` with an `h2`. Fields come from `GET /api/agents` (no
 | Model | `modelLabel` | Text badge [agents.model] + "Sonnet". Colour never carries the meaning |
 | Colour | `color` | Decorative left rule or dot, `aria-hidden`; contrast is not required for it |
 | Knowledge summary | `knowledge.docs.length`, `knowledge.examples.length` | [agents.knowledge.counts] "6 reference notes, 4 examples" |
-| Knowledge list | `knowledge.title`, `docs[].title`, `examples[].title` | A disclosure button [btn.showKnowledge] / [btn.hideKnowledge] with `aria-expanded` and `aria-controls`. Opens two short lists under [agents.knowledge.docs] and [agents.knowledge.examples]. Closed by default |
+| Knowledge list | `knowledge.title`, `docs[].title`, `examples[].title` | A native `<details>` (summary = the counts line; no custom `aria-expanded` needed). Opens two short lists under [agents.knowledge.docs] and [agents.knowledge.examples]. Closed by default |
 | Skills | `skills[]` | Inside the same disclosure, under [agents.skills], one line of names |
 | Action | | Button [agents.chat.with], 44 px, the one prominent button on the card |
 
@@ -316,7 +304,7 @@ Status column: **ok** = opened this session (only GitHub could be reached). **no
 2. **Where the data comes from.** Weather and sea conditions come from Open-Meteo (free, no account), straight from your phone. Beach Day has no weather server. Link: Open-Meteo, CC BY 4.0.
 3. **The beach window.** Only daylight hours count: from one hour after sunrise (but not before 8 am) to half an hour before sunset (but not after 7 pm). For today, hours that have passed are skipped. If fewer than three remain, Beach Day uses what is left and never says better than Good.
 4. **Hard stops.** Some conditions set an hour to zero: thunderstorms; the hour right after thunder (the 30-minute rule); too much wind (25 mph, or gusts of 32 mph); dangerous heat (NWS heat index of 103 °F or more). A three-hour window with a stopped hour is not used. A storm later in the day still shows as the first reason.
-5. **Penalties.** Each hour starts at 100. Points come off for rain chance, measurable rain, rain type (drizzle, rain, showers), storm risk, cloud cover, how hot or cool it feels, wind, waves offshore and cool water. Rain counts once, not twice. UV never lowers the score; it becomes sunscreen advice.
+5. **Penalties.** Each hour starts at 100. Points come off for rain chance, measurable rain, rain type (drizzle, rain, showers), storm risk, cloud cover, how hot or cool it feels, wind, waves offshore and cool water. Rain chance counts, and the wetness (how much, or the type) counts once, with a cap. UV never lowers the score; it becomes sunscreen advice.
 6. **The verdict.** The best three-hour average, rounded, then: 80 and up Great beach day; 65 to 79 Good; 45 to 64 Fair — pick your hours; under 45 Skip it. Every verdict has a word, an icon and a colour.
 7. **How sure it is.** Beach Day says when waves or water data are missing, when the window is short, and that days four and later are an outlook. It never guesses missing data.
 8. **What it does not do.** It does not score rip currents, beach flags, water quality, red tide, sargassum or tides. Those need local, current information. Always check NWS rip-current risk and posted flags. Show the exact safety line [safety.line] in a callout, with the NWS link.
@@ -358,14 +346,14 @@ Friction found and the fix built into this spec:
 
 ## 9. Copy deck: what changed against the knowledge JSON
 `public/js/copy/copy-deck.js` is the app's source. `knowledge/.../copy-deck.json` is the older example and is unchanged; a note for Juno to refresh it.
-- Text changed for open sign-up, "Agents" and "Sign in": auth.signin.title ("Sign in to Agents"), auth.signin.sub ("Chat with the Beach Day agents."), auth.signup.title ("Create an account"), auth.signout.done ("Signed out."), console.error.budget and console.error.budget.nodate ("Agents is at its usage limit for now…").
+- Text changed for open sign-up, "Agents" and "Sign in": reason.short (usable hours), advice.confidence.medium ("Fairly sure."), auth.signin.title ("Sign in to Agents"), auth.signin.sub ("Chat with the Beach Day agents."), auth.signup.title ("Create an account"), auth.signout.done ("Signed out."), console.error.budget and console.error.budget.nodate ("Agents is at its usage limit for now…").
 - New groups: positiveReasons (6), nav and footer (14), ui (32), install (8), agents (34), plus [reason.feels], [reason.water], and buttons [btn.install] [btn.notNow] [btn.done] [btn.send] [btn.showKnowledge] [btn.hideKnowledge] [btn.viewCommit].
-- Helpers: `t`, `verdictFor`, `reasonId`, `reasonText`, `adviceText`, `STRINGS`, `DECK`, `REASON_IDS`, `ADVICE_IDS`, `POSITIVE_REASON_IDS`, `SAFETY`, `VERDICTS`. Everything is deep-frozen.
-- Lint: the checker from example 02, adapted to read the module (limits unchanged: reasons 36, status 60, buttons 22 and 4 words, others 90; Flesch ≥ 60; banned words; sentence case). 293 strings, PASS.
+- Exports: `t`, `verdictFor`, `STRINGS`, `DECK`, `SAFETY`, `VERDICTS`. No reason or advice helpers (see §2.2). Everything is deep-frozen.
+- Lint: the checker from example 02, adapted to read the module (limits unchanged: reasons 36, status 60, buttons 22 and 4 words, others 90; Flesch ≥ 60; banned words; sentence case). 294 strings, PASS.
 
 ## 10. Open items and UNVERIFIED
 - Heading of the 403 screen: pending Dr. Lee (D4).
-- Dewey must confirm reason field names (§2.2) and the positive code names (D3).
+- Dewey: confirm nothing emits reason.sunny, reason.wind.light, reason.waves.calm or reason.water.warm after the score.js fix; if so, I drop them.
 - Resources links: only GitHub was reachable; every other URL is "not re-checked". Two links were added by Wren and are not in the project docs (NOAA Tides and Currents, Google Cloud credentials).
 - Install-sheet timing (30 s or second visit) is Wren's choice; Pip may adjust with a reason.
 - TOTP and 3.3.8, lost-phone recovery, and Google step-up freshness remain as listed in example 04.

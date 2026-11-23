@@ -147,7 +147,8 @@ async function navigation(request) {
 }
 
 async function cacheFirst(request) {
-  const cached = await caches.match(request, { ignoreSearch: true });
+  // Only this version's cache: caches.match would also search a waiting worker's newer cache.
+  const cached = await (await caches.open(SHELL_CACHE)).match(request, { ignoreSearch: true });
   if (cached) return cached;
   return fetch(request); // not precached: plain network (a failure is a normal network error)
 }

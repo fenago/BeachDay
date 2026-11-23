@@ -90,6 +90,7 @@ Update flow (avoid stale apps after a Netlify deploy):
 2. Versioned cache names (`beachday-shell-<VERSION>`); delete old caches in `activate`.
 3. Don't blindly `skipWaiting()` + `clients.claim()` (a page with old assets can be controlled by a new SW → 404s on removed files). Instead: detect a waiting SW → show "New version available — Refresh" → `postMessage({type:"SKIP_WAITING"})` → reload on `controllerchange`.
 4. Match precached shell requests with `ignoreSearch: true` (the `start_url` is `/?source=pwa`).
+5. While an update waits, navigations go to the network, so a page can be new HTML running old cached JS (the old worker still serves `beachday-shell-<old>`). The shell is versioned as a set and the old worker only reads its own cache, so a new page never mixes in the new cache. If a deploy changes an HTML/JS contract, the Refresh tap (one reload on `controllerchange`) is what brings them back together. QA's update spec should cover this window.
 5. Browsers ignore HTTP caching for SW update checks by default (Chrome 68+), but still set `/sw.js  Cache-Control: no-cache` in `_headers` as a guard. Netlify's default for static files is already `max-age=0, must-revalidate`, and every deploy invalidates the CDN. [Netlify caching](https://docs.netlify.com/build/caching/caching-overview/)
 
 ## 6. Native wrapper decision

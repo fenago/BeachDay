@@ -11,7 +11,7 @@ export function harnessClient(baseURL) {
   const ns = (prefix, names) => Object.fromEntries(names.map((n) => [n, (args) => call(`${prefix}.${n}`, args)]));
   return {
     call,
-    supabase: ns("supabase", ["addUser", "setRole", "deleteProfile", "confirm", "setGoogle", "lastEmail", "outbox", "currentTotp", "enrollVerifiedTotp", "mint", "ageSignIn", "fail", "clearFailures", "calls", "callCount", "resetCalls", "restWrites", "sessionCount", "setSiteUrl"]),
+    supabase: ns("supabase", ["addUser", "setRole", "deleteProfile", "confirm", "setGoogle", "lastEmail", "outbox", "currentTotp", "enrollVerifiedTotp", "mint", "ageSignIn", "fail", "clearFailures", "calls", "callCount", "resetCalls", "restWrites", "sessionCount", "setSiteUrl", "allowRedirectUrl", "mintExpired"]),
     blobs: ns("blobs", ["peek", "seed", "callCount", "resetCalls", "reset", "keys"]),
     github: ns("github", ["state", "fileText", "log", "pushConcurrent", "failNextPatchWithRace", "patchAppliesThen", "patchFails502", "setReadDown", "failNext"]),
     anthropic: ns("anthropic", ["script", "requests", "pending"]),

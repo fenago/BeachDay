@@ -12,6 +12,7 @@
 //  - /__harness/ctl: a JSON control channel so a Playwright test (another process) can drive the fakes.
 // None of the /__* endpoints exists outside this harness. Nothing here reads real secrets or reaches a real host.
 import { createServer } from "node:http";
+import { randomBytes } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, extname, normalize, sep } from "node:path";
@@ -67,6 +68,9 @@ export async function startHarness({ port = 0, host = "127.0.0.1", publicDir = j
       github: { owner: FIXTURE_REPO.owner, repo: FIXTURE_REPO.repo },
       siteUrl: origin,
       requestSelf: (path, init) => globalThis.fetch(`${origin}${path}`, init), // /api/jobs -> /api/jobs-run goes through the harness
+      // build-contracts §2.2 names. guard/registry/getClient/getReader/getWriter/stepUp stay the handler's real wiring (MSW + process.env).
+      stores: Object.fromEntries(["proposals", "jobs", "ratelimit", "audit"].map((n) => [n, blobs.getStore(n)])),
+      startJob: (authorization, body, o = origin) => globalThis.fetch(`${o}/api/jobs-run`, { method: "POST", headers: { "content-type": "application/json", authorization, origin: o }, body: JSON.stringify(body) }),
     };
     const real = typeof mod.realDeps === "function" ? mod.realDeps() : {};
     const adapted = s.depsAdapters.get(routeInfo.module)?.(bag) ?? bag;
@@ -108,7 +112,7 @@ export async function startHarness({ port = 0, host = "127.0.0.1", publicDir = j
     const body = ["GET", "HEAD"].includes(req.method) ? undefined : await readBody(req);
     const ac = new AbortController();
     const request = new Request(`${origin}${req.url}`, { method: req.method, headers: toHeaders(req.headers), body, signal: ac.signal });
-    const context = fakeContext({ params: m.params, deployContext: s.deployContext, siteUrl: origin, requestId: `req-${Math.random().toString(36).slice(2, 10)}`, ip: "203.0.113.7" });
+    const context = fakeContext({ params: m.params, deployContext: s.deployContext, siteUrl: origin, requestId: randomBytes(8).toString("hex"), ip: "203.0.113.7" });
     if (m.route.background) { // Netlify background functions answer 202 at once and keep running
       const p = Promise.resolve().then(() => loaded.handler(request, context)).then((r) => r?.body?.cancel?.(), (e) => s.log.push(`background ${m.route.module}: ${String(e?.message ?? e)}`)).finally(() => s.background.delete(p));
       s.background.add(p);
@@ -172,7 +176,7 @@ export async function startHarness({ port = 0, host = "127.0.0.1", publicDir = j
     "supabase.mint": ({ email, over, opts }) => supabase.mint(email, over, opts), "supabase.ageSignIn": ({ email, seconds }) => supabase.ageSignIn(email, seconds),
     "supabase.fail": ({ target, mode, times }) => { supabase.fail(target, mode, { times }); return true; }, "supabase.clearFailures": () => supabase.clearFailures(),
     "supabase.calls": () => supabase.calls, "supabase.callCount": ({ pattern }) => supabase.callCount(pattern), "supabase.resetCalls": () => supabase.resetCalls(),
-    "supabase.restWrites": () => supabase.restWrites, "supabase.sessionCount": ({ email }) => supabase.sessionCount(email), "supabase.setSiteUrl": ({ url: u }) => supabase.setSiteUrl(u),
+    "supabase.restWrites": () => supabase.restWrites, "supabase.sessionCount": ({ email }) => supabase.sessionCount(email), "supabase.setSiteUrl": ({ url: u }) => supabase.setSiteUrl(u), "supabase.allowRedirectUrl": ({ url: u }) => supabase.allowRedirectUrl(u), "supabase.mintExpired": ({ email, over, opts }) => supabase.mintExpired(email, over, opts),
     // blobs
     "blobs.peek": ({ store, key }) => blobs.peek(store, key), "blobs.seed": ({ store, key, value }) => blobs.seed(store, key, value),
     "blobs.callCount": () => blobs.callCount, "blobs.resetCalls": () => blobs.resetCalls(), "blobs.reset": () => blobs.reset(),
@@ -190,6 +194,7 @@ export async function startHarness({ port = 0, host = "127.0.0.1", publicDir = j
     "harness.setVersion": ({ version: v }) => { s.version = v; return v; }, "harness.setDeployContext": ({ value }) => { s.deployContext = value; s.moduleCache.clear(); return value; },
     "harness.setApproveEnabled": ({ value }) => { s.approveEnabled = !!value; s.moduleCache.clear(); return s.approveEnabled; },
     "harness.setSettings": ({ overrides }) => { s.settingsOverrides = { ...overrides }; s.moduleCache.clear(); return s.settingsOverrides; },
+    // Moves the harness/fake clock only (deps.now, PostgREST, /user, TOTP, amr). auth-js verifies exp against the REAL clock: use supabase.mintExpired.
     "harness.advanceClock": ({ ms }) => { s.clockOffsetMs += ms; return s.clockOffsetMs; },
     "harness.settled": async () => { await Promise.allSettled([...s.background]); return true; },
     "harness.log": () => s.log, "harness.unexpectedHosts": () => upstreams.unexpected,
@@ -221,7 +226,7 @@ export async function startHarness({ port = 0, host = "127.0.0.1", publicDir = j
   });
   await new Promise((r) => server.listen(port, host, r));
   origin = `http://${host}:${server.address().port}`;
-  supabase.setSiteUrl(origin); supabase.allowRedirectOrigin(origin);
+  supabase.setSiteUrl(`${origin}/console`); supabase.allowRedirectUrl(`${origin}/console`); // exact URLs, like the dashboard allow-list
   if (!quiet) console.log(`beach-day harness on ${origin} (public: ${publicDir})`);
 
   return {
