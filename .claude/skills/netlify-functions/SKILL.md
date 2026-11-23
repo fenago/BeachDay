@@ -19,7 +19,7 @@ export const config: Config = {
 - **File types:** `.mts` is ESM. TypeScript works without a separate build step. The runtime is Node 24 unless the build's Node version is a valid Lambda runtime.
 - **Context:** `context.ip`, `context.geo`, `context.requestId`, `context.params` (from `path` patterns such as `/api/proposals/:id/approve`), `context.deploy.context`. We do not use cookies: sign-in is Supabase Auth and calls carry a bearer token.
 - **Env:** read with `process.env.X` or `Netlify.env.get("X")`.
-- **Rate limits:** Free allows **2 rate-limit rules per project**, used for `/api/chat` and `/api/jobs`. There is no `/api/login`. Other limits use Blobs counters, per Supabase user id (the site-wide Approve cap is 14 a month and 5 a day). `windowSize` can be at most 180 s. Over the limit, the caller gets a 429. Rules cannot go in `netlify.toml`, and a bad rule does not fail the deploy, so check the deploy log.
+- **Rate limits:** Free allows **2 rate-limit rules per project**, used for `/api/chat` and `/api/jobs`. There is no `/api/login`. Other limits use Blobs counters, per Supabase user id (the site-wide Approve cap, ADR-0008, is 14 in a rolling 31 days and 5 a day in America/New_York). `windowSize` can be at most 180 s. Over the limit, the caller gets a 429. Rules cannot go in `netlify.toml`, and a bad rule does not fail the deploy, so check the deploy log.
 
 ## Limits (fixed on every plan)
 | Kind | Limit |
@@ -36,11 +36,11 @@ How background functions behave:
 - Write progress to Blobs and have the client poll for it.
 
 ## Routes
-`GET /api/agents`, `POST /api/chat`, `POST /api/jobs` (sync), `POST /api/jobs/run` (background), `GET /api/jobs/:id`, `GET /api/proposals/:id`, `POST /api/proposals/:id/approve`, `POST /api/proposals/:id/reject`. The approve route is `/api/proposals/:id/approve`. IDs are `p_<ULID>` (proposals) and `j_<ULID>` (jobs); validate with `^[pj]_[0-9A-Z]{26}$`.
+`GET /api/agents`, `POST /api/chat`, `POST /api/jobs` (sync), `POST /api/jobs-run` (background, a sibling path so it never overlaps `GET /api/jobs/:id`), `GET /api/jobs/:id`, `GET /api/proposals/:id`, `POST /api/proposals/:id/approve`, `POST /api/proposals/:id/reject`. The approve route is `/api/proposals/:id/approve`. IDs are `p_<ULID>` (proposals) and `j_<ULID>` (jobs); validate with `^[pj]_[0-9A-Z]{26}$`.
 
 ## Long work pattern
 - **`/api/chat` streams.** It tracks elapsed time, and when it cannot finish inside the SDK timeout it saves state to Blobs and emits `{type: "handoff", jobId}`.
-- **`/api/jobs`** is a sync wrapper. It runs the auth check and limits, creates the job record with `onlyIfNew`, stores only the **hash** of a one-time job token, then starts the background worker `/api/jobs/run`.
+- **`/api/jobs`** is a sync wrapper. It runs the auth check and limits, creates the job record with `onlyIfNew`, stores only the **hash** of a one-time job token, then starts the background worker `/api/jobs-run`.
 - **The worker never trusts its caller**, because it always answers 202. It claims the job with compare-and-swap (so retries do nothing) and exits silently on a bad token.
 - **Set the SDK timeout under the limit: 50 s for chat** (a 60 s limit), about 840 s for background. A job stops at about 14 min and is marked `paused`. **Never commit from a job.**
 - **Pass the endpoint explicitly:** create the Anthropic client with `baseURL: "https://api.anthropic.com"` and `apiKey: process.env.ANTHROPIC_API_KEY`, so an AI Gateway variable cannot reroute the calls.

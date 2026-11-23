@@ -48,7 +48,7 @@ export const config = {
   - A third rule would be silently over quota. How Netlify treats a third rule on Free was not documented on this page **[UNVERIFIED]**, so don't add one.
 - **Everything else is counted in the app**, in Blobs, with CAS (example 03), per Supabase user id (sign-in throttling is Supabase's job, not ours):
   - 200 chat turns per day, 20 jobs per day (security-engineer's numbers, docs/04 §9)
-  - **Approve, site-wide: 14 per month and 5 per day** (Dr. Lee, 2026-11-23). `hitCapped()` in example 03 checks both windows with one CAS.
+  - **Approve, site-wide: 14 in a rolling 31 days and 5 per America/New_York day** (Dr. Lee, ADR-0008). One Blobs record, `site:approvals`; `checkApproveCap()` and `recordApproval()` in example 03. Over the cap the approve function answers `429` with `approve_cap` and a `retryAt`.
 - The platform rule is **per IP** and **eventually enforced** (up to about 10 s lag), so it is a coarse shield. The app counters are the precise limits.
 - Show a friendly UI message on `429`, and test it with a mocked `429` in Playwright.
 - After the first deploy with these functions, check the deploy log for both rules under post-processing. Record the result in the HANDOFF.

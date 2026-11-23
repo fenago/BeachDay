@@ -1,1 +1,4 @@
 node_modules/
+public/generated/
+public/version.json
+netlify/functions/lib/agents.json

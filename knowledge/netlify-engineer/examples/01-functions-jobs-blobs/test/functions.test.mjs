@@ -38,6 +38,7 @@ test("config objects match the Beach Day routing plan", () => {
   assert.ok(jobsConfig.rateLimit.windowSize <= 180, "windowSize max is 180 s");
   assert.equal(jobsConfig.path, "/api/jobs");
   assert.equal(runConfig.background, true);
+  assert.equal(runConfig.path, "/api/jobs-run"); // ADR-0006 / docs/04 §2: a sibling path, not /api/jobs/run
   assert.equal(statusConfig.path, "/api/jobs/:id");
 });
 
@@ -106,7 +107,7 @@ test("background job: runs once, writes status to Blobs, status endpoint reads i
   const id = "job-12345678";
   const s = await queueJob(id, "tok-EXAMPLE");
 
-  const ret = await jobRun(post("https://x.test/api/jobs/run", { jobId: id, token: "tok-EXAMPLE" }), fakeContext());
+  const ret = await jobRun(post("https://x.test/api/jobs-run", { jobId: id, token: "tok-EXAMPLE" }), fakeContext());
   assert.equal(ret, undefined, "background handlers return nothing; Netlify sends 202");
 
   const res = await jobStatus(authed(`https://x.test/api/jobs/${id}`), fakeContext({ params: { id } }));
@@ -130,7 +131,7 @@ test("background job: a Netlify retry (same body twice) is a no-op", async () =>
     if (r.modified && value.status === "running" && value.startedAt && !value.events?.length) claims++;
     return r;
   };
-  const req = () => post("https://x.test/api/jobs/run", { jobId: id, token: "tok-EXAMPLE" });
+  const req = () => post("https://x.test/api/jobs-run", { jobId: id, token: "tok-EXAMPLE" });
   await Promise.all([jobRun(req(), fakeContext()), jobRun(req(), fakeContext())]);
   await jobRun(req(), fakeContext());
   const job = await s.get(id, { type: "json" });
@@ -142,7 +143,7 @@ test("background job: a Netlify retry (same body twice) is a no-op", async () =>
 test("background job: wrong token never starts the job", async () => {
   const id = "job-badtoken1";
   const s = await queueJob(id, "tok-EXAMPLE");
-  await jobRun(post("https://x.test/api/jobs/run", { jobId: id, token: "guess" }), fakeContext());
+  await jobRun(post("https://x.test/api/jobs-run", { jobId: id, token: "guess" }), fakeContext());
   assert.equal((await s.get(id, { type: "json" })).status, "queued");
 });
 

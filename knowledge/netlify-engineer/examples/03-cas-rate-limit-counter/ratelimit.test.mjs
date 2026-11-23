@@ -1,7 +1,7 @@
 // Run: node --test ratelimit.test.mjs   (no dependencies)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hit, hitCapped, approveKey, windowKey, pruneOlderThan } from "./ratelimit.mjs";
+import { hit, windowKey, pruneOlderThan, APPROVE_CAP, APPROVE_KEY, checkApproveCap, recordApproval } from "./ratelimit.mjs";
 
 // Fake Blobs store with the documented conditional-write semantics.
 // Each call yields to the event loop so parallel callers interleave.
@@ -86,38 +86,76 @@ test("pruneOlderThan deletes only old day keys", async () => {
   assert.deepEqual((await s.list({ prefix: "chat/" })).blobs.map((b) => b.key).sort(), ["chat/x/2026-11-20", "chat/x/2026-11-23"]);
 });
 
-// ---- site-wide Approve cap: 5 per UTC day AND 14 per UTC month (Dr. Lee, 2026-11-23) ----
-const CAPS = { dayLimit: 5, monthLimit: 14 };
-const at = (iso) => ({ now: new Date(iso) });
+// ---- site-wide Approve cap, ADR-0008: 14 per rolling 31 days AND 5 per day in America/New_York ----
+const D = (iso) => new Date(iso);
+const fill = async (s, isos) => { for (const i of isos) await recordApproval(s, D(i)); };
+const five = (iso) => Array(5).fill(iso);
 
-test("approve cap: key is per UTC month", () => {
-  assert.equal(approveKey(new Date("2026-11-23T23:59:59Z")), "approve/site/2026-11");
-  assert.equal(approveKey(new Date("2026-12-01T00:00:00Z")), "approve/site/2026-12");
+test("approve cap: the key is one fixed record, constants match ADR-0008", () => {
+  assert.equal(APPROVE_KEY, "site:approvals");
+  assert.deepEqual(APPROVE_CAP, { per31Days: 14, perDay: 5 });
 });
 
-test("approve cap: the 6th approval in a day is refused (reason: day), the next day allows more", async () => {
-  const s = createFakeStore(), k = approveKey(new Date("2026-11-23T10:00:00Z"));
-  const got = [];
-  for (let i = 0; i < 6; i++) got.push(await hitCapped(s, k, CAPS, at("2026-11-23T10:00:00Z")));
-  assert.deepEqual(got.map((g) => g.allowed), [true, true, true, true, true, false]);
-  assert.equal(got[5].reason, "day");
-  assert.equal(got[5].count, 5, "a refused request does not use a month slot");
-  assert.equal((await hitCapped(s, k, CAPS, at("2026-11-24T00:00:01Z"))).allowed, true);
+test("approve cap: 6th approval on one New York day is refused; the NY day, not the UTC day, decides", async () => {
+  const s = createFakeStore();
+  await fill(s, five("2026-11-24T03:00:00Z")); // 22:00 on Nov 23 in New York (EST, UTC-5)
+  const late = await checkApproveCap(s, D("2026-11-24T04:59:00Z")); // 23:59 NY, but already Nov 24 in UTC
+  assert.equal(late.allowed, false);
+  assert.equal(late.reason, "day");
+  assert.equal(late.retryAt, "2026-11-24T05:00:00.000Z"); // next New York midnight
+  assert.equal((await checkApproveCap(s, D("2026-11-24T05:00:01Z"))).allowed, true);
 });
 
-test("approve cap: 14 per month across days, the 15th is refused (reason: month)", async () => {
-  const s = createFakeStore(), k = "approve/site/2026-11";
-  const days = ["03", "03", "03", "03", "03", "10", "10", "10", "10", "10", "17", "17", "17", "17", "24"]; // 15 attempts
-  const res = [];
-  for (const d of days) res.push(await hitCapped(s, k, CAPS, at(`2026-11-${d}T12:00:00Z`)));
-  assert.equal(res.filter((r) => r.allowed).length, 14);
-  assert.equal(res[14].allowed, false);
-  assert.equal(res[14].reason, "month");
+test("approve cap: the day boundary survives DST (spring forward 2027-03-14, fall back 2026-11-01)", async () => {
+  const spring = createFakeStore();
+  await fill(spring, five("2027-03-14T12:00:00Z"));
+  assert.equal((await checkApproveCap(spring, D("2027-03-15T03:59:00Z"))).allowed, false); // still Mar 14 NY (EDT, UTC-4)
+  assert.equal((await checkApproveCap(spring, D("2027-03-15T04:00:00Z"))).allowed, true);
+  const fall = createFakeStore();
+  await fill(fall, five("2026-11-01T12:00:00Z"));
+  assert.equal((await checkApproveCap(fall, D("2026-11-02T04:59:00Z"))).allowed, false); // the 25-hour day
+  assert.equal((await checkApproveCap(fall, D("2026-11-02T05:00:00Z"))).allowed, true);
 });
 
-test("approve cap: 30 parallel approvals admit exactly 5 (one CAS decides both windows)", async () => {
-  const s = createFakeStore(), k = "approve/site/2026-11";
-  const res = await Promise.all(Array.from({ length: 30 }, () => hitCapped(s, k, CAPS, { ...at("2026-11-23T12:00:00Z"), maxAttempts: 100 })));
-  assert.equal(res.filter((r) => r.allowed).length, 5);
-  assert.equal((await s.getWithMetadata(k, { type: "json" })).data.count, 5);
+test("approve cap: 14 in a rolling 31 days, the 15th is refused (reason: month) with the right retryAt", async () => {
+  const s = createFakeStore();
+  const times = [
+    ...five("2026-11-03T15:00:00Z"), ...five("2026-11-10T15:00:00Z"), "2026-11-17T15:00:00Z", "2026-11-17T16:00:00Z", "2026-11-17T17:00:00Z", "2026-11-17T18:00:00Z",
+  ]; // 14
+  await fill(s, times);
+  const r = await checkApproveCap(s, D("2026-11-24T12:00:00Z"));
+  assert.deepEqual([r.allowed, r.reason, r.used31], [false, "month", 14]);
+  assert.equal(r.retryAt, "2026-12-04T15:00:00.000Z"); // oldest of the last 14 (Nov 3 15:00Z) + 31 days
+});
+
+test("approve cap: the window is rolling, not a calendar month, and a time exactly 31 days old has expired", async () => {
+  const s = createFakeStore();
+  await fill(s, [...five("2026-10-31T15:00:00Z"), ...five("2026-11-10T15:00:00Z"), "2026-11-20T10:00:00Z", "2026-11-20T11:00:00Z", "2026-11-20T12:00:00Z", "2026-11-20T13:00:00Z"]);
+  // Late Nov to early Dec crosses a calendar month, yet the 14 recorded approvals still count.
+  assert.equal((await checkApproveCap(s, D("2026-12-01T12:00:00Z"))).allowed, false);
+  assert.equal((await checkApproveCap(s, D("2026-12-01T14:59:59Z"))).allowed, false); // first one is 30 d 23:59:59 old
+  assert.equal((await checkApproveCap(s, D("2026-12-01T15:00:00Z"))).allowed, true); // Oct 31 15:00Z + 31 d: expired
+});
+
+test("approve cap: sequential check-then-record admits exactly 5 on one day", async () => {
+  const s = createFakeStore(), now = D("2026-11-23T15:00:00Z");
+  let admitted = 0;
+  for (let i = 0; i < 8; i++) if ((await checkApproveCap(s, now)).allowed) { await recordApproval(s, now); admitted++; }
+  assert.equal(admitted, 5);
+});
+
+test("approve cap: failed, stale and rejected approvals are never recorded (record only on committed)", async () => {
+  const s = createFakeStore(), now = D("2026-11-23T15:00:00Z");
+  await checkApproveCap(s, now); // a check alone writes nothing
+  assert.equal(await s.getWithMetadata(APPROVE_KEY, { type: "json" }), null);
+});
+
+test("approve cap: 30 parallel recordApproval calls lose none (CAS), and old times are pruned on write", async () => {
+  const s = createFakeStore(), now = D("2026-11-23T15:00:00Z");
+  await s.setJSON(APPROVE_KEY, { times: ["2026-09-01T00:00:00Z", "2026-10-30T00:00:00Z"] }); // one expired (84 d), one live (24 d)
+  await Promise.all(Array.from({ length: 30 }, () => recordApproval(s, now, { maxAttempts: 100 })));
+  const { data } = await s.getWithMetadata(APPROVE_KEY, { type: "json" });
+  assert.equal(data.times.length, 31);
+  assert.ok(!data.times.includes("2026-09-01T00:00:00Z"));
+  assert.ok(data.times.includes("2026-10-30T00:00:00Z"));
 });

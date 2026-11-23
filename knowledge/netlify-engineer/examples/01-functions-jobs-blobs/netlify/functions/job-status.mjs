@@ -22,6 +22,5 @@ export default async (req, context) => {
 
 export const config = {
   path: "/api/jobs/:id",
-  excludedPath: "/api/jobs/run", // the background function owns that path
   method: "GET",
 };

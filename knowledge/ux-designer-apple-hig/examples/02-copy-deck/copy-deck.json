@@ -1,5 +1,5 @@
 {
-  "$comment": "Beach Day copy deck (example). {placeholders} are filled at runtime. Verdict/reason wording changes need open-meteo-integrator review. Checked by check-copy.mjs.",
+  "$comment": "Beach Day copy deck (example). {placeholders} are filled at runtime. Verdict/reason wording changes need open-meteo-integrator review. Checked by check-copy.mjs. Reason ids map to Dewey's reason codes (docs/01 5.2); auth and Console ids are in the console group.",
   "rules": {
     "limits": {
       "verdict": 24,
@@ -66,8 +66,16 @@
   ],
   "reasons": [
     {
+      "id": "reason.storm.outside",
+      "text": "Thunderstorms around {time}"
+    },
+    {
       "id": "reason.thunder",
       "text": "Thunderstorms"
+    },
+    {
+      "id": "reason.thunder.wait",
+      "text": "Waiting out thunder"
     },
     {
       "id": "reason.wind.stop",
@@ -78,6 +86,18 @@
       "text": "Dangerous heat"
     },
     {
+      "id": "reason.short",
+      "text": "Only {hours} beach hours left"
+    },
+    {
+      "id": "reason.unusual",
+      "text": "Unusual weather"
+    },
+    {
+      "id": "reason.storms.risk",
+      "text": "Storms possible"
+    },
+    {
       "id": "reason.storms.possible",
       "text": "Storms possible after {time}"
     },
@@ -86,8 +106,20 @@
       "text": "Rain likely, {pct}% chance"
     },
     {
+      "id": "reason.rain.code",
+      "text": "Rain in the forecast"
+    },
+    {
       "id": "reason.showers",
       "text": "Showers around"
+    },
+    {
+      "id": "reason.drizzle",
+      "text": "Drizzle around"
+    },
+    {
+      "id": "reason.rain.amount",
+      "text": "About {in} in of rain"
     },
     {
       "id": "reason.cloudy",
@@ -136,6 +168,10 @@
   ],
   "advice": [
     {
+      "id": "advice.uv.moderate",
+      "text": "UV {n}, moderate. Sunscreen helps."
+    },
+    {
       "id": "advice.uv.high",
       "text": "UV high. Wear sunscreen."
     },
@@ -144,12 +180,36 @@
       "text": "UV very high. Use sunscreen. Seek shade 10 am to 4 pm."
     },
     {
+      "id": "advice.uv.extreme",
+      "text": "UV extreme. Use sunscreen. Seek shade 10 am to 4 pm."
+    },
+    {
+      "id": "advice.fog",
+      "text": "Fog is possible. You may not see far."
+    },
+    {
+      "id": "advice.marine.missing",
+      "text": "No wave or water data for this day."
+    },
+    {
+      "id": "advice.marine.partial",
+      "text": "Some wave or water data is missing."
+    },
+    {
       "id": "advice.lightning",
       "text": "Thunder means go indoors. Wait 30 minutes after it stops."
     },
     {
       "id": "advice.outlook",
       "text": "Outlook. Less certain this far out."
+    },
+    {
+      "id": "advice.confidence.medium",
+      "text": "Fairly sure. Some data is missing."
+    },
+    {
+      "id": "advice.confidence.low",
+      "text": "Less sure. Check again later."
     }
   ],
   "status": [
@@ -192,6 +252,18 @@
     {
       "id": "status.location.off",
       "text": "Location is off. Choose a beach from the list."
+    },
+    {
+      "id": "status.no.verdict",
+      "text": "No verdict yet. Some forecast data is missing."
+    },
+    {
+      "id": "status.waves.na",
+      "text": "Waves unavailable"
+    },
+    {
+      "id": "status.water.na",
+      "text": "Water temperature unavailable"
     }
   ],
   "errors": [
@@ -253,7 +325,63 @@
     },
     {
       "id": "btn.signIn",
-      "text": "Sign In with Password"
+      "text": "Sign In"
+    },
+    {
+      "id": "btn.signUp",
+      "text": "Create Account"
+    },
+    {
+      "id": "btn.signOut",
+      "text": "Sign Out"
+    },
+    {
+      "id": "btn.google",
+      "text": "Continue with Google"
+    },
+    {
+      "id": "btn.forgot",
+      "text": "Forgot Password"
+    },
+    {
+      "id": "btn.sendReset",
+      "text": "Send Reset Link"
+    },
+    {
+      "id": "btn.setPassword",
+      "text": "Set New Password"
+    },
+    {
+      "id": "btn.resend",
+      "text": "Resend Email"
+    },
+    {
+      "id": "btn.useOtherEmail",
+      "text": "Use Another Email"
+    },
+    {
+      "id": "btn.backToSignIn",
+      "text": "Back to Sign In"
+    },
+    {
+      "id": "btn.backToBeach",
+      "text": "Back to Beach Day"
+    },
+    {
+      "id": "btn.showPassword",
+      "text": "Show Password"
+    },
+    {
+      "id": "btn.hidePassword",
+      "text": "Hide Password"
+    },
+    {
+      "id": "btn.confirmPassword",
+      "text": "Confirm with Password"
+    },
+    {
+      "id": "btn.confirmGoogle",
+      "text": "Confirm with Google"
     }
   ],
   "console": [
@@ -262,8 +390,32 @@
       "text": "This commits to main and deploys to production. It uses 15 of 300 monthly credits."
     },
     {
-      "id": "console.reauth",
-      "text": "Type the password again to approve."
+      "id": "console.consequence.nodeploy",
+      "text": "This commits to main. The live site doesn't change, so no deploy runs."
+    },
+    {
+      "id": "console.stepup.title",
+      "text": "Confirm it's you"
+    },
+    {
+      "id": "console.stepup.password",
+      "text": "Type your password to approve."
+    },
+    {
+      "id": "console.stepup.google",
+      "text": "Confirm with Google to approve."
+    },
+    {
+      "id": "console.stepup.or",
+      "text": "Or"
+    },
+    {
+      "id": "console.stepup.done",
+      "text": "Confirmed. Approve within {minutes} minutes."
+    },
+    {
+      "id": "console.stepup.expired",
+      "text": "Time ran out. Confirm it's you again."
     },
     {
       "id": "console.status.ready",
@@ -278,6 +430,14 @@
       "text": "Committed {sha}. Deploying…"
     },
     {
+      "id": "console.status.committed.nodeploy",
+      "text": "Committed {sha}. No deploy needed."
+    },
+    {
+      "id": "console.status.nodeploy.detail",
+      "text": "Only docs or agent files changed, so the site stays as it is."
+    },
+    {
       "id": "console.status.live",
       "text": "Live. The change is on the site."
     },
@@ -286,8 +446,28 @@
       "text": "Rejected. Nothing was changed."
     },
     {
+      "id": "console.cap.usage",
+      "text": "{used} of 14 approvals used in the last 31 days."
+    },
+    {
+      "id": "console.cap.month",
+      "text": "{used} of 14 approvals used in the last 31 days. Next slot frees {date}."
+    },
+    {
+      "id": "console.cap.day",
+      "text": "5 of 5 approvals used today. More open up at midnight Eastern."
+    },
+    {
+      "id": "console.cap.waiting",
+      "text": "The proposal is still waiting."
+    },
+    {
       "id": "console.error.password",
       "text": "That password didn't match. Try again."
+    },
+    {
+      "id": "console.error.throttle",
+      "text": "Too many tries. Wait a minute, then try again."
     },
     {
       "id": "console.error.stale",
@@ -300,6 +480,174 @@
     {
       "id": "console.error.commit",
       "text": "The commit failed. Nothing was deployed. Try again in a minute."
+    },
+    {
+      "id": "console.noaccess.title",
+      "text": "This account can't use the Console"
+    },
+    {
+      "id": "console.noaccess.body",
+      "text": "Signed in as {email}. Ask the project lead to turn on access."
+    },
+    {
+      "id": "console.noaccess.other",
+      "text": "Signed in with a different account? Sign out and try again."
+    },
+    {
+      "id": "console.check.failed",
+      "text": "Couldn't check your access. Try again in a minute."
+    },
+    {
+      "id": "console.session.expired",
+      "text": "Your session ended. Sign in to pick up where you left off."
+    },
+    {
+      "id": "console.session.kept",
+      "text": "Your draft and proposal are saved."
+    },
+    {
+      "id": "auth.signin.title",
+      "text": "Sign in to the Console"
+    },
+    {
+      "id": "auth.signin.sub",
+      "text": "The Console is for the Beach Day team."
+    },
+    {
+      "id": "auth.field.email",
+      "text": "Email"
+    },
+    {
+      "id": "auth.field.password",
+      "text": "Password"
+    },
+    {
+      "id": "auth.hint.email",
+      "text": "Use the email you signed up with."
+    },
+    {
+      "id": "auth.hint.newpassword",
+      "text": "Use at least {min} characters. A password manager works."
+    },
+    {
+      "id": "auth.error.email.empty",
+      "text": "Enter your email address."
+    },
+    {
+      "id": "auth.error.email.format",
+      "text": "Email needs an @ and a domain."
+    },
+    {
+      "id": "auth.error.password.empty",
+      "text": "Enter your password."
+    },
+    {
+      "id": "auth.error.password.short",
+      "text": "Use at least {min} characters."
+    },
+    {
+      "id": "auth.error.password.leaked",
+      "text": "That password appeared in a data leak. Choose another."
+    },
+    {
+      "id": "auth.error.credentials",
+      "text": "Email or password didn't match. Try again."
+    },
+    {
+      "id": "auth.error.unconfirmed",
+      "text": "Confirm your email first. Resend the link below."
+    },
+    {
+      "id": "auth.error.throttle",
+      "text": "Too many tries. Wait a minute, then try again."
+    },
+    {
+      "id": "auth.error.network",
+      "text": "Couldn't reach sign in. Check your connection and try again."
+    },
+    {
+      "id": "auth.error.google",
+      "text": "Google sign in didn't finish. Try again or use your email."
+    },
+    {
+      "id": "auth.signup.title",
+      "text": "Create a Console account"
+    },
+    {
+      "id": "auth.signup.sub",
+      "text": "New accounts can't use the Console until the project lead turns on access."
+    },
+    {
+      "id": "auth.or",
+      "text": "Or"
+    },
+    {
+      "id": "auth.confirm.title",
+      "text": "Check your email"
+    },
+    {
+      "id": "auth.confirm.body",
+      "text": "A link is on its way to {email}. Open it to finish."
+    },
+    {
+      "id": "auth.confirm.help",
+      "text": "No email? Check spam, or resend it."
+    },
+    {
+      "id": "auth.confirm.resent",
+      "text": "Sent again to {email}."
+    },
+    {
+      "id": "auth.confirm.wait",
+      "text": "You can resend in {seconds} seconds."
+    },
+    {
+      "id": "auth.confirm.done",
+      "text": "Email confirmed. Sign in to continue."
+    },
+    {
+      "id": "auth.confirm.expired",
+      "text": "That link has expired. Send a new one."
+    },
+    {
+      "id": "auth.forgot.title",
+      "text": "Reset your password"
+    },
+    {
+      "id": "auth.forgot.sub",
+      "text": "Enter your email. A link to set a new password will follow."
+    },
+    {
+      "id": "auth.forgot.sent",
+      "text": "If an account uses {email}, a reset link is on its way."
+    },
+    {
+      "id": "auth.reset.title",
+      "text": "Choose a new password"
+    },
+    {
+      "id": "auth.reset.done",
+      "text": "Password changed. You're signed in."
+    },
+    {
+      "id": "auth.reset.expired",
+      "text": "That reset link has expired. Send a new one."
+    },
+    {
+      "id": "auth.signout.done",
+      "text": "Signed out of the Console."
+    },
+    {
+      "id": "console.checking",
+      "text": "Checking your access…"
+    },
+    {
+      "id": "auth.signing",
+      "text": "Signing in…"
+    },
+    {
+      "id": "auth.redirecting",
+      "text": "Taking you to Google…"
     }
   ]
 }

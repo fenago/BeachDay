@@ -1,4 +1,4 @@
-// POST /api/jobs/run — background function (config.background: true).
+// POST /api/jobs-run — background function (config.background: true).
 // The client gets an empty 202 immediately; the return value is discarded,
 // so ALL output goes to Blobs. Netlify retries a failed invocation after
 // 1 min and again 2 min later, so this handler must be idempotent.
@@ -66,7 +66,7 @@ export default async (req, _context) => {
 };
 
 export const config = {
-  path: "/api/jobs/run",
+  path: "/api/jobs-run",
   method: "POST",
   background: true, // 15 min limit, 256 KB request payload, cannot stream
 };

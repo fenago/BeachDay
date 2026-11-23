@@ -6,11 +6,16 @@
   # 1. build-agents: .claude/agents/*.md -> netlify/functions/lib/agents.json
   # 2. stamp-sw:     __BUILD_VERSION__ in public/sw.js -> short COMMIT_REF, and
   #                  writes public/version.json (docs/03 §9).
-  # Neither script may print environment variables: the Free plan has no
+  # 3. gen-config:   writes the git-ignored public/generated/config.js from
+  #                  SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY and COMMIT_REF, and
+  #                  FAILS the build unless the key starts with sb_publishable_
+  #                  (ADR-0006). A failed build costs 0 credits and leaves the
+  #                  previous deploy live.
+  # No script may print environment variables: the Free plan has no
   # env-var scopes, so builds can read every variable, secrets included.
   # vitest is deliberately NOT here (docs/03 §9.4): tests/** is writable by
   # agents, and anything run at build time sees every secret on Free.
-  command = "node scripts/build-agents.mjs && node scripts/stamp-sw.mjs"
+  command = "node scripts/build-agents.mjs && node scripts/stamp-sw.mjs && node scripts/gen-config.mjs"
   publish = "public"
 
   # Skip the build (and the 15-credit production deploy) when nothing that

@@ -3,7 +3,7 @@
 ## What it demonstrates
 A complete, minimal platform config for Beach Day and a validator that checks it.
 
-- `netlify.toml`: build command (`build-agents` then `stamp-sw`, no tests), `publish = "public"`, `NODE_VERSION` pin, functions directory **outside** the publish dir, `esbuild` bundler, `included_files` for `agents.json`, and an `ignore` command that skips commits that change nothing that ships. There is **no `netlify.toml` in the repo yet**; this is the spec for it.
+- `netlify.toml`: build command (`build-agents`, `stamp-sw`, then `gen-config`; no tests), `publish = "public"`, `NODE_VERSION` pin, functions directory **outside** the publish dir, `esbuild` bundler, `included_files` for `agents.json`, and an `ignore` command that skips commits that change nothing that ships. There is **no `netlify.toml` in the repo yet**; this is the spec for it.
 - `public/_headers`: site-wide CSP and security headers (including `form-action 'self'`), `sw.js` revalidation, manifest content type, `version.json` no-store, `noindex` + `no-store` on the Console page. The Supabase host in `connect-src` is not added yet (project not created; security-engineer owns the final CSP).
 - `validate.mjs`: parses the TOML (smol-toml), parses `_headers` with the documented syntax, checks Beach Day rules, and **runs the ignore command** in a throwaway git repo to prove its exit codes.
 
@@ -24,7 +24,7 @@ node validate.mjs      # needs git and bash on PATH
 Ran on 2026-11-23, Node v22.23.5, smol-toml 1.9.1, from a scratch copy (node_modules outside the repo). 52 checks pass. The ones that matter, trimmed:
 ```
 $ node validate.mjs
-PASS  build command runs build-agents then stamp-sw
+PASS  build command runs build-agents, stamp-sw, then gen-config (ADR-0006)
 PASS  build command does not run tests (agent-writable tests/** would see build secrets)
 PASS  no [[headers]] in toml (single source: public/_headers)
 PASS  /sw.js: each header set once (6 headers)

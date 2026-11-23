@@ -12,7 +12,7 @@ import { store } from "./lib/blobs.mjs";
 const MAX_BODY = 64 * 1024; // docs/04: 64 KB for everything except proposals
 
 let trigger = async () => { throw new Error("trigger not configured"); };
-export const setTrigger = (fn) => { trigger = fn; }; // real code: fetch("/api/jobs/run", ...)
+export const setTrigger = (fn) => { trigger = fn; }; // real code: fetch("/api/jobs-run", ...)
 
 export default async (req, _context) => {
   const auth = await guard(req); // FIRST, before reading the body

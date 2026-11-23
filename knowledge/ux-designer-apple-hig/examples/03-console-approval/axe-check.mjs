@@ -78,6 +78,50 @@ for (const colorScheme of ['light', 'dark']) {
   await axe(page, s('live'));
   console.log(`  status now: "${await statusText(page)}"`);
 
+  // 4b. Google path: Google-only account sees no password field; confirming returns to the sheet
+  await page.goto(base + '?account=google');
+  await page.click('#review');
+  assert(await page.locator('#pw').isHidden(), `${s('google-only')}: password field shown for a Google-only account`);
+  assert(await active(page) === 'google', `${s('google-only')}: focus not on the Google button`);
+  await axe(page, s('confirm sheet (Google only)'));
+  await page.click('#google');
+  await page.locator('#confirmed').waitFor({ state: 'visible' });
+  assert(await active(page) === 'approve', `${s('google-confirmed')}: focus not on Approve after returning`);
+  assert((await page.locator('#confirmed').innerText()).startsWith('Confirmed.'), `${s('google-confirmed')}: no confirmation text`);
+  await axe(page, s('confirm sheet (Google confirmed)'));
+  await page.click('#approve');
+  await page.locator('#status', { hasText: 'Live.' }).waitFor();
+
+  // 4c. Both paths offered, both are real buttons/fields with names
+  await page.goto(base);
+  await page.click('#review');
+  assert(await page.locator('#google').innerText() === 'Confirm with Google', `${s('both')}: Google button label`);
+  assert(await page.locator('legend', { hasText: "Confirm it\u2019s you" }).count() === 1, `${s('both')}: step-up legend missing`);
+  await page.keyboard.press('Escape');
+
+  // 4d. Approve cap reached: alert names the numbers and the date, proposal stays, Review hidden
+  await page.goto(base + '?outcome=cap');
+  await page.click('#review'); await page.fill('#pw', 'demo-password'); await page.click('#approve');
+  await page.locator('#alert', { hasText: 'approvals used in the last 31 days' }).waitFor();
+  assert((await alertText(page)).includes('Next slot frees'), `${s('cap')}: no date`);
+  assert(await page.locator('#review').isHidden() && await page.locator('#reject').isVisible(), `${s('cap')}: Approve should be hidden, Reject kept`);
+  await axe(page, s('approve cap reached'));
+
+  // 4e. Session expired
+  await page.goto(base + '?outcome=expired');
+  await page.click('#review'); await page.fill('#pw', 'demo-password'); await page.click('#approve');
+  await page.locator('#alert', { hasText: 'session ended' }).waitFor();
+  assert(await active(page) === 'review' && (await page.locator('#review').innerText()) === 'Sign In', `${s('expired')}: Sign In not offered/focused`);
+  await axe(page, s('session expired'));
+
+  // 4f. Committed, no deploy needed
+  await page.goto(base + '?outcome=nodeploy');
+  await page.click('#review');
+  assert((await page.locator('#c-desc').innerText()).includes('no deploy runs'), `${s('nodeploy')}: sheet still promises a deploy`);
+  await page.fill('#pw', 'demo-password'); await page.click('#approve');
+  await page.locator('#status', { hasText: 'No deploy needed' }).waitFor();
+  await axe(page, s('committed, no deploy'));
+
   // 5. Stale base outcome → alert
   await page.goto(base + '?outcome=stale');
   await page.click('#review'); await page.fill('#pw', 'demo-password'); await page.click('#approve');

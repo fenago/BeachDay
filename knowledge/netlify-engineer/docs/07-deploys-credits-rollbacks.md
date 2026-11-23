@@ -56,7 +56,7 @@ Retrieved: 2026-11-23
 - **Budget (ADR-0004):**
   - 300 credits ÷ 15 = **20 production deploys a month**, if nothing else is used.
   - Each Approve is one atomic commit and one deploy (ADR-0003), unless the commit only touches paths the `ignore` rule skips.
-  - **Approve cap: 14 a month = 210 credits, which is exactly 70%.** The 70% warning therefore fires at the cap on its own; the useful early signal is spend that is **not** Approve deploys. Planned split of 300: 210 Approves, 45 for human pushes (3 deploys), 45 for compute, bandwidth and requests. That split is netlify-engineer's proposal, not a decision.
+  - **Approve cap: 14 in a rolling 31 days = 210 credits, which is exactly 70% (ADR-0008).** A rolling 31-day window means any billing cycle of 31 days or less holds at most 14 Approve deploys, whatever day the cycle resets. The 70% warning therefore fires at the cap on its own; the useful early signal is spend that is **not** Approve deploys. Planned split of 300: 210 Approves, 45 for human pushes (3 deploys), 45 for compute, bandwidth and requests. That split is netlify-engineer's proposal, not a decision.
   - Warn Dr. Lee at about **70%** (about 210 credits) and again at **90%** (270): stop non-essential pushes.
   - The site pauses at 0 with no auto-recharge on Free.
 - **Save credits:**

@@ -80,7 +80,7 @@ Source: [configuration § Default values](https://docs.netlify.com/build/functio
 - `@netlify/aws-lambda-compat` `withLambda()` wraps old Lambda-style handlers. Beach Day doesn't need it. [api](https://docs.netlify.com/build/functions/api/)
 
 ## Beach Day notes
-- Every Console endpoint (`/api/agents`, `/api/chat`, `/api/jobs`, `/api/jobs/run`, `/api/jobs/:id`, `/api/proposals/:id`, `/api/proposals/:id/approve`, `/api/proposals/:id/reject`) gets a `config.path` and a `config.method`. There is **no `/api/login`**: sign-in is Supabase Auth, called from the browser (ADR-0006). Every `/api/*` handler starts with a bearer-token check and a role check that fail closed (401, 403, 503); see example 01, `lib/guard.mjs`. With custom paths, the `/.netlify/functions/*` URLs disappear, which shrinks the attack surface.
+- Every Console endpoint (`/api/agents`, `/api/chat`, `/api/jobs`, `/api/jobs-run`, `/api/jobs/:id`, `/api/proposals/:id`, `/api/proposals/:id/approve`, `/api/proposals/:id/reject`) gets a `config.path` and a `config.method`. There is **no `/api/login`**: sign-in is Supabase Auth, called from the browser (ADR-0006). Every `/api/*` handler starts with a bearer-token check and a role check that fail closed (401, 403, 503); see example 01, `lib/guard.mjs`. With custom paths, the `/.netlify/functions/*` URLs disappear, which shrinks the attack surface.
 - **Functions set their own headers.** `_headers` does not reach function responses. Use `cache-control: no-store`, `x-content-type-options: nosniff` and a JSON or SSE content type. See example 01, `lib/http.mjs`.
 - **Time budget:**
   - `/api/chat` streams and must finish within **60 s**. Set the Anthropic SDK timeout to **50 s** (Kai's call, 2026-11-23).

@@ -37,28 +37,69 @@ export async function hit(store, key, limit, { maxAttempts = 20 } = {}) {
 }
 
 /**
- * Two windows in ONE record, for the site-wide Approve cap (14 per UTC month,
- * 5 per UTC day). One record means one compare-and-swap decides both limits
- * at once, so a request refused by the day cap never burns a month slot (and
- * the reverse). Key: approveKey(now) -> "approve/site/2026-11".
+ * Site-wide Approve cap (ADR-0008): at most 14 committed approvals in any
+ * rolling 31-day window AND at most 5 per calendar day in America/New_York.
+ *
+ * ONE record, key "site:approvals" in the "ratelimit" store (strong
+ * consistency), value { times: ["<ISO-8601 UTC>", ...] }, pruned to the last
+ * 31 days on every write. Two functions, because ADR-0008 orders the work:
+ *   1. checkApproveCap()  read-only, inside the single approve lock, BEFORE any GitHub call;
+ *   2. recordApproval()   CAS append, only when the proposal reaches `committed`
+ *                         (failed, stale and rejected never count).
+ * "Month" is a rolling 31 days, not the calendar month and not Netlify's
+ * billing cycle (whose reset date we do not know): any billing cycle of 31
+ * days or less then holds at most 14 x 15 = 210 credits of approvals.
  */
-export const approveKey = (now = new Date()) => `approve/site/${now.toISOString().slice(0, 7)}`;
+export const APPROVE_CAP = { per31Days: 14, perDay: 5 };
+export const APPROVE_KEY = "site:approvals";
+export const WINDOW_MS = 31 * 86400_000;
+export const CAP_TZ = "America/New_York";
 
-export async function hitCapped(store, key, { dayLimit, monthLimit }, { now = new Date(), maxAttempts = 20 } = {}) {
-  const day = now.toISOString().slice(0, 10);
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const cur = await store.getWithMetadata(key, { type: "json" });
-    const rec = cur?.data ?? { count: 0, days: {} };
-    const today = rec.days[day] ?? 0;
-    if (rec.count >= monthLimit) return { allowed: false, reason: "month", count: rec.count, today };
-    if (today >= dayLimit) return { allowed: false, reason: "day", count: rec.count, today };
-    const next = { count: rec.count + 1, days: { ...rec.days, [day]: today + 1 } };
-    const r = cur === null
-      ? await store.setJSON(key, next, { onlyIfNew: true })
-      : await store.setJSON(key, next, { onlyIfMatch: cur.etag });
-    if (r.modified) return { allowed: true, reason: null, count: next.count, today: next.days[day] };
+const dayFmt = new Intl.DateTimeFormat("en-CA", { timeZone: CAP_TZ, year: "numeric", month: "2-digit", day: "2-digit" });
+export const localDay = (d) => dayFmt.format(d); // "2026-11-23" in New York
+
+// First instant after `now` whose New York calendar day differs (DST-safe: days are 23-25 h).
+export function nextLocalMidnight(now) {
+  const today = localDay(now);
+  let lo = now.getTime(), hi = lo + 26 * 3600_000; // a day is never longer than 25 h
+  while (hi - lo > 1) { // to the millisecond
+    const mid = Math.floor((lo + hi) / 2);
+    if (localDay(new Date(mid)) === today) lo = mid; else hi = mid;
   }
-  return { allowed: false, reason: "contended", count: NaN, today: NaN }; // fail closed
+  return new Date(hi);
+}
+
+// Pure decision. A time t is inside the window while t > now - 31 days.
+export function evaluate(times, now, caps = APPROVE_CAP) {
+  const live = times.map((t) => new Date(t)).filter((t) => t.getTime() > now.getTime() - WINDOW_MS).sort((a, b) => a - b);
+  const today = localDay(now);
+  const todayN = live.filter((t) => localDay(t) === today).length;
+  const retry = [];
+  if (live.length >= caps.per31Days) retry.push(new Date(live[live.length - caps.per31Days].getTime() + WINDOW_MS));
+  if (todayN >= caps.perDay) retry.push(nextLocalMidnight(now));
+  if (retry.length === 0) return { allowed: true, used31: live.length, usedToday: todayN };
+  const retryAt = new Date(Math.max(...retry.map((d) => d.getTime())));
+  const reason = live.length >= caps.per31Days ? "month" : "day"; // "month" wins when both apply
+  return { allowed: false, reason, used31: live.length, usedToday: todayN, retryAt: retryAt.toISOString() };
+}
+
+export async function checkApproveCap(store, now = new Date(), caps = APPROVE_CAP) {
+  const cur = await store.getWithMetadata(APPROVE_KEY, { type: "json" });
+  return evaluate(cur?.data?.times ?? [], now, caps);
+}
+
+// Append one committed approval with compare-and-swap; prune to the window. Fails closed (throws) under contention.
+export async function recordApproval(store, now = new Date(), { maxAttempts = 20 } = {}) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const cur = await store.getWithMetadata(APPROVE_KEY, { type: "json" });
+    const kept = (cur?.data?.times ?? []).filter((t) => new Date(t).getTime() > now.getTime() - WINDOW_MS);
+    const next = { times: [...kept, now.toISOString()] };
+    const r = cur === null
+      ? await store.setJSON(APPROVE_KEY, next, { onlyIfNew: true })
+      : await store.setJSON(APPROVE_KEY, next, { onlyIfMatch: cur.etag });
+    if (r.modified) return { recorded: true, count: next.times.length };
+  }
+  throw new Error("recordApproval: contended"); // caller marks the audit log; the commit already happened
 }
 
 // Pruning: keys are per day, so a daily scheduled function can delete

@@ -17,14 +17,20 @@ const res = await proposals.setJSON(id, next, { onlyIfMatch: got.etag }); // CAS
 |---|---|---|
 | `proposals` | `p_<ulid>` | `{agent, summary, files:[{path, content, baseBlobSha}], baseCommitSha, contentHash, status, createdAt, decidedAt, commitSha?, error?}` |
 | `jobs` | `j_<ulid>` | `{status: queued/running/done/failed/paused, events:[...], messages (conversation state), proposalId?, startedAt, updatedAt}` |
-| `ratelimit` | `<action>/<user id>/<yyyy-mm-dd>`, and `approve/site/<yyyy-mm>` | `{count}`; the approve record is `{count, days:{<date>:n}}`. All updated with CAS. |
+| `ratelimit` | `<action>/<user id>/<yyyy-mm-dd>`, and `site:approvals` | per-user `{count}`; the site-wide Approve record is `{ times: ["<ISO-8601 UTC>", ...] }`, pruned to the last 31 days on every write (ADR-0008). All updated with CAS. |
 | `audit` | `<iso-timestamp>_<id>` | `{action, actor (Supabase user id), proposalId, commitSha, requestId}` |
 
 IDs are `p_<ULID>` and `j_<ULID>` (ULID = 26 chars `[0-9A-Z]`). Validate with `^[pj]_[0-9A-Z]{26}$` before any lookup.
 
 Proposal status: `pending` → `committing` → `committed` | `failed` | `stale`, or `pending` → `rejected`. Transitions always use CAS, and only the request that wins `pending` → `committing` calls GitHub.
 
-**Approve cap, site-wide: 14 a month and 5 a day** (Dr. Lee). Keep both windows in one record so one CAS decides both (`knowledge/netlify-engineer/examples/03-cas-rate-limit-counter/`). "Month" is the UTC calendar month, not the Netlify billing cycle.
+**Approve cap, site-wide (ADR-0008): at most 14 committed approvals in any rolling 31 days, and at most 5 per calendar day in America/New_York.** One record: store `ratelimit`, key `site:approvals`, value `{ "times": ["<ISO-8601 UTC>", ...] }`. Keep both windows in that one record (`knowledge/netlify-engineer/examples/03-cas-rate-limit-counter/`, 13 tests).
+- Constants live in one place: `APPROVE_CAP = { per31Days: 14, perDay: 5 }`.
+- **Check** (read-only) inside the single approve lock, after auth, role and step-up and before any GitHub call. **Record** (CAS append, `onlyIfMatch`, or `onlyIfNew` the first time) only when the proposal reaches `committed`. `failed`, `stale` and `rejected` never count.
+- **Prune** the array to the last 31 days on every write, so there is no scheduler.
+- A time is live while `t > now - 31 days`. The day is the New York calendar day (23 to 25 hours around DST), not the UTC day.
+- Over the cap: `429` with `{ error: { code: "approve_cap", retryAt } }`. The proposal stays `pending`.
+- It is a rolling window, not the calendar month and not Netlify's billing cycle (reset date unknown), so any cycle of 31 days or less holds at most 14 x 15 = 210 credits of approvals.
 
 ## Rules
 - **Use `getStore`,** which is site-wide and persists across deploys. Don't use `getDeployStore` for app state.
@@ -36,7 +42,7 @@ Proposal status: `pending` → `committing` → `committed` | `failed` | `stale`
   - metadata ≤ 2 KB
   - object ≤ 5 GB
 - **Never store** secrets, tokens (access or refresh), or raw request headers. Store only the Supabase user id.
-- **Retention:** delete jobs older than 7 days and keep the audit log. A scheduled function can prune once a day; it has a 30 s limit.
+- **Retention:** delete jobs older than 7 days and per-user counter keys older than their day, and keep the audit log. `site:approvals` prunes itself. A scheduled function can prune once a day; it has a 30 s limit.
 
 ## Local dev
 `netlify dev` uses a sandboxed local store that cannot read production data. In unit tests, inject a fake store that implements the same methods.

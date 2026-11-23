@@ -21,7 +21,7 @@ const toml = parse(readFileSync(join(here, "netlify.toml"), "utf8"));
 check(true, "netlify.toml parses as TOML");
 check(toml.build?.publish === "public", "[build] publish = public");
 check(typeof toml.build?.command === "string", "[build] command set");
-check(/stamp-sw\.mjs/.test(toml.build.command) && /build-agents\.mjs/.test(toml.build.command), "build command runs build-agents then stamp-sw");
+check(/build-agents\.mjs.*stamp-sw\.mjs.*gen-config\.mjs/.test(toml.build.command), "build command runs build-agents, stamp-sw, then gen-config (ADR-0006)");
 check(!/vitest|npm (run )?test/.test(toml.build.command), "build command does not run tests (agent-writable tests/** would see build secrets)");
 check(toml.build?.environment?.NODE_VERSION === "22" && Object.keys(toml.build.environment).length === 1, "[build.environment] only pins NODE_VERSION");
 check(!("context" in toml), "no [context.*] overrides needed today");

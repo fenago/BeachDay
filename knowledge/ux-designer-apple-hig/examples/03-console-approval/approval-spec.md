@@ -4,11 +4,13 @@ Follows:
 - ADR-0003 (Approve = one atomic commit to `main`, Netlify auto-deploys)
 - ADR-0004 (Free plan: 15 credits per production deploy, 300 a month)
 - ADR-0005 (fine-grained PAT, server-side allow-list)
-- docs/04-agent-console.md §2 (`POST /api/proposals/:id/approve`, session + CSRF + re-auth) and §4 (re-auth within 10 min)
+- ADR-0006 (Supabase Auth: Bearer token + `super_admin` on every call) and ADR-0008 (approve cap)
+- docs/04-agent-console.md §2 (`POST /api/proposals/:id/approve`, Bearer + role + step-up) and §4 (step-up; mechanism and window are security-engineer's)
+- `../04-console-auth/flow-spec.md` for sign-in, no-access and session screens
 - HIG Sheets, Alerts, Buttons, Feedback, Progress indicators; WCAG 3.3.8, 4.1.3, 2.5.8
 
 ## 1. Why this flow is heavier than the rest of the app
-Approve ships code to production. It is rare, deliberate and **not undoable in place**: it can only be reverted. The HIG says to warn when an action can cause unexpected, irreversible effects, and to ask for confirmation twice for actions "difficult to recover from". So the flow is review → confirm with consequences + password → outcome. Reject is cheap: one tap, no confirmation.
+Approve ships code to production. It is rare, deliberate and **not undoable in place**: it can only be reverted. The HIG says to warn when an action can cause unexpected, irreversible effects, and to ask for confirmation twice for actions "difficult to recover from". So the flow is review → confirm with consequences + "Confirm it's you" → outcome. Reject is cheap: one tap, no confirmation.
 
 ## 2. Proposal card (in the chat log, `role="log"`)
 ```
@@ -37,20 +39,24 @@ Approve ships code to production. It is rare, deliberate and **not undoable in p
 │ • One commit to main: "Update UV wording…"    │
 │ • Netlify deploys it in a few minutes.        │
 │ • To undo, make a revert commit or roll back. │
-│ Console password                              │  <label for="pw">
-│ [••••••••••••          ]                      │  type=password, autocomplete=current-password
-│ Type the password again to approve.           │  help text (aria-describedby)
+│ 9 of 14 approvals used in the last 31 days.   │  only if the server supplies the count
+│ ┌ Confirm it's you ───────────────────────┐   │  fieldset + legend
+│ │ Password [••••••••••]                   │   │  only if the account has a password
+│ │ Type your password to approve.          │   │
+│ │ ─────────────── Or ───────────────      │   │
+│ │ [ Confirm with Google ]                 │   │  only if the account has Google
+│ └─────────────────────────────────────────┘   │
 │ (inline error slot, role="alert")             │
 │                       [ Approve and Deploy ]  │  trailing, prominent, verb title, not "OK"
 └──────────────────────────────────────────────┘
 ```
-- **Opening:** focus goes to the password field, the only input the task needs. **Cancel**, **Esc** or a backdrop tap closes it with no side effects, and focus returns to "Review and Approve".
-- **Re-auth:**
-  - The password is never prefilled (HIG Entering data).
-  - Paste and password managers work (WCAG 3.3.8): `autocomplete="current-password"` and no paste blocking.
-  - No CAPTCHA.
-  - The label says "password", never "passcode" (HIG Managing accounts).
-- **Wrong password:** "That password didn't match. Try again." appears under the field (`role="alert"`) with `aria-invalid="true"`. Focus stays in the field with the text selected. The 5-per-15-min login throttle applies; after the limit the error is "Too many tries. Wait 15 minutes, then try again." **[UNVERIFIED]** that this exact limit is shared between login and re-auth; it's a design decision for agent-console-engineer and security-engineer.
+- **Opening:** focus goes to the password field (or to the Google button if the account has no password). Those are the only inputs the task needs. **Cancel**, **Esc** or a backdrop tap closes it with no side effects, and focus returns to "Review and Approve".
+- **Step-up ("Confirm it's you"):** two paths, and either one counts. The mechanism and the window (`{minutes}`) are security-engineer's decision (docs/04 §4); this spec only fixes what the person sees.
+  - **Password path:** typing it and pressing Approve and Deploy is the proof and the approval in one tap. Never prefilled (HIG Entering data). Paste and password managers work (WCAG 3.3.8): `autocomplete="current-password"`, no paste blocking, no CAPTCHA. The label says "password", never "passcode" (HIG Managing accounts).
+  - **Google path:** "Confirm with Google" leaves the page and returns to the same proposal with the sheet reopened and "Confirmed. Approve within {minutes} minutes." Focus lands on Approve and Deploy. A second tap approves.
+  - A Google-only account sees only the Google button; a password-only account sees only the password field. No "Or" is shown when there is one path.
+  - Timed out: "Time ran out. Confirm it's you again." (status).
+- **Wrong password:** "That password didn't match. Try again." appears under the field (`role="alert"`) with `aria-invalid="true"`. Focus stays in the field with the text selected. After too many wrong tries the error is "Too many tries. Wait a minute, then try again." The real limit comes from Supabase and the Approve function. **[UNVERIFIED]** the count; the copy states none.
 - **Approve and Deploy** is prominent but not auto-focused, and Enter only submits from inside the field after the user has typed. No default-button accident.
 - **Double submit:** the button becomes "Committing…" with `aria-disabled="true"` and ignores further clicks. The server also refuses with a CAS status lock.
 
@@ -59,11 +65,14 @@ Approve ships code to production. It is rare, deliberate and **not undoable in p
 |---|---|---|---|---|
 | In progress | request sent | "Committing to main…" | status | none (can't cancel: the commit may already exist) |
 | Committed | 200 + commit SHA | "Committed abc1234. Deploying…" (SHA links to GitHub) | status | — |
-| Live | deploy-succeeded / poll | "Live. The change is on the site." + "View commit abc1234" | status | — |
+| **Committed, no deploy needed** | 200 + SHA, and the paths are all ones Netlify's ignore rule skips | "Committed abc1234. No deploy needed." + "Only docs or agent files changed, so the site stays as it is." The sheet said so before Approve: "This commits to main. The live site doesn't change, so no deploy runs." | status | — |
+| Live | Console polls `/version.json` until the new build shows | "Live. The change is on the site." + "View commit abc1234" | status | — |
+| **Cap reached** | 429 `approve_cap` (ADR-0008) | "14 of 14 approvals used in the last 31 days. Next slot frees Dec 4." (or "5 of 5 approvals used today. More open up at midnight Eastern.") + "The proposal is still waiting." | alert | Reject; Review and Approve hidden until `retryAt` |
 | Stale base | 409 (main moved) | "Main changed since this proposal. Ask the agent to redo it." | alert | Ask agent (chat) |
-| Path not allowed | 403 from the allow-list re-check | "This proposal edits a file agents can't change. Nothing was committed." | alert | — |
+| Path not allowed | 422/403 from the allow-list re-check | "This proposal edits a file agents can't change. Nothing was committed." | alert | — |
 | Commit failed | 5xx / GitHub error | "The commit failed. Nothing was deployed. Try again in a minute." | alert | **Try Again** (focused) |
-| Session expired | 401 | Back to the login screen with "Sign in again to approve." The proposal is kept. | alert | Sign In with Password |
+| Session ended | 401 | Back to sign in with "Your session ended. Sign in to pick up where you left off." The proposal stays pending and the person returns to it. | status (alert inside the Approve flow) | Sign In |
+| No access | 403 (not `super_admin`) | The no-access screen, see `../04-console-auth/flow-spec.md` S6 | h1 | Sign Out |
 | Rejected | reject endpoint | "Rejected. Nothing was changed." | status | — |
 
 - One persistent `role="status"` region per card, present before any text is written (ARIA22). A separate `role="alert"` region is used only for failures (ARIA19).
@@ -75,10 +84,11 @@ Approve ships code to production. It is rare, deliberate and **not undoable in p
 - No preview deploy exists in this flow (ADR-0003), so the consequence line says "production" plainly.
 - Re-auth happens in the sheet and not in a new window or page, so there is nothing to phish in a separate context.
 - The password is never echoed, logged or kept in JS state after submit.
+- The cap check happens after auth, role and step-up (ADR-0008), so someone who isn't confirmed never learns the usage numbers.
 
 ## 6. Prototype and checks
 `prototype.html` implements sections 2–4 with a mocked server (`?outcome=ok|stale|fail`; demo password `demo-password`). It makes no network calls. `axe-check.mjs` drives it through every state in light and dark and runs axe with WCAG 2.0/2.1/2.2 A and AA tags. It also asserts:
-- focus moves to the field on open and returns on Cancel or Esc
+- focus moves to the field on open (or the Google button for `?account=google`) and returns on Cancel or Esc
 - `aria-invalid` is set on a wrong password
 - paste isn't blocked and autocomplete is `current-password`
 - all controls are ≥ 44 px

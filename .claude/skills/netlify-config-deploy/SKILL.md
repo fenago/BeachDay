@@ -9,7 +9,7 @@ There is **no `netlify.toml` in the repo yet**. docs/03 §3 is the spec, with a 
 ## netlify.toml
 ```toml
 [build]
-  command = "node scripts/build-agents.mjs && node scripts/stamp-sw.mjs"
+  command = "node scripts/build-agents.mjs && node scripts/stamp-sw.mjs && node scripts/gen-config.mjs"
   publish = "public"
   ignore = '[ -n "$CACHED_COMMIT_REF" ] && git diff --quiet "$CACHED_COMMIT_REF" "$COMMIT_REF" -- public netlify netlify.toml package.json package-lock.json scripts .claude/agents || exit 1'
   [build.environment]
@@ -26,12 +26,16 @@ There is **no `netlify.toml` in the repo yet**. docs/03 §3 is the spec, with a 
 - **Env vars:** variables set in `netlify.toml` are **not** visible to functions. Set them in the UI or CLI.
 - **Contexts** (`[context.production]`, `[context.deploy-preview]`, `[context.branch-deploy]`) exist but nothing needs them today.
 
-## Build steps and the service worker
+## Build steps, the service worker and the browser config
 - **`scripts/stamp-sw.mjs`** replaces every `__BUILD_VERSION__` in `public/sw.js` with the first 12 hex of `COMMIT_REF` (fallback: `git rev-parse HEAD`, then a timestamp) and writes `public/version.json` (`{version, commit, builtAt}`). Without it, sw.js never changes and phones never update.
 - It prints **one line** and never prints env. It exits 1 if the placeholder is missing, and it refuses to run outside Netlify unless `--force`.
-- **"Live"** in the Console = `/version.json.commit` equals the approved commit. A build skipped by `ignore` never goes Live.
+- **"Live"** in the Console = `/version.json.commit` equals the approved commit. The Console polls `/version.json` (`no-store`, never cached by the service worker). **There is no `deploy-succeeded` function** (ADR-0006 point 8). A build skipped by `ignore` never goes Live.
 - **After each Approve deploy,** run the smoke test (`scripts/smoke.mjs`): sw.js has no placeholder and is no-cache, version matches, every `/api` route is 401 without a token. The service-worker kill switch is in docs/03 §9.3.
-- Both build scripts read only `COMMIT_REF` and `NETLIFY` from the environment, and `build-agents.mjs` treats agent files as data (parse, never execute).
+- **`scripts/gen-config.mjs`** (last step, ADR-0006) writes the **git-ignored** `public/generated/config.js` (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `BUILD_VERSION`) from env vars read **by name**. It **fails the build unless the key starts with `sb_publishable_`** (this catches a pasted `sb_secret_` key and legacy JWT keys) and the URL is a bare https origin. It never echoes a rejected value. Tested copy: `knowledge/netlify-engineer/examples/04-sw-version-stamp/`. Previews and branch deploys need both variables too, or their builds fail (0 credits).
+- **Whether secret scanning flags the publishable key in `config.js` is UNVERIFIED.** The first real deploy is the test. Fallback: `SECRETS_SCAN_OMIT_KEYS=SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY`. Do not turn scanning off.
+- **`.gitignore` must list** `public/generated/`, `public/version.json` and `netlify/functions/lib/agents.json` (all build output). Agents cannot edit `public/vendor/**`, `public/generated/**` or `public/version.json`.
+- **`public/vendor/`** holds the vendored, pinned, auth-only `supabase-auth-js-<version>.mjs` (ADR-0006), committed by a human. It is covered by the `public` entry in `ignore`, and `script-src 'self'` needs no change.
+- The three build scripts read only `COMMIT_REF`, `NETLIFY` and (gen-config) the two Supabase variables, and `build-agents.mjs` treats agent files as data (parse, never execute).
 
 ## Headers
 - **One place: `public/_headers`.** No `[[headers]]` in `netlify.toml`. The merge rule for both is UNVERIFIED, so we never let two rules set the same header on one path.
@@ -59,8 +63,9 @@ There is **no `netlify.toml` in the repo yet**. docs/03 §3 is the spec, with a 
 - After rotating a secret, **trigger a new deploy**: functions keep the old value until then.
 
 ## Deploys
+- **No Netlify site is linked yet** (Dr. Lee, 2026-11-23), so a push to `main` costs 0 credits for now. Everything below applies once a site is linked.
 - **Pushing to `main`** creates a production deploy. Deploys are atomic, and Approve commits to `main` (ADR-0003).
-- **Credits:** each successful production deploy costs **15**. The Free plan has **300 per month**, a hard cap, and projects pause at 0. The Approve cap (14 a month) is 210 credits, exactly 70%. Tell the orchestrator at about 70% and at 90%.
+- **Credits:** each successful production deploy costs **15**. The Free plan has **300 per month**, a hard cap, and projects pause at 0. The Approve cap (ADR-0008: 14 in a rolling 31 days, 5 a day) is at most 210 credits in any billing cycle, exactly 70%. Tell the orchestrator at about 70% and at 90%.
 - **Deploy Previews** are built for PRs and cost 0. QA runs on the main deploy with a rollback ready (ADR-0003); previews are not on the Approve path.
 - **Rollback:** Deploys → pick the previous deploy → **Publish deploy**. It is instant, needs no rebuild and costs 0. Then **Lock to stop auto publishing**, or the next push overwrites it.
 - **Build hooks** (`POST https://api.netlify.com/build_hooks/<id>`) are for manual redeploys only.

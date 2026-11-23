@@ -38,7 +38,7 @@ const isTitleCase = (s) => s.split(/\s+/).every((w, i) =>
   /^[A-Z0-9]/.test(w) || (i > 0 && ['and', 'or', 'with', 'to', 'of', 'the', 'a', 'in', 'on'].includes(w)));
 // Sentence case: after the first word, a capital is allowed only after sentence
 // punctuation or a dash, for proper nouns, acronyms (UV, NWS) and placeholders.
-const PROPER = new Set(['Beach', 'Day', 'Console', 'Open-Meteo', 'NWS', 'Hollywood', 'Fahrenheit']);
+const PROPER = new Set(['Beach', 'Day', 'Console', 'Google', 'Eastern', 'Open-Meteo', 'NWS', 'Hollywood', 'Fahrenheit']);
 const isSentenceCase = (s) => {
   const t = s.split(/\s+/);
   if (!/^[A-Z0-9{]/.test(t[0])) return false;
