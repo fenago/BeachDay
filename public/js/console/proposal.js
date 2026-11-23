@@ -18,20 +18,48 @@ export function warningsFor(path) {
   return w;
 }
 
-/** A unified diff as lines with a real +/− marker on every changed line (WCAG 1.4.1). */
-export function diffLines(text) {
+// Invisible format characters (bidi overrides, zero-width, BOM…) and line/paragraph separators can make a diff
+// read differently from what gets committed (R12, Vera). They are never rendered raw: each one becomes a visible
+// "⟨U+XXXX⟩" token, and the card warns when any appears.
+const HIDDEN_RE = /[\p{Cf}\u2028\u2029]/u;
+const HIDDEN_SPLIT_RE = /([\p{Cf}\u2028\u2029])/u;
+export const hasHiddenChars = (text) => HIDDEN_RE.test(String(text ?? ""));
+export const hiddenLabel = (ch) => `⟨U+${ch.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}⟩`;
+
+/** Pure: split text into [{text}] and [{hidden: "⟨U+202E⟩"}] segments, in order. No empty text segments. */
+export function splitHidden(text) {
+  const out = [];
+  for (const part of String(text ?? "").split(HIDDEN_SPLIT_RE)) {
+    if (!part) continue;
+    out.push(part.length === 1 && HIDDEN_RE.test(part) ? { hidden: hiddenLabel(part) } : { text: part });
+  }
+  return out;
+}
+
+const visible = (text) => splitHidden(text).map((seg) => seg.hidden !== undefined
+  ? h("span", { class: "diff__hidden" }, seg.hidden)
+  : document.createTextNode(seg.text));
+
+/** Pure: classify unified-diff lines. Splits on \n only, so U+2028/2029 stay inside their line. */
+export function parseDiff(text) {
   const lines = String(text ?? "").replace(/\n$/, "").split("\n");
   return lines.map((line) => {
-    if (line.startsWith("+++ ") || line.startsWith("--- ") || line.startsWith("@@") || line.startsWith("\\")) {
-      return h("span", { class: "diff__line diff__line--hunk" }, line);
-    }
+    if (line.startsWith("+++ ") || line.startsWith("--- ") || line.startsWith("@@") || line.startsWith("\\")) return { kind: "hunk", text: line };
     const kind = line[0] === "+" ? "add" : line[0] === "-" ? "del" : "ctx";
+    return { kind, text: line.slice(1) };
+  });
+}
+
+/** A unified diff as lines with a real +/− marker on every changed line (WCAG 1.4.1) and visible hidden chars. */
+export function diffLines(text) {
+  return parseDiff(text).map(({ kind, text: body }) => {
+    if (kind === "hunk") return h("span", { class: "diff__line diff__line--hunk" }, visible(body));
     const marker = kind === "add" ? "+" : kind === "del" ? "−" : " ";
     const label = kind === "add" ? say("agents.proposal.added") : kind === "del" ? say("agents.proposal.removed") : null;
     return h("span", { class: `diff__line diff__line--${kind}` },
       h("span", { class: "diff__marker", "aria-hidden": "true" }, marker),
       label ? h("span", { class: "visually-hidden" }, `${label}: `) : null,
-      line.slice(1));
+      visible(body));
   });
 }
 
@@ -61,6 +89,7 @@ export function proposalCard(view, handlers) {
   const diffs = new Map((view.diffs ?? []).map((d) => [d.path, d.diff]));
   const anyDenied = files.some((f) => isDeniedPath(f.path));
   const warnIds = [...new Set(files.flatMap((f) => warningsFor(f.path)))];
+  if ((view.diffs ?? []).some((d) => hasHiddenChars(d.diff)) || files.some((f) => hasHiddenChars(f.content))) warnIds.push("agents.proposal.warn.hidden");
   const heading = `h${handlers.headingLevel ?? 2}`;
 
   const card = h("article", { class: "proposal-card", "aria-labelledby": titleId, dataset: { testid: "proposal-card", proposal: p.id, status: p.status } },
