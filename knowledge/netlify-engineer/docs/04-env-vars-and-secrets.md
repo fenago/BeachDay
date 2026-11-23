@@ -71,19 +71,29 @@ netlify env:list --plain --context production            # .env format; secrets 
 ## Conflict to resolve: per-context values on Free
 - The pricing table marks **"Scope environment variables per deploy context … i.e. staging vs. production"** as **Not included** on Free and Personal. [pricing](https://www.netlify.com/pricing/)
 - The Secrets Controller, which is included on Free, says secret values **must** be set to explicit deploy contexts. ADR-0005 asks for `GITHUB_TOKEN` in **Production only**.
-- **[UNVERIFIED]** Whether a Free-plan site can set `--context production` for a secret was not tested here, because no Netlify account was used. Run `netlify env:set GITHUB_TOKEN <value> --context production --secret` once on the real site. If it is refused, raise it with Dr. Lee. A Deploy Preview with the production token is exactly what ADR-0005 wants to avoid, and the fallback would be a separate, read-only or empty token for other contexts. That fallback might itself be impossible on Free.
+- **[UNVERIFIED, still open on 2026-11-23]** Whether a Free-plan site can set `--context production` for a secret. Re-check attempted today; docs.netlify.com was unreachable from the sandbox, and no Netlify account is used here, so it was not tested. Run `netlify env:set GITHUB_TOKEN <value> --context production --secret` once on the real site, then `netlify env:list --context deploy-preview` and confirm the token is absent. If it is refused, raise it with Dr. Lee.
+- **Fallback that works without per-context values** (the site's setting is **[UNVERIFIED]** on Free): in the site's build settings, set Deploy Previews and Branch deploys to **none**. ADR-0003 commits straight to `main` and QA now runs on the main deploy, so previews are not used. With no non-production deploy, no non-production function can read the token. The setting's name and location were not re-read.
+- **Untrusted deploys** (forks of a public repo; this repo is public): keep the "Build without sensitive variables" policy so a fork's pull request build never gets secrets. The default for a new site is **[UNVERIFIED]**; Dr. Lee should look at the setting once.
+
+## AI Gateway can set Anthropic variables by itself
+- The functions env page says that on credit-based plans, variables for common AI providers are set automatically unless you bring your own keys ([functions env](https://docs.netlify.com/build/functions/environment-variables/)).
+- Risk: an automatic `ANTHROPIC_BASE_URL` (the Anthropic SDK reads it from the environment) would route Claude calls through Netlify's gateway and bill credits ($1 = 180 credits) instead of using Dr. Lee's key and spend limit. Which variables Netlify injects, and whether Free has an opt-out, are **[UNVERIFIED]**.
+- **Control that needs no verification:** the chat function passes `baseURL: "https://api.anthropic.com"` and `apiKey: process.env.ANTHROPIC_API_KEY` to the SDK explicitly, and never lets the environment choose the endpoint. Set `ANTHROPIC_API_KEY` ourselves (the page says own keys are respected). After the first chat, compare the Anthropic console's usage with Netlify's usage page: they should show Anthropic spend and **no** AI-inference credits.
 
 ## Beach Day notes
 | Variable | Secret | Context | Read by |
 |---|---|---|---|
-| `ANTHROPIC_API_KEY` | yes | Production (and Deploy Previews only if the Console must work there) | chat and jobs functions |
+| `ANTHROPIC_API_KEY` | yes | Production | chat and jobs functions |
 | `GITHUB_TOKEN` | yes | **Production only** (ADR-0005) | approve function |
-| `CONSOLE_PASSWORD_HASH` | yes | Production | login function |
-| `SESSION_SECRET` | yes | Production | every `/api/*` function |
 | `GITHUB_REPO` | no (`fenago/BeachDay`) | all | approve function |
+| `SUPABASE_URL` | **no** | all | auth guard in every `/api/*` function (and the browser config, see docs/03 §6) |
+| `SUPABASE_PUBLISHABLE_KEY` | **no** | all | auth guard (and the browser config) |
 
+- The two Supabase values are public by design (they ship to every browser). **Do not tick "Contains secret values" for them**: secret scanning would then fail the build whenever the value appears in `public/`. Auto-detection by name (`KEY`) on untrusted builds is **[UNVERIFIED]** for `PUBLISHABLE_KEY`.
+- **Dropped on 2026-11-23** (Dr. Lee's decision 9, Console password replaced by Supabase Auth): the two old Console-password variables (names beginning `CONSOLE_` and `SESSION_`). If they exist in the Netlify UI, delete them. The Supabase **secret / `service_role` key is used nowhere** and must never be set in Netlify.
 - netlify-engineer writes this checklist and the commands. **Dr. Lee runs them.** Agents never see or set real values.
 - Never put any of these in `netlify.toml` or `[build.environment]`. Functions can't see those values anyway, and the repo is shared.
-- Builds can read every variable on Free, so `scripts/build-agents.mjs` must never log `process.env`. Secret scanning fails a build if a secret value lands in `public/` or another build output, which is a useful backstop.
+- Builds can read every variable on Free, **including secrets**, so `scripts/build-agents.mjs` and `scripts/stamp-sw.mjs` must never log `process.env`. Secret scanning fails a build if a secret value lands in `public/` or another build output, which is a useful backstop.
+- **Anything executed during the build sees every secret on Free.** `tests/**` is writable by agents, so the build does **not** run `vitest` (docs/03 §9.4). Tests run in QA's own gate.
 - After rotating `GITHUB_TOKEN` (90 days, ADR-0005), **trigger a new deploy**. Functions keep the old value until then.
 - Use obviously fake values in tests (`sk-ant-EXAMPLE`, `github_pat_EXAMPLE`), so secret scanning and push protection never trip.

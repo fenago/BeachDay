@@ -55,20 +55,22 @@ Retrieved: 2026-11-23
 ## Beach Day notes
 - **Budget (ADR-0004):**
   - 300 credits ÷ 15 = **20 production deploys a month**, if nothing else is used.
-  - Each Approve is one atomic commit and one deploy (ADR-0003).
-  - Warn Dr. Lee at about **70%** (about 210 credits).
+  - Each Approve is one atomic commit and one deploy (ADR-0003), unless the commit only touches paths the `ignore` rule skips.
+  - **Approve cap: 14 a month = 210 credits, which is exactly 70%.** The 70% warning therefore fires at the cap on its own; the useful early signal is spend that is **not** Approve deploys. Planned split of 300: 210 Approves, 45 for human pushes (3 deploys), 45 for compute, bandwidth and requests. That split is netlify-engineer's proposal, not a decision.
+  - Warn Dr. Lee at about **70%** (about 210 credits) and again at **90%** (270): stop non-essential pushes.
   - The site pauses at 0 with no auto-recharge on Free.
 - **Save credits:**
   - One commit per proposal (Git Database API).
-  - Skip docs-only commits with the `ignore` command (doc 05, example 02). Skipped and failed builds cost 0.
-  - Do QA on Deploy Previews, which cost 0 credits.
+  - Skip commits that change nothing shipped with the `ignore` command (doc 05, example 02). Failed builds cost 0 (documented). Skipped builds are **expected** to cost 0 but this is **[UNVERIFIED]**.
+  - QA runs on the main deploy with a rollback ready (ADR-0003; Dr. Lee's decision). Deploy Previews cost 0 credits but are not on the Approve path.
   - Never redeploy just to "refresh".
+  - Batch human changes into one push.
 - **Rough compute:**
   - A 60 s chat turn at 1 GB is about 0.017 GB-hour, or about 0.17 credits.
   - A 15-minute job is 0.25 GB-hour, or 2.5 credits.
   - So 100 chat turns a day is about 17 credits a day, over 500 a month, **more than the whole Free budget**. Real turns are usually much shorter than 60 s, but **measure it**. Per-session daily caps (docs/04 §9) are what keep this inside 300.
   - The compute arithmetic is ours, from the published rate. Actual billed duration is not verified.
-- **Rollback runbook** (`docs/runbooks/rollback.md`, owned by netlify-engineer):
+- **Rollback runbook** (`docs/runbooks/rollback.md`, owned by netlify-engineer; **not written yet**, it sits outside this round's scope and is listed in the HANDOFF):
   1. Open Deploys and pick the last good deploy.
   2. Click **Publish deploy**. It is instant and costs 0 credits.
   3. Click **Lock to stop auto publishing**, so the next Approve doesn't re-publish the bad code.

@@ -15,9 +15,10 @@ description: How any Beach Day agent proposes or makes code changes — small re
 ## In the deployed Agent Console
 - You have read tools (`read_file`, `list_files`) and **one** write tool, `propose_change`. You cannot commit.
 - Send **complete new file contents** for each changed file, plus a one-paragraph `summary` covering what, why and how it was tested.
-- Only allow-listed paths are accepted:
-  - **Allowed:** `public/**` (static assets), `public/_headers`, `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`.
-  - **Denied (deny wins):** `netlify/**`, `netlify.toml`, `.github/**`, `package*.json`, `scripts/**`, `.env*`.
+- Only allow-listed paths are accepted. Deny wins.
+  - **Allowed:** `public/**` (text types only), `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`.
+  - **Denied:** `public/_headers`, `public/_redirects`, `public/sw.js` and every file `sw.js` imports, `netlify/**`, `netlify.toml`, `.github/**`, `package*.json`, `scripts/**`, `.env*`, `.git/**`, `.gitmodules`, `.claude/settings*`, `*.pem`, `*.key`, and any binary or non-text file.
+  - Open question for Dr. Lee: also deny `public/console.html` and `public/js/console/**` (security-engineer's recommendation). Until he rules, they are allowed.
 - Limits: at most 20 files and 200 KB per file, text files only.
 - Never include secrets, tokens or keys in proposed content. Proposals are secret-scanned and rejected if they contain any.
 - Prefer **one proposal per logical change**. Each approval is one production deploy and costs Netlify credits.
@@ -28,8 +29,9 @@ description: How any Beach Day agent proposes or makes code changes — small re
 |---|---|
 | `netlify/functions/**`, `netlify.toml`, `_headers`, env vars | security-engineer + netlify-engineer |
 | Console auth, allow-list, rate limits, GitHub code | security-engineer (can block) |
+| Supabase Auth: sign-in flows, the token and role check, `profiles`/RLS SQL, redirect URLs | supabase-auth-engineer + security-engineer (can block) |
 | Scoring thresholds or verdict wording | open-meteo-integrator + ux-designer-apple-hig |
 | Visual tokens/components | ui-designer-apple-liquid-glass + qa-engineer (a11y) |
 | Service worker / manifest | pwa-mobile-engineer + qa-engineer |
 | `.claude/agents/**`, `.claude/skills/**` | agent-builder + orchestrator |
-| Anything going to production | qa-engineer green |
+| Anything going to production | qa-engineer green on the main deploy, rollback ready (ADR-0003) |

@@ -25,11 +25,16 @@ description: How Beach Day records architecture decisions in docs/adr/ — templ
 ## Current log
 | ADR | Decision |
 |---|---|
-| 0001 | Static site + Functions for Claude/GitHub only; browser → Open-Meteo |
+| 0001 | *Superseded by 0006.* Static site + Functions for Claude/GitHub only; browser → Open-Meteo |
 | 0002 | No rip-current proxy; link out to NWS |
 | 0003 | Approve commits straight to `main` |
 | 0004 | Netlify Free plan for now |
 | 0005 | Fine-grained PAT, this repo, Contents R/W, no Workflows |
+| 0006 | Supabase Auth for the Console (supersedes 0001): browser → Open-Meteo and → Supabase Auth directly; Functions only for Claude/GitHub; every function checks Bearer + `super_admin`, fails closed; publishable key only; vendored `@supabase/auth-js` |
+| 0007 | Agent `read_file`/`list_files` read from GitHub `main`, pinned to one SHA per turn |
+| 0008 | Approve cap, site-wide: 14 per rolling 31 days, 5 per day |
+
+Exception on record: when Dr. Lee states a decision himself (as with 0006–0008), the ADR can be written straight as `Accepted` with `Deciders: Dr. Lee`. ADR-0004's "password gate" consequence is outdated since 0006 but stays unedited, because accepted ADRs are immutable.
 
 ## When to write one
 Write an ADR for:

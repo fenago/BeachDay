@@ -36,7 +36,8 @@ Retrieved: 2026-11-23
 - **Example from the docs:** `[build] ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF"`. [ignore builds](https://docs.netlify.com/build/configure-builds/ignore-builds/)
 - The command can use the Git metadata variables plus `CI` and `NETLIFY`, and it runs even without a base directory. [ignore builds](https://docs.netlify.com/build/configure-builds/ignore-builds/)
 - **Default behaviour:** Netlify cancels the build if nothing changed in the base directory. [ignore builds](https://docs.netlify.com/build/configure-builds/ignore-builds/)
-- What `$CACHED_COMMIT_REF` holds on a very first build or after a cache clear was not stated on the page read **[UNVERIFIED]**.
+- What `$CACHED_COMMIT_REF` holds on a very first build or after a cache clear was not stated on the page read **[UNVERIFIED]**. **It matters:** if the variable is empty, an unquoted `git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- paths` loses an argument and git compares the working tree with `COMMIT_REF`, which is clean, so the command exits 0 and the build is **skipped**. Example 02 reproduces this (the "control" check). Our command guards with `[ -n "$CACHED_COMMIT_REF" ]` and ends in `|| exit 1`, so every empty or failing case builds.
+- **Cost of a skipped build:** the credits page lists only *successful* production deploys at 15 credits; failed deploys and rollbacks cost 0. It does not say anything about builds skipped by `ignore` **[UNVERIFIED]**. Expect 0, then confirm on the Usage page after the first skip. Community threads (titles only, not read) report Free-plan production deploys paused while credits remained, so watch the Usage page, not only the arithmetic.
 
 ## Custom headers
 - There are two ways to set them: a `_headers` file in the **publish directory**, or `[[headers]]` tables in `netlify.toml`. [headers](https://docs.netlify.com/manage/routing/headers/)
@@ -78,7 +79,7 @@ Retrieved: 2026-11-23
   - [headers](https://docs.netlify.com/manage/routing/headers/)
 - **Basic-auth headers** are **Pro and Enterprise** only. [headers](https://docs.netlify.com/manage/routing/headers/)
 - **Cross-subdomain cookies:** they can't be set across `*.netlify.app` subdomains (Public Suffix List). That needs a custom domain. [headers](https://docs.netlify.com/manage/routing/headers/)
-- When two different path rules both match a URL and set the **same** header name, the docs don't say how they are merged **[UNVERIFIED]**. Avoid it.
+- When two different path rules both match a URL and set the **same** header name, the docs don't say how they are merged **[UNVERIFIED]**. The same gap covers `_headers` plus `[[headers]]` in `netlify.toml` for one path. Re-check attempted 2026-11-23 and docs.netlify.com was unreachable. **Decision: `public/_headers` is the single location and `netlify.toml` has no `[[headers]]`**; example 02's validator enforces both, so the merge rule never matters. Only `_headers` is in the publish folder, so it is also the file agents are denied to edit (Dr. Lee's decision 7).
 
 ## Beach Day notes
 - **Use one headers source: `public/_headers`.** Example 02 has the file and a validator.
@@ -88,8 +89,9 @@ Retrieved: 2026-11-23
 - **`/api/*` responses get none of these.** Every function sets `cache-control: no-store` and its own headers (example 01).
 - **Ignore command:**
   - The sketch in docs/03, `-- public netlify`, is **too narrow**. The build command reads `.claude/agents` and `scripts`, and dependency or `netlify.toml` changes also matter.
-  - Use: `git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- public netlify netlify.toml package.json package-lock.json scripts .claude/agents`.
-  - Example 02 proves the exit codes in a temporary git repo.
-  - Every skipped docs-only build saves 15 credits (ADR-0004).
+  - Use the guarded command in example 02's `netlify.toml` (it watches `public`, `netlify`, `netlify.toml`, `package.json`, `package-lock.json`, `scripts`, `.claude/agents`).
+  - Example 02 proves the exit codes in a temporary git repo: docs-only, knowledge-only, tests-only, skills-only and root-Markdown commits skip; everything that ships builds; an empty or missing cached ref builds.
+  - Every skipped build saves 15 credits (ADR-0004), if skipped builds cost 0 (see above).
+  - **The list is a whitelist.** A new top-level folder that the build reads must be added to it, or its changes will be skipped. The validator only checks the folders it knows.
 - Header changes, `netlify.toml` changes and env changes need a **security-engineer** review (agent rules).
 - Don't use basic-auth headers or a site password. Both are Pro-only, and they wouldn't protect functions anyway. The Console gate lives in the functions.

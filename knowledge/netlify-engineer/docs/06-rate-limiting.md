@@ -41,15 +41,14 @@ export const config = {
 - [rate limiting § Verify](https://docs.netlify.com/manage/security/secure-access-to-sites/rate-limiting/#verify-that-code-based-rules-are-applied)
 
 ## Beach Day notes
-- **The 2 Free-plan rules** (ADR-0004):
-  - `/api/login`: `windowLimit: 10, windowSize: 60, aggregateBy: ["ip","domain"]`. Example 01 shows it.
-  - `/api/chat`: `windowLimit: 20, windowSize: 60, aggregateBy: ["ip","domain"]`.
+- **The 2 Free-plan rules** (ADR-0004). `/api/login` no longer exists (Supabase Auth), so the second rule moved:
+  - `/api/chat`: `windowLimit: 20, windowSize: 60, aggregateBy: ["ip","domain"]`. The most expensive route (a 60 s stream per call).
+  - `/api/jobs`: `windowLimit: 10, windowSize: 60, aggregateBy: ["ip","domain"]`. Starts a 15-minute worker. Example 01 shows it.
+  - Proposed by netlify-engineer on 2026-11-23; **security-engineer may swap one** (for example for the approve route). Only two fit.
   - A third rule would be silently over quota. How Netlify treats a third rule on Free was not documented on this page **[UNVERIFIED]**, so don't add one.
-- **Everything else is counted in the app**, in Blobs, with CAS (example 03):
-  - 5 failed logins per IP per 15 min
-  - 100 chat turns per day per session
-  - 20 jobs per day per session
-  - 10 approvals per day per session
+- **Everything else is counted in the app**, in Blobs, with CAS (example 03), per Supabase user id (sign-in throttling is Supabase's job, not ours):
+  - 200 chat turns per day, 20 jobs per day (security-engineer's numbers, docs/04 §9)
+  - **Approve, site-wide: 14 per month and 5 per day** (Dr. Lee, 2026-11-23). `hitCapped()` in example 03 checks both windows with one CAS.
 - The platform rule is **per IP** and **eventually enforced** (up to about 10 s lag), so it is a coarse shield. The app counters are the precise limits.
 - Show a friendly UI message on `429`, and test it with a mocked `429` in Playwright.
 - After the first deploy with these functions, check the deploy log for both rules under post-processing. Record the result in the HANDOFF.

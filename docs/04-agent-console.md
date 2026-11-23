@@ -15,19 +15,51 @@
 
 ## 2. Endpoints (Netlify Functions)
 
+Auth on **every** route (ADR-0006): `Authorization: Bearer <Supabase access token>`, verified, then `role === 'super_admin'` read from `profiles` as the caller. Fail closed: `401` no/bad token, `403` wrong role or no row, `503` Supabase unreachable. Sign-up, log-in, log-out and password reset happen in the browser against Supabase Auth — there is **no** `/api/login` or `/api/logout`. Details of the check and step-up: §4 (security-engineer).
+
 | Route | Type | Auth | Purpose |
 |---|---|---|---|
-| `POST /api/login` | sync | password | Verify password hash, set session cookie |
-| `POST /api/logout` | sync | session | Clear cookie |
-| `GET /api/agents` | sync | session | Agent list from bundled `agents.json` (no system prompts) |
-| `POST /api/chat` | sync, **streaming** | session + CSRF | One chat turn; SSE back to browser (≤60 s) |
-| `POST /api/jobs` | **background** (≤15 min) | session + CSRF | Long agent job; writes progress to Blobs |
-| `GET /api/jobs/:id` | sync | session | Poll job status/events |
-| `GET /api/proposals/:id` | sync | session | Proposal + diff |
-| `POST /api/proposals/:id/approve` | sync | session + CSRF + re-auth | Commit to GitHub |
-| `POST /api/proposals/:id/reject` | sync | session + CSRF | Mark rejected |
+| `GET /api/agents` | sync | Bearer + super_admin | Agent list from bundled `agents.json` (no system prompts). A `403` here is how the Console shows "no access" |
+| `POST /api/chat` | sync, **streaming** | Bearer + super_admin | One chat turn; SSE back to browser (≤60 s); may end in `handoff` |
+| `POST /api/jobs` | sync | Bearer + super_admin | Check limits, create job `j_…` with a single-use nonce, trigger `/api/jobs-run`; returns `202 {jobId}` |
+| `POST /api/jobs-run` | **background** (≤15 min) | Bearer + super_admin + job nonce | Internal: called only by `/api/jobs` and the `/api/chat` handoff. Re-checks token and role, consumes the nonce (CAS), runs the job, writes progress to Blobs |
+| `GET /api/jobs/:id` | sync | Bearer + super_admin | Poll job status/events |
+| `GET /api/proposals/:id` | sync | Bearer + super_admin | Proposal + diff |
+| `POST /api/proposals/:id/approve` | sync | Bearer + super_admin + step-up (§4) | Body `{contentHash}`; re-validate, cap check (ADR-0008), commit to GitHub |
+| `POST /api/proposals/:id/reject` | sync | Bearer + super_admin | Mark rejected |
 
-Background functions can't authenticate the caller with a response (they return `202` immediately) — the **sync** wrapper should check auth and rate limits, create the job record, then invoke the background function with a signed, single-use job token (or the background function re-checks the session cookie itself before doing work).
+Background functions can't answer the caller (they return `202` immediately), so the **sync** `/api/jobs` wrapper checks auth and limits and creates the job record, including a random 256-bit nonce. It then calls `/api/jobs-run`, forwarding the caller's `Authorization` header and `{jobId, nonce}`. The background function repeats the token and role check, consumes the nonce with a compare-and-swap, and does nothing if either check fails. No shared signing secret is needed (`SESSION_SECRET` is gone). Deploy status needs no function: the Console polls `/generated/version.json` (ADR-0006 §8).
+
+### 2.1 Shared contracts (builders code against these)
+
+**IDs:** `p_<ULID>` for proposals, `j_<ULID>` for jobs, matching `^[pj]_[0-9A-Z]{26}$`. Functions reject any other `:id` with `400` before touching Blobs.
+
+**Proposal status:**
+
+```
+pending ──approve──► committing ──► committed
+   │                     ├────────► failed   (GitHub error; error recorded; terminal)
+   │                     └────────► stale    (main moved under a file the agent read; terminal)
+   ├──approve finds base moved──► stale
+   └──reject──► rejected
+```
+
+Every transition is a Blobs compare-and-swap (`onlyIfMatch`). `committing` is the per-proposal lock. A record stuck in `committing` for more than 120 s is reconciled by the next GET or approve: if a commit on `main` carries the trailer `Beach-Day-Proposal: p_…`, the record becomes `committed`; otherwise it becomes `failed`. `failed`, `stale` and `rejected` are terminal. The agent proposes again to retry.
+
+**SSE events** (`POST /api/chat`; each message is `event: <type>` plus one `data:` JSON line; the stream ends with exactly one `done` or `error`):
+
+| `type` | Fields |
+|---|---|
+| `text` | `delta` (string; render as text) |
+| `tool` | `name` ∈ `read_file`/`list_files`/`propose_change`, `phase` ∈ `start`/`end`, `summary?` (≤200 chars, never raw input) |
+| `proposal` | `proposalId` (`p_…`), `summary`, `files: [{path, bytes}]` (≤20) |
+| `handoff` | `jobId` (`j_…`); followed by `done` with `stopReason: "handoff"` |
+| `error` | `code` ∈ `unauthorized` (401), `forbidden` (403), `rate_limited`, `refusal`, `upstream`, `timeout`, `invalid_request`, `internal`; `message` (user-safe, ≤500 chars); `retryable` (bool) |
+| `done` | `stopReason?` ∈ `end_turn`, `max_tokens`, `refusal`, `handoff`, `tool_rounds_exhausted` |
+
+**JSON errors** from non-streaming routes: `{"error": {"code", "message", "retryAt?"}}`. Codes are the SSE `error.code` list plus `not_found`, `conflict` (CAS lost), `stale`, `approve_cap` (429, ADR-0008) and `unavailable` (503, Supabase down). Never include stack traces, env values or tokens.
+
+Machine-checkable JSON Schemas for these shapes are in `knowledge/software-architect/examples/02-interface-contracts/`.
 
 ## 3. Threat model (what we defend against)
 
@@ -39,7 +71,7 @@ Background functions can't authenticate the caller with a response (they return 
 | Agent writes dangerous files | Edits `netlify/functions/approve.mts`, `.github/workflows`, `netlify.toml` to exfiltrate keys | **Server-side path allow-list**, re-checked at approve time; no Workflows permission on the token |
 | Prompt injection | A repo file or user text tells the agent "commit this secret / widen the allow-list" | Agents have no commit tool; human approval with a visible diff; allow-list is code, not prompt; secret scan on diffs |
 | CSRF / clickjacking | Another site triggers Approve | `SameSite=Strict` cookie, CSRF token header, `frame-ancestors 'none'` |
-| Replay / double approve | Approve clicked twice, or proposal edited after review | Proposal content hash shown & signed; compare-and-swap status in Blobs; base SHA check |
+| Replay / double approve | Approve clicked twice, or proposal edited after review | Proposal content hash shown to the user, sent back with Approve and compared; compare-and-swap status in Blobs; base SHA check |
 | Cost abuse | Loops, huge prompts | Per-session and per-day limits; max tokens/rounds per job; Anthropic workspace spend limit |
 | Preview deploys with prod powers | A branch deploy commits to main | Production-only secrets: GitHub token set **only** in the Production context |
 
@@ -69,52 +101,84 @@ Source: [fine-grained PATs](https://docs.github.com/en/authentication/keeping-yo
 
 ## 6. Path allow-list
 
-Single source of truth in `netlify/functions/lib/allowlist.mts`, enforced at proposal time **and again at approve time**:
+Single source of truth in `netlify/functions/lib/allowlist.mts`, enforced at proposal time **and again at approve time**. This is the **canonical list**; the `change-proposal-protocol` skill and the contract schema mirror it.
 
 ```ts
+// Text types only under public/ (the extension check is in addition to the content check below)
+export const TEXT_EXT = ["html", "css", "js", "json", "webmanifest", "svg", "txt", "md"];
 export const ALLOW = [
-  "public/**/*.{html,css,js,json,webmanifest,svg}",
-  "public/_headers",       // review carefully: CSP lives here
+  "public/**",               // only files whose extension is in TEXT_EXT
   "tests/**",
   "docs/**",
   ".claude/agents/*.md",
   ".claude/skills/**/*.md",
 ];
-export const DENY = [
-  "netlify/**",            // functions incl. this allow-list and approve
+export const DENY = [        // DENY wins over ALLOW
+  "public/_headers",         // CSP and security headers
+  "public/_redirects",
+  "public/sw.js",            // and everything it imports (see the convention below)
+  "public/sw/**",
+  "public/vendor/**",        // vendored @supabase/auth-js (ADR-0006)
+  "public/generated/**",     // build output: config.js, version.json (ADR-0006)
+  "netlify/**",              // functions, including this allow-list and approve
   "netlify.toml",
   ".github/**",
   "package.json", "package-lock.json",   // dependency changes = supply-chain risk
-  "scripts/**",            // build scripts run with env access
+  "scripts/**",              // build scripts run with env access
   "**/.env*",
+  ".git/**", ".gitmodules",
+  ".claude/settings*",       // matches .claude/settings.json and settings.local.json
+  "**/*.pem", "**/*.key",
 ];
 ```
 
-Rules: normalize paths (reject `..`, absolute paths, backslashes, symlink mode `120000`, submodules), DENY wins over ALLOW, cap per-file size (e.g. 200 KB) and file count (e.g. 20), text files only, and run a **secret scan** on new contents (patterns for `sk-ant-`, `github_pat_`, `ghp_`, private keys). Changes to denied paths are made by a human in a normal git workflow. Also: GitHub **push protection** applies to REST API commits and may reject a commit containing a secret — surface that error in the UI ([push protection](https://docs.github.com/en/code-security/concepts/secret-security/push-protection)).
+**Still open (Dr. Lee):** security-engineer recommends also denying `public/console.html` and `public/js/console/**`. They are allowed until he rules.
+
+**Service worker convention:** `public/sw.js` may load other code only from `public/sw/**` (`importScripts("/sw/…")`). That makes "sw.js and every file it imports" a static deny rule. pwa-mobile-engineer owns the convention, and a unit test fails if `sw.js` references any other path.
+
+Rules:
+- Normalise paths first. Reject `..`, absolute paths, backslashes, a leading `./`, symlink mode `120000` and submodules.
+- Match case-insensitively, so `Netlify.toml` is denied.
+- DENY wins over ALLOW.
+- At most 20 files, and at most 200 KB per file.
+- **Text only:** contents must decode as UTF-8 with no NUL bytes, whatever the path.
+- Run a **secret scan** on new contents. Patterns: `sk-ant-`, `github_pat_`, `ghp_`, `sb_secret_`, `service_role`, JWT-shaped `eyJ…` strings and private-key blocks.
+- Changes to denied paths are made by a human in a normal git workflow.
+- GitHub **push protection** applies to REST API commits and may reject a commit that contains a secret. Show that error in the UI ([push protection](https://docs.github.com/en/code-security/concepts/secret-security/push-protection)).
 
 ## 7. Commit on Approve (atomic, multi-file)
 
 Use the **Git Database API**, not the Contents API: one commit for N files (one Netlify deploy, 15 credits, instead of N), and no parallel-PUT conflicts (GitHub says Contents PUT/DELETE must be called serially). Sources: [refs](https://docs.github.com/en/rest/git/refs), [commits](https://docs.github.com/en/rest/git/commits), [trees](https://docs.github.com/en/rest/git/trees), [blobs](https://docs.github.com/en/rest/git/blobs).
 
 ```
-0. Load proposal (status must be "pending"), recompute content hash == hash user saw.
+0. Auth + role + step-up (§2, §4). Validate the id (^p_[0-9A-Z]{26}$).
+   Take the site-wide approve lock (Blobs `approve-lock`, onlyIfNew; a lock older than 90 s may be taken over with onlyIfMatch).
+   Load the proposal: status must be "pending". Recompute its content hash and COMPARE it with the
+   `contentHash` the client sent (the hash the user saw). Mismatch → 409 conflict.
+   Check the cap (ADR-0008): over → 429 approve_cap, status stays "pending".
+   Re-run the allow-list, size, text-only and secret-scan checks (§6).
+   CAS status "pending" → "committing".
 1. GET  /repos/fenago/BeachDay/git/ref/heads/main             → headSha
-2. If headSha ≠ proposal.baseSha: for each file, compare current blob SHA with the
-   one the agent read; if any differ → status "stale", ask agent to rebase. 
+2. If headSha ≠ proposal.baseSha: for each file, compare the current blob SHA on main with
+   readBlobSha (null = the file must still not exist). Any difference → CAS "stale"; the agent proposes again.
 3. GET  /repos/.../git/commits/{headSha}                       → baseTreeSha
 4. POST /repos/.../git/trees  { base_tree: baseTreeSha,
         tree: [{path, mode:"100644", type:"blob", content}, …] }   → treeSha
         (ALWAYS send base_tree — omitting it deletes every other file)
-5. POST /repos/.../git/commits { message, tree: treeSha, parents:[headSha],
-        author:{name:"Beach Day Agent (<agent>)", email:"…"} }        → commitSha
+5. POST /repos/.../git/commits { message (ends with the trailer "Beach-Day-Proposal: p_…"),
+        tree: treeSha, parents:[headSha], author:{name:"Beach Day Agent (<agent>)", email:"…"} } → commitSha
 6. PATCH /repos/.../git/refs/heads/main { sha: commitSha, force:false }
-        (not fast-forward → main moved → retry from step 1 once, else "stale")
-7. CAS proposal status → "committed" {commitSha}; write audit record.
+        (not fast-forward → main moved → redo steps 1–6 once, else CAS "stale")
+7. CAS "committing" → "committed" {commitSha, decidedAt}; append to the approve cap record;
+   write the audit record (actor = Supabase user id); release the lock.
+   Any GitHub error in 1–6 → CAS "failed" {error}; release the lock.
 ```
+
+**Where the agent's reads come from (ADR-0007):** `read_file` and `list_files` read from GitHub `main`, pinned to the `main` head SHA resolved at the start of the turn or job. `propose_change` records that SHA as `baseSha`, and each file's blob SHA as `readBlobSha` (`null` for a new or unread file). The read tools refuse `.env*`, `*.pem`, `*.key`, `.git/**`, non-UTF-8 files and files over 200 KB. They use a read-only GitHub module, and only the approve function can write.
 
 Headers: `Authorization: Bearer $GITHUB_TOKEN`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28` (supported until 10 Mar 2028; a newer `2026-03-10` exists — read its changelog before switching; [API versions](https://docs.github.com/en/rest/about-the-rest-api/api-versions)). Make requests **serially**; GitHub's secondary limits allow ≤80 content-creating requests/min and ≤500/hour ([rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)); honor `retry-after`.
 
-Netlify auto-deploys the push to `main` ([deploy overview](https://docs.netlify.com/deploy/deploy-overview/)). Show deploy status via a `deploy-succeeded` event function writing to Blobs ([event triggers](https://docs.netlify.com/build/functions/trigger-on-events/)). Rollback = "Publish deploy" on the previous deploy in Netlify (instant), or a revert commit.
+Netlify auto-deploys the push to `main` ([deploy overview](https://docs.netlify.com/deploy/deploy-overview/)). Show deploy status without a function (ADR-0006 §8): after `committed`, the Console polls `/generated/version.json` (`no-store`, never cached by the service worker) every 10 s until `commit` equals `commitSha` → "Live". After 10 min it shows "Still deploying — check Netlify". Rollback = "Publish deploy" on the previous deploy in Netlify (instant), or a revert commit.
 
 **Decided (ADR-0003): Approve commits straight to `main`** using the steps above. The PR flow below is recorded as a future option only.
 
@@ -144,7 +208,8 @@ Patterns:
 | Layer | Limit (starting values) |
 |---|---|
 | Netlify `config.rateLimit` (code-based, all plans; 2 rules on Free) | `/api/login` 10/min per IP; `/api/chat` 20/min per IP. `windowSize` max 180 s. Over limit → `429`. [rate limiting](https://docs.netlify.com/manage/security/secure-access-to-sites/rate-limiting/) |
-| App counters in Blobs (CAS) | 100 chat turns/day, 20 jobs/day, 10 approvals/day per session |
+| App counters in Blobs (CAS) | 100 chat turns/day, 20 jobs/day per session (security-engineer is reworking these per user id) |
+| **Approve cap (ADR-0008)** | **Site-wide, all users:** at most **14** committed approvals in any rolling 31 days and **5** per America/New_York day. Checked inside the approve lock; over → `429 approve_cap`, proposal stays `pending` |
 | Per request | `max_tokens` cap; ≤15 tool rounds; input size cap (e.g. 32 KB user message) |
 | Anthropic | Dedicated workspace with a low monthly **spend limit** (hard stop) |
 | GitHub | Serial requests; ≤1 approve in flight (CAS lock in Blobs) |

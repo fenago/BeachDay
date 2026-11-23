@@ -13,7 +13,7 @@ description: Beach Day front-end conventions — framework-free HTML, CSS and ES
 ```
 public/index.html          app shell (one page; views switch via hash routes #/, #/beach/:id, #/day/:date)
 public/console.html        Agent Console
-public/js/main.js          boot, router, SW registration
+public/js/app.js           boot, router, SW registration
 public/js/api/openmeteo.js fetch + normalize
 public/js/score.js         pure scoring (+ score-config.js thresholds)
 public/js/ui/*.js          view components
@@ -40,6 +40,7 @@ export function DayCard({ day }) {
 - **`fetch`:** always use an `AbortController` timeout (3–5 s for weather). Check `res.ok`, then validate the JSON shape.
 - **`localStorage`** holds favorites, the last beach and units. Wrap every read and write in try/catch, and treat stored values as disposable: iOS may evict storage for sites that aren't installed.
 - **No third-party scripts, fonts or CDNs.** CSP is `script-src 'self'`.
+  - One exception (ADR-0006): the Console imports a **vendored, pinned** `@supabase/auth-js` bundle from `public/vendor/` by relative path, and its config from the build-generated `public/generated/config.js`. The beach app never imports either. Both folders are deny-listed for agents.
 
 ## CSS
 - Mobile-first. Use logical properties, `rem` units and `clamp()` for type.

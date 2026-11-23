@@ -1,13 +1,206 @@
 [
-  { "expect": "valid", "why": "text delta", "data": { "type": "text", "delta": "Checking the score config…" } },
-  { "expect": "valid", "why": "tool start", "data": { "type": "tool", "name": "read_file", "phase": "start", "summary": "Read public/js/score.js" } },
-  { "expect": "valid", "why": "proposal card", "data": { "type": "proposal", "proposalId": "prop_7f3a9c21d4", "summary": "Treat null wave_height as missing; adds 3 tests.", "files": [{ "path": "public/js/score.js", "bytes": 5120 }, { "path": "tests/unit/score.test.js", "bytes": 3300 }] } },
-  { "expect": "valid", "why": "handoff to background job", "data": { "type": "handoff", "jobId": "job_01HZX9K2QW" } },
-  { "expect": "valid", "why": "user-safe error", "data": { "type": "error", "code": "rate_limited", "message": "Too many messages. Try again in a minute.", "retryable": true } },
-  { "expect": "valid", "why": "done", "data": { "type": "done", "stopReason": "end_turn" } },
-  { "expect": "invalid", "why": "unknown event type", "data": { "type": "thinking", "delta": "..." } },
-  { "expect": "invalid", "why": "error leaks extra field (stack) - additionalProperties false", "data": { "type": "error", "code": "internal", "message": "Something failed", "retryable": false, "stack": "at approve.mts:42" } },
-  { "expect": "invalid", "why": "tool name not one of the Console tools", "data": { "type": "tool", "name": "git_push", "phase": "start" } },
-  { "expect": "invalid", "why": "proposal with 21 files", "data": { "type": "proposal", "proposalId": "prop_7f3a9c21d4", "summary": "too big", "files": [
-    {"path":"docs/1.md","bytes":1},{"path":"docs/2.md","bytes":1},{"path":"docs/3.md","bytes":1},{"path":"docs/4.md","bytes":1},{"path":"docs/5.md","bytes":1},{"path":"docs/6.md","bytes":1},{"path":"docs/7.md","bytes":1},{"path":"docs/8.md","bytes":1},{"path":"docs/9.md","bytes":1},{"path":"docs/10.md","bytes":1},{"path":"docs/11.md","bytes":1},{"path":"docs/12.md","bytes":1},{"path":"docs/13.md","bytes":1},{"path":"docs/14.md","bytes":1},{"path":"docs/15.md","bytes":1},{"path":"docs/16.md","bytes":1},{"path":"docs/17.md","bytes":1},{"path":"docs/18.md","bytes":1},{"path":"docs/19.md","bytes":1},{"path":"docs/20.md","bytes":1},{"path":"docs/21.md","bytes":1}] } }
+ {
+  "expect": "valid",
+  "why": "text delta",
+  "data": {
+   "type": "text",
+   "delta": "Checking the score config…"
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "tool start",
+  "data": {
+   "type": "tool",
+   "name": "read_file",
+   "phase": "start",
+   "summary": "Read public/js/score.js"
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "proposal card",
+  "data": {
+   "type": "proposal",
+   "proposalId": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "summary": "Treat null wave_height as missing; adds 3 tests.",
+   "files": [
+    {
+     "path": "public/js/score.js",
+     "bytes": 5120
+    },
+    {
+     "path": "tests/unit/score.test.js",
+     "bytes": 3300
+    }
+   ]
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "handoff to background job",
+  "data": {
+   "type": "handoff",
+   "jobId": "j_01JDQ8Z9AB3CDE4FGH5JKM6NPQ"
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "user-safe error",
+  "data": {
+   "type": "error",
+   "code": "rate_limited",
+   "message": "Too many messages. Try again in a minute.",
+   "retryable": true
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "done",
+  "data": {
+   "type": "done",
+   "stopReason": "end_turn"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "unknown event type",
+  "data": {
+   "type": "thinking",
+   "delta": "..."
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "error leaks extra field (stack) - additionalProperties false",
+  "data": {
+   "type": "error",
+   "code": "internal",
+   "message": "Something failed",
+   "retryable": false,
+   "stack": "at approve.mts:42"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "tool name not one of the Console tools",
+  "data": {
+   "type": "tool",
+   "name": "git_push",
+   "phase": "start"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "proposal with 21 files",
+  "data": {
+   "type": "proposal",
+   "proposalId": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "summary": "too big",
+   "files": [
+    {
+     "path": "docs/1.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/2.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/3.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/4.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/5.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/6.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/7.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/8.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/9.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/10.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/11.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/12.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/13.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/14.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/15.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/16.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/17.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/18.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/19.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/20.md",
+     "bytes": 1
+    },
+    {
+     "path": "docs/21.md",
+     "bytes": 1
+    }
+   ]
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "forbidden: signed in but not super_admin (ADR-0006)",
+  "data": {
+   "type": "error",
+   "code": "forbidden",
+   "message": "This account doesn't have access to the Agent Console.",
+   "retryable": false
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "old job_ prefix",
+  "data": {
+   "type": "handoff",
+   "jobId": "job_01HZX9K2QW"
+  }
+ }
 ]

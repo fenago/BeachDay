@@ -80,12 +80,12 @@ Source: [configuration § Default values](https://docs.netlify.com/build/functio
 - `@netlify/aws-lambda-compat` `withLambda()` wraps old Lambda-style handlers. Beach Day doesn't need it. [api](https://docs.netlify.com/build/functions/api/)
 
 ## Beach Day notes
-- Every Console endpoint (`/api/login`, `/api/chat`, `/api/jobs`, `/api/jobs/:id`, `/api/proposals/:id[/approve|/reject]`) gets a `config.path` and a `config.method`. With custom paths, the `/.netlify/functions/*` URLs disappear, which shrinks the attack surface.
+- Every Console endpoint (`/api/agents`, `/api/chat`, `/api/jobs`, `/api/jobs/run`, `/api/jobs/:id`, `/api/proposals/:id`, `/api/proposals/:id/approve`, `/api/proposals/:id/reject`) gets a `config.path` and a `config.method`. There is **no `/api/login`**: sign-in is Supabase Auth, called from the browser (ADR-0006). Every `/api/*` handler starts with a bearer-token check and a role check that fail closed (401, 403, 503); see example 01, `lib/guard.mjs`. With custom paths, the `/.netlify/functions/*` URLs disappear, which shrinks the attack surface.
 - **Functions set their own headers.** `_headers` does not reach function responses. Use `cache-control: no-store`, `x-content-type-options: nosniff` and a JSON or SSE content type. See example 01, `lib/http.mjs`.
 - **Time budget:**
-  - `/api/chat` streams and must finish within **60 s**.
+  - `/api/chat` streams and must finish within **60 s**. Set the Anthropic SDK timeout to **50 s** (Kai's call, 2026-11-23).
   - Long work goes to a background function (**15 min**) with progress in Blobs.
   - The background request payload is only **256 KB**, so pass a job ID, not the conversation.
 - `region`, `memory` and `vcpu` are Pro-only. Don't use them (ADR-0004). The default `cmh` region is fine.
-- Use `.mjs`/`.mts` so ESM is unambiguous. Pin Node 22 or 24 for builds so functions don't silently change runtime. How we pin the build Node version (`.nvmrc` or `NODE_VERSION`) was not checked on the docs page read here **[UNVERIFIED]**.
+- Use `.mjs`/`.mts` so ESM is unambiguous. Pin Node 22 for builds so functions don't silently change runtime. The spec uses `[build.environment] NODE_VERSION = "22"`; the key name is widely documented but was **not** re-read on the docs page here **[UNVERIFIED]**. Check the deploy log's first lines for the Node version after the first build.
 - `context.waitUntil` work still counts against the 60 s limit and toward compute credits.
