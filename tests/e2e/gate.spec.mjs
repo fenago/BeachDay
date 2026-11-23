@@ -135,3 +135,38 @@ test("a different person on the same browser: sign out of the no-access screen, 
   await expect(page.getByTestId("agent-list"), `after the second sign-in the page shows: ${await page.locator("main").innerText().catch(() => "?")}`).toBeVisible();
   await expect(page.getByTestId("no-access")).toHaveCount(0);
 });
+
+test("deliberate Sign Out: no 'session ended' flash, and the chat transcript and draft are cleared", async ({ page }) => {
+  const { turns } = await import("../helpers/e2e.mjs");
+  await c.h.anthropic.script({ turns: [turns.text(["An answer to forget."])] });
+  await loginAs(page, ADMIN);
+  await page.getByTestId("agent-card").first().getByTestId("agent-chat").click();
+  await page.getByTestId("chat-input").fill("remember me?");
+  await page.getByTestId("chat-send").click();
+  await expect(page.getByTestId("msg-agent")).toContainText("An answer to forget.");
+  await page.getByTestId("chat-input").fill("an unsent draft");
+  const seen = [];
+  await page.exposeFunction("__seen", (t) => seen.push(t));
+  await page.evaluate(() => new MutationObserver(() => { const t = document.body.innerText; if (/Your session ended/.test(t)) window.__seen("S7"); }).observe(document.body, { subtree: true, childList: true, characterData: true }));
+  await page.getByRole("button", { name: STRINGS["btn.signOut"], exact: true }).click();
+  await expect(page.getByText(STRINGS["auth.signout.done"])).toBeVisible();
+  await page.waitForTimeout(500);
+  expect(seen, "S7 must never flash after a deliberate sign-out").toEqual([]);
+  await signIn(page, ADMIN);
+  await expect(page.getByTestId("agent-list")).toBeVisible();
+  await page.getByTestId("agent-card").first().getByTestId("agent-chat").click();
+  await expect(page.getByTestId("msg-user")).toHaveCount(0);
+  await expect(page.getByTestId("chat-input")).toHaveValue("");
+});
+
+test("S7 moves focus once (showAuth('sessionExpired') must not fire twice)", async ({ page }) => {
+  await loginAs(page, ADMIN);
+  await expect(page.getByTestId("agent-list")).toBeVisible();
+  await page.addInitScript(() => { window.__focusH1 = 0; document.addEventListener("focusin", (e) => { if (e.target?.tagName === "H1") window.__focusH1++; }, true); });
+  await page.route("**/api/agents", (r) => r.fulfill({ status: 401, headers: { "content-type": "application/json", "cache-control": "no-store", "www-authenticate": "Bearer" }, body: JSON.stringify({ error: { code: "unauthorized", message: "Sign in to continue." } }) }));
+  await page.reload();
+  await expect(page.getByText(STRINGS["console.session.expired"])).toBeVisible();
+  await page.waitForTimeout(800);
+  const n = await page.evaluate(() => window.__focusH1);
+  expect(n, `h1 received focus ${n} times on the session-ended screen (the access check's own h1 counts once)`).toBeLessThanOrEqual(2);
+});
