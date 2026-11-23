@@ -90,3 +90,43 @@ export async function signIn(page, { email, password }) {
 
 /** Serve version.json changes: the "Live" check polls /version.json. */
 export const setDeployedCommit = (h, sha) => h.harness.setVersion({ version: sha });
+
+// ---------------------------------------------------------------- Agents page flows (W2)
+export { turns } from "./msw-upstreams.mjs";
+
+/** Sign in through the real screen. Leaves the page on the Agents list (or whatever the server decided). */
+export async function loginAs(page, user) {
+  await page.goto("/console");
+  await expect(page.getByRole("heading", { level: 1, name: STRINGS["auth.signin.title"] })).toBeVisible();
+  await signIn(page, user);
+}
+
+/** Open the chat for the first agent card; returns its persona. */
+export async function openFirstChat(page) {
+  const card = page.getByTestId("agent-card").first();
+  await expect(card).toBeVisible();
+  await card.getByTestId("agent-chat").click();
+  await expect(page.getByTestId("chat")).toBeVisible();
+}
+
+export async function sendMessage(page, text) {
+  const input = page.getByTestId("chat-input");
+  await input.fill(text);
+  await page.getByTestId("chat-send").click();
+}
+
+/** A scripted turn pair: the agent proposes a change, then says it did. */
+export function proposalTurns(T, { summary = "Add a short note about parking to the beach guide so visitors know where to leave a car", files = [{ path: "docs/parking-note.md", content: "# Parking\n\nArrive early on weekends.\n" }] } = {}) {
+  return [T.proposeChange({ summary, files }), T.text(["I proposed ", "the change."])];
+}
+
+/** Drive chat -> proposal card. Returns the proposal id from the card. */
+export async function proposeViaChat(page, h, T, opts) {
+  await h.anthropic.script({ turns: proposalTurns(T, opts) });
+  await openFirstChat(page);
+  await sendMessage(page, "Please add the parking note.");
+  const card = page.getByTestId("proposal-card").first();
+  await expect(card).toBeVisible({ timeout: 15_000 });
+  await expect(card.getByTestId("proposal-review")).toBeVisible({ timeout: 15_000 });
+  return card.getAttribute("data-proposal");
+}

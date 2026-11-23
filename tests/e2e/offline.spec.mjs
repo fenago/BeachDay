@@ -39,9 +39,11 @@ async function installed(page, url = "/?source=pwa") {
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await expect(page.getByTestId("verdict-card")).toBeVisible();
   // The first load was not controlled and the reload used the saved forecast, so nothing went through the worker yet:
-  // one user-forced refresh does, and fills beachday-data-v1.
-  await page.getByTestId("refresh").click();
-  await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes("beachday-data-v1") && (await (await caches.open("beachday-data-v1")).keys()).length)).toBeGreaterThan(0);
+  // dropping the saved forecast and reloading does (a forced refresh is throttled to once a minute), and fills beachday-data-v1.
+  await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("beachday:forecast")) localStorage.removeItem(k); });
+  await page.reload();
+  await expect(page.getByTestId("verdict-card")).toBeVisible();
+  await expect.poll(() => page.evaluate(async () => ((await caches.keys()).includes("beachday-data-v1") ? (await (await caches.open("beachday-data-v1")).keys()).length : 0))).toBeGreaterThan(0);
 }
 const shiftDays = (obj, n) => JSON.parse(JSON.stringify(obj).replace(/(\d{4})-(\d{2})-(\d{2})/g, (_, y, m, d) => new Date(Date.UTC(+y, +m - 1, +d + n)).toISOString().slice(0, 10)));
 const caches_ = (page) => page.evaluate(async () => Object.fromEntries(await Promise.all((await caches.keys()).map(async (k) => [k, (await (await caches.open(k)).keys()).map((r) => { const u = new URL(r.url); return u.host + u.pathname; })]))));
