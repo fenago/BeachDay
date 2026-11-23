@@ -41,7 +41,7 @@ Four changes are required before merge (H1, H2, M1, M2). L1 and L2 can follow in
 
 ### M1: No step-up re-auth on Approve (Medium)
 - **Where:** `approve.mts` calls `requireSession` only.
-- **Exploit scenario:** someone gets brief access to an unlocked laptop with a live 12 h session. They approve a pending proposal, which goes to production. OWASP Session Management calls for "Reauthentication After Risk Events". Approve is our riskiest action.
+- **Exploit scenario:** someone gets brief access to an unlocked laptop with a live 8 h session. They approve a pending proposal, which goes to production. OWASP Session Management calls for "Reauthentication After Risk Events". Approve is our riskiest action.
 - **Fix:**
   - Require `recentlyAuthenticated(claims) ≤ 10 min`. Otherwise return 401 with `{reauth: true}`, and the UI asks for the password again.
   - Allow paste and password managers (WCAG 3.3.8).

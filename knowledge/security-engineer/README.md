@@ -26,5 +26,5 @@ All examples use only Node built-ins. No real secrets are used anywhere. Placeho
 1. **`.png` on the allow-list vs "UTF-8 text only".** PNG proposals can never pass. Drop `png`, or design a binary path.
 2. **Cookie path.** OWASP recommends the `__Host-` prefix with `Path=/`. We use `Path=/api`, a documented deviation.
 3. **Revocation.** Stateless signed sessions can't be revoked before `exp`. Rotating `SESSION_SECRET` is the "log out everyone" switch, and a `sid` deny-list in Blobs is the alternative.
-4. **Session length.** The 12 h absolute session is longer than OWASP's 4–8 h example for a workday. Consider 8 h.
+4. **Session length.** Resolved: Dr. Lee set the absolute session to 8 h (within OWASP's 4–8 h example).
 5. **OWASP Top 10 edition.** The current edition is **2025**, not 2021. Use the A0x:2025 IDs in reviews.

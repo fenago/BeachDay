@@ -35,7 +35,7 @@ test("session round trip and cookie flags", () => {
   assert.equal(claims.exp - claims.iat, SESSION_TTL_S);
   const c = sessionCookie(s.token);
   console.log(c.replace(s.token, "<token>"));
-  for (const flag of ["HttpOnly", "Secure", "SameSite=Strict", "Path=/api", "Max-Age=43200"]) assert.ok(c.includes(flag), flag);
+  for (const flag of ["HttpOnly", "Secure", "SameSite=Strict", "Path=/api", "Max-Age=28800"]) assert.ok(c.includes(flag), flag);
 });
 
 test("tampering is rejected", () => {

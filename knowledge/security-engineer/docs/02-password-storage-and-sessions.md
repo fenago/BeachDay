@@ -61,7 +61,7 @@ These "provide a similar minimal level of defense".
 | ≥ 64-bit session ID, CSPRNG | `sid` = 144 random bits | matches |
 | `Secure; HttpOnly; SameSite` | `HttpOnly; Secure; SameSite=Strict` | matches |
 | `__Host-` prefix, `Path=/` | `bd_session`, `Path=/api` | **deviation**, documented below |
-| Absolute timeout | 12 h `Max-Age` + signed `exp` | longer than the 4–8 h example; acceptable for a single-owner tool, but consider 8 h |
+| Absolute timeout | 8 h `Max-Age` + signed `exp` | Dr. Lee's decision (2026-11-23); within OWASP's 4–8 h example |
 | Idle timeout | none | **gap**: stateless cookie |
 | Renew ID on login | a new `sid` at every login | matches |
 | Reauth before risky actions | password within the last 10 min before Approve | matches the design; must be implemented |

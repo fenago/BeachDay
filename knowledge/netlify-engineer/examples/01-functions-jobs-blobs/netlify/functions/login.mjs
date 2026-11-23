@@ -5,7 +5,7 @@
 import { createHmac, scryptSync, timingSafeEqual, randomUUID } from "node:crypto";
 import { json } from "./lib/http.mjs";
 
-const SESSION_SECONDS = 12 * 60 * 60; // 12 h, matches docs/04
+const SESSION_SECONDS = 8 * 60 * 60; // 8 h, matches docs/04
 
 // CONSOLE_PASSWORD_HASH format: "scrypt$<salt base64>$<hash base64>"
 function passwordMatches(password, stored) {

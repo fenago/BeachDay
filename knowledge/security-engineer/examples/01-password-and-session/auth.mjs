@@ -46,7 +46,7 @@ function keys(secret) {
 }
 const sign = (key, data) => createHmac("sha256", key).update(data).digest();
 
-export const SESSION_TTL_S = 12 * 60 * 60; // 12 h absolute timeout (docs/04 §4)
+export const SESSION_TTL_S = 8 * 60 * 60; // 8 h absolute timeout (docs/04 §4)
 
 export function createSession(secret, now = Date.now()) {
   const sid = b64u(randomBytes(18)); // 144 bits from the CSPRNG (OWASP: >= 64 bits of entropy)

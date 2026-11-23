@@ -8,7 +8,7 @@ description: Security controls specific to the Beach Day Agent Console — passw
 - Netlify's site password needs the Pro plan and doesn't cover functions, so the gate is ours.
 - **Storage:** `CONSOLE_PASSWORD_HASH` holds a scrypt hash (`scrypt$N$r$p$salt$hash`). Compare with `crypto.timingSafeEqual`.
 - **Session cookie:** `bd_session` = base64url(`{sid, exp}`) + `.` + HMAC-SHA256(`SESSION_SECRET`).
-  - Flags: `HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=43200`.
+  - Flags: `HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=28800`.
 - **Login throttling:** 5 failures per IP per 15 min (Blobs counter), plus Netlify `rateLimit` on `/api/login`.
 - **Re-authentication:** Approve requires the password again if the last auth was more than 10 min ago.
 - **Accessibility (WCAG 3.3.8):** allow paste and password managers.

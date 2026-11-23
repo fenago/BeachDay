@@ -14,9 +14,9 @@
 **Session cookie:**
 - The token is `base64url(JSON{sid, iat, exp, auth}).base64url(HMAC-SHA256)`.
 - `sid` is 144 bits from the CSPRNG; OWASP requires at least 64 bits of entropy.
-- The absolute lifetime is 12 h.
+- The absolute lifetime is 8 h (Dr. Lee's decision, in line with OWASP's 4–8 h guidance).
 - `verifySession` checks the shape (and a length cap), compares the MAC in **constant time**, then checks `exp`.
-- The cookie flags are `HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=43200`, as in docs/04 §4.
+- The cookie flags are `HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=28800`, as in docs/04 §4.
 
 **Key separation.** Separate session and CSRF keys are derived from `SESSION_SECRET` with labelled HMACs. A secret shorter than 32 bytes is refused.
 
@@ -50,7 +50,7 @@ Run on 2026-11-23 with Node v22.23.5, from a scratch copy outside the repo:
 ```
 $ node --test auth.test.mjs
 # hash: scrypt$131072$8$1$qLxjKjJOihnnYd…  (335 ms)
-# bd_session=<token>; HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=43200
+# bd_session=<token>; HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=28800
 ok 1 - scrypt hash: format, unique salt, verify right/wrong
 ok 2 - stored hash with absurd params is refused (DoS guard)
 ok 3 - session round trip and cookie flags

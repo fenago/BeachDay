@@ -46,4 +46,4 @@ ok   samples/ux-week-v2.md § Week list
 exit=0
 ```
 
-Not run: re-running Wren on the brief with the edited skill, which needs a live Claude Code session. The incident is illustrative. The "before" text is the real last line of `.claude/skills/beach-day-scoring/SKILL.md` as of 2026-11-23. The "after" text is a proposal, and the real skill was **not** modified.
+Not run: re-running Wren on the brief with the edited skill, which needs a live Claude Code session. The incident is illustrative. The "before" text is the real last line of `.claude/skills/beach-day-scoring/SKILL.md` as of 2026-11-23. The "after" text was approved by Dr. Lee on 2026-11-23 and applied to `.claude/skills/beach-day-scoring/SKILL.md`.

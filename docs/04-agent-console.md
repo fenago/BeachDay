@@ -48,7 +48,7 @@ Background functions can't authenticate the caller with a response (they return 
 Netlify's built-in site password / Basic-Auth needs the **Pro** plan and **does not protect functions** anyway ([password protection](https://docs.netlify.com/manage/security/secure-access-to-sites/password-protection/), [Basic-Auth](https://docs.netlify.com/manage/security/secure-access-to-sites/basic-authentication-with-custom-http-headers/)). So the gate lives in our functions:
 
 * Store only `CONSOLE_PASSWORD_HASH` (scrypt via Node `crypto.scrypt`, or argon2) as a secret env var. Compare with `crypto.timingSafeEqual`.
-* On success set `bd_session` = HMAC-signed `{sid, exp}` (key `SESSION_SECRET`), flags `HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=43200` (12 h). Use `context.cookies.set`.
+* On success set `bd_session` = HMAC-signed `{sid, exp}` (key `SESSION_SECRET`), flags `HttpOnly; Secure; SameSite=Strict; Path=/api; Max-Age=28800` (8 h). Use `context.cookies.set`.
 * Every `/api/*` function starts with `requireSession(req, context)`; unauthenticated → `401`.
 * **Login throttling:** 5 failed attempts per IP per 15 min (Blobs counter) plus Netlify `config.rateLimit` on `/api/login`.
 * **Re-auth for Approve** (optional but recommended): ask for the password again (or a short PIN) within the last 10 min before committing — satisfies "step-up" for the riskiest action. WCAG 3.3.8: allow paste and password managers.

@@ -4,6 +4,11 @@ description: The Beach Day scoring model — beach window, hard stops, hourly pe
 ---
 # Beach-day scoring (v1 heuristic; source table in docs/01 §5)
 
+## Always: the safety line goes with every verdict
+Wherever a verdict appears (screen, list row, card, share text, notification), the same view shows
+"Beach Day is not a safety service — check NWS rip-current risk and posted beach flags." with the NWS link.
+Why: verdicts ignore rip currents and flags (ADR-0002), so a "Great" day can still be dangerous.
+
 There is no authoritative public beach score. This model is **ours**, it is transparent, and it is anchored on official thresholds. All numbers live in `public/js/score-config.js`. Any change needs a boundary test and review by open-meteo-integrator and Wren.
 
 ## Beach window
@@ -59,7 +64,6 @@ The verdict comes from the average score of the **best 3-hour window**.
 | Sargassum | USF Sargassum Watch |
 | Tides | NOAA Tides & Currents |
 
-Every verdict screen includes: "Beach Day is not a safety service — check NWS rip-current risk and posted beach flags."
 
 ## Testing
 - Pure functions `scoreHour` and `scoreDay`.
