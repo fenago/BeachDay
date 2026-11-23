@@ -36,6 +36,7 @@ export interface ProposalRecord {
   commitSha?: string;
   rejectReason?: string;
   error?: string;
+  createdBy?: string;
 }
 
 export const TRAILER = "Beach-Day-Proposal";
@@ -104,6 +105,7 @@ export interface CreateInput {
   readShas: Readonly<Record<string, string>>; // blob SHAs the agent read this turn (ADR-0007)
   now?: () => Date;
   policy?: PolicyOptions;
+  createdBy?: string;   // Supabase user id of the proposing chat/job (schema: optional, 1-64 chars)
 }
 
 export async function createProposal(store: BlobStore, input: CreateInput): Promise<ProposalRecord> {
@@ -131,6 +133,7 @@ export async function createProposal(store: BlobStore, input: CreateInput): Prom
       files,
       contentHash: computeContentHash(files),
     };
+    if (typeof input.createdBy === "string" && input.createdBy.length > 0 && input.createdBy.length <= 64) record.createdBy = input.createdBy;
     const res = await store.setJSON(record.id, record, { onlyIfNew: true });
     if (res.modified) return record;
   }

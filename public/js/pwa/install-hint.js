@@ -32,13 +32,19 @@ export function isStandalone({ matchMedia, navigatorStandalone } = {}) {
   return mm("(display-mode: standalone)") || mm("(display-mode: fullscreen)") || navigatorStandalone === true;
 }
 
+/** True while a dismissal is less than 14 days old (shared by the iOS sheet and the Chromium button). */
+export function isSnoozed(storage, now = Date.now()) {
+  try {
+    const at = Number(storage?.getItem(HINT_KEY)) || null;
+    return Boolean(at && now - at < HINT_SNOOZE_MS);
+  } catch { return false; /* storage blocked */ }
+}
+
 /** Should the iOS Add to Home Screen hint show? Returns null or { variant, text }. */
 export function iosHint(env, { storage, now = Date.now() } = {}) {
   const p = detectPlatform(env);
   if (!p.isIOS || isStandalone(env)) return null;
-  let dismissedAt = null;
-  try { dismissedAt = Number(storage?.getItem(HINT_KEY)) || null; } catch { /* storage blocked */ }
-  if (dismissedAt && now - dismissedAt < HINT_SNOOZE_MS) return null;
+  if (isSnoozed(storage, now)) return null;
   if (p.iosBrowser === "in-app") {
     return { variant: "open-in-browser", text: "To add Beach Day to your Home Screen, open this page in Safari first." };
   }

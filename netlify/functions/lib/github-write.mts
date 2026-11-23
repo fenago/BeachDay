@@ -4,6 +4,7 @@
 // (never a null blob sha, so no deletions), one parent, force:false, 6b retry once, 6c re-read on unknown outcome.
 // The handler owns the lock, the CAS status changes, the cap and the audit; this module only talks to GitHub.
 import { createGitHubRead, ghHeaders, GitHubError, GITHUB_API, OWNER, REPO, REQUEST_TIMEOUT_MS, type FetchLike, type GhOptions } from "./github-read.mts";
+import type { PolicyOptions } from "./allowlist.mts";
 import { buildCommitMessage, commitAuthorName, COMMIT_AUTHOR_EMAIL, revalidate, type ProposalRecord } from "./proposals.mts";
 
 /** Write-capable requester. It lives only here, so modules that import github-read can't build one (R2-5). */
@@ -152,10 +153,10 @@ export function createGitHubWrite(opts: CommitDeps) {
   }
 
   /** docs/04 §7 steps 1–6 for a proposal the handler has already moved to `committing`. */
-  async function commitProposal(p: ProposalRecord): Promise<CommitOutcome> {
+  async function commitProposal(p: ProposalRecord, policy: PolicyOptions = {}): Promise<CommitOutcome> {
     if (p.status !== "committing") throw new Error("commitProposal needs a committing record");
     // Last hop before the write PAT (which can't be path-scoped): re-check policy even if a handler forgot (R2-S1).
-    const v = revalidate(p);
+    const v = revalidate(p, policy);
     if (!v.ok) return { status: "failed", error: "The proposal failed its safety checks.", httpStatus: null, retryAfter: null };
     return commitOnce(p, 1);
   }

@@ -12,7 +12,6 @@ const SHELL_CACHE = `beachday-shell-${VERSION}`;
 const DATA_CACHE = "beachday-data-v1";
 
 // App shell. Keep every entry real: one 404 here fails the install and the old version stays (docs/03).
-// PENDING W2: add the js/ui/* modules and any page-specific CSS once those files exist.
 const SHELL_URLS = [
   "/",
   "/how-it-works/",
@@ -24,6 +23,8 @@ const SHELL_URLS = [
   "/css/base.css",
   "/css/glass.css",
   "/css/components.css",
+  "/css/beach.css",
+  "/css/pages.css",
   "/img/sprite.svg",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
@@ -39,6 +40,16 @@ const SHELL_URLS = [
   "/js/copy/copy-deck.js",
   "/js/pwa/install-hint.js",
   "/js/pwa/sw-register.js",
+  "/js/ui/dom.js",
+  "/js/ui/format.js",
+  "/js/ui/storage.js",
+  "/js/ui/safety.js",
+  "/js/ui/verdict.js",
+  "/js/ui/picker.js",
+  "/js/ui/today.js",
+  "/js/ui/day.js",
+  "/js/ui/install.js",
+  "/js/ui/toast.js",
 ];
 
 const DATA_HOSTS = new Set(["api.open-meteo.com", "marine-api.open-meteo.com"]);

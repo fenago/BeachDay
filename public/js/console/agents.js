@@ -1,0 +1,63 @@
+// Agents list (docs/04 §11, ux-build-spec §3.2): one card per agent from GET /api/agents (no system prompts).
+// Name, persona, personality, model as TEXT, knowledge counts with a closed <details> list, skills, and
+// "Chat with {persona}". The agent colour is decoration only, set through CSSOM (CSP forbids style="").
+import { h, icon, say } from "./dom.js";
+
+/** Agent colours from the frontmatter (claude-code-agent-authoring). Anything else falls back to the accent. */
+const COLORS = new Set(["red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan"]);
+
+export function skeletonList(count = 4) {
+  const list = h("ul", { class: "agent-grid", "aria-hidden": "true" });
+  for (let i = 0; i < count; i++) {
+    list.append(h("li", { class: "agent-card" },
+      h("div", { class: "skeleton" },
+        h("div", { class: "skeleton__line skeleton__line--title" }),
+        h("div", { class: "skeleton__line" }),
+        h("div", { class: "skeleton__line skeleton__line--short" }))));
+  }
+  return list;
+}
+
+function knowledgeBlock(agent) {
+  const k = agent.knowledge;
+  if (!k || !Array.isArray(k.docs) || !Array.isArray(k.examples)) return null;
+  const list = (items, label) => items.length ? [
+    h("p", { class: "knowledge-heading" }, label),
+    h("ul", { class: "knowledge-list" }, items.map((i) => h("li", {}, i.title || i.file || i.dir))),
+  ] : [];
+  const skills = Array.isArray(agent.skills) && agent.skills.length
+    ? h("p", { class: "agent-card__skills" }, h("strong", {}, `${say("agents.skills")}: `), agent.skills.join(", "))
+    : null;
+  return h("details", { class: "disclosure", dataset: { testid: "agent-knowledge" } },
+    h("summary", {}, icon("chevron-down"),
+      say("agents.knowledge.counts", { docs: k.docs.length, examples: k.examples.length })),
+    h("div", { class: "disclosure__body" },
+      k.title ? h("p", { class: "knowledge-list__label" }, k.title) : null,
+      ...list(k.docs, say("agents.knowledge.docs")),
+      ...list(k.examples, say("agents.knowledge.examples")),
+      skills));
+}
+
+/** One card. onChat(agent) opens the chat route. */
+export function agentCard(agent, { onChat }) {
+  const persona = agent.persona || agent.name;
+  const headingId = `agent-${agent.name}`;
+  const card = h("li", { class: "agent-card", dataset: { agent: agent.name, testid: "agent-card" } },
+    h("div", { class: "agent-card__head" },
+      h("h2", { class: "agent-card__name", id: headingId }, persona),
+      h("span", { class: "agent-card__role" }, agent.name),
+      h("span", { class: "model-badge agent-card__model" },
+        h("span", { class: "visually-hidden" }, `${say("agents.model")}: `), agent.modelLabel)),
+    h("p", { class: "agent-card__personality" }, agent.personality || agent.description),
+    knowledgeBlock(agent),
+    h("div", { class: "agent-card__actions" },
+      h("button", { class: "btn btn--primary", type: "button", dataset: { testid: "agent-chat" },
+        onclick: () => onChat(agent) }, say("agents.chat.with", { agent: persona }))));
+  if (COLORS.has(agent.color)) card.style.setProperty("--agent-color", `var(--agent-${agent.color}, ${agent.color})`);
+  return card;
+}
+
+/** The whole list, in the order served (sorted by name on the server). */
+export function agentList(agents, { onChat }) {
+  return h("ul", { class: "agent-grid", dataset: { testid: "agent-list" } }, agents.map((a) => agentCard(a, { onChat })));
+}

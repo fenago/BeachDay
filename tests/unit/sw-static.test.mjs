@@ -8,14 +8,7 @@ const source = readFileSync(join(publicDir, "sw.js"), "utf8");
 const ORIGIN = "https://beachday.test";
 const VERSION = "abc123def456";
 
-// W2 removes entries from this list as the files land (Pip, beach UI wave). Anything else missing is a real failure.
-const PENDING_W2 = [
-  "/", "/how-it-works/", "/resources/", "/guide/", // pages: Pip + Wren, W2
-  "/css/components.css", "/img/sprite.svg", // Sable, W1 (in flight when this was written)
-  "/js/app.js", // Pip, W2
-  "/js/forecast.js", "/js/score.js", "/js/score-config.js", "/js/api/openmeteo.js", // Dewey, W1 (in flight)
-  "/js/data/beaches.js", "/js/data/beach-window.js", "/js/data/cache-age.js",
-];
+// Every SHELL entry must exist on disk (one 404 in cache.addAll fails the install). W2 emptied the pending list.
 
 // ---- A tiny service-worker harness: run sw.js in a vm with fakes for self, caches, fetch, Request. ----
 function makeHarness({ fetchImpl } = {}) {
@@ -110,15 +103,31 @@ describe("sw.js source rules", () => {
     expect(new Set(SHELL_URLS).size).toBe(SHELL_URLS.length);
     for (const u of ["/", "/how-it-works/", "/resources/", "/guide/", "/offline.html", "/manifest.webmanifest"]) expect(SHELL_URLS).toContain(u);
   });
-  it("every SHELL file exists under public/ (pending W2 entries are listed and must shrink to none)", () => {
+  it("every SHELL file exists under public/", () => {
     const { SHELL_URLS } = makeHarness({ fetchImpl: offline });
     const missing = SHELL_URLS.filter((u) => {
       const p = u.endsWith("/") ? u + "index.html" : u;
       return !existsSync(join(publicDir, p));
     });
-    const unexpected = missing.filter((u) => !PENDING_W2.includes(u));
-    if (missing.length) console.warn(`sw-static: SHELL entries not on disk yet (${missing.length}): ${missing.join(", ")}`);
-    expect(unexpected).toEqual([]);
+    expect(missing).toEqual([]);
+  });
+  it("SHELL covers every module and stylesheet the beach page loads (static import graph from /js/app.js and index.html)", () => {
+    const { SHELL_URLS } = makeHarness({ fetchImpl: offline });
+    const seen = new Set();
+    const walk = (url) => {
+      if (seen.has(url)) return;
+      seen.add(url);
+      const src = readFileSync(join(publicDir, url), "utf8");
+      for (const m of src.matchAll(/(?:import|export)[^"';]*?from\s*["']([^"']+)["']/g)) {
+        const spec = m[1];
+        walk(spec.startsWith("/") ? spec : new URL(spec, "https://x" + url).pathname);
+      }
+    };
+    walk("/js/app.js");
+    const html = readFileSync(join(publicDir, "index.html"), "utf8");
+    const css = [...html.matchAll(/rel="stylesheet" href="([^"]+)"/g)].map((m) => m[1]);
+    for (const u of [...seen, ...css]) expect(SHELL_URLS, u).toContain(u);
+    for (const u of seen) expect(u).not.toMatch(/^\/(vendor|generated|js\/console)\//); // the beach app never loads auth code
   });
 });
 

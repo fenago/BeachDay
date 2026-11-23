@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectPlatform, isStandalone, iosHint, dismissIosHint, createInstallController, HINT_SNOOZE_MS } from "../../public/js/pwa/install-hint.js";
+import { detectPlatform, isStandalone, iosHint, dismissIosHint, isSnoozed, createInstallController, HINT_SNOOZE_MS } from "../../public/js/pwa/install-hint.js";
 
 const UA = {
   iphoneSafari26: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
@@ -90,5 +90,17 @@ describe("beforeinstallprompt controller", () => {
     await ctl.install();
     win.dispatchEvent(bip({ prompt: async () => ({ outcome: "accepted" }) }));
     expect(ui.visible).toBe(false);
+  });
+});
+
+describe("isSnoozed (shared by the iOS sheet and the Chromium button)", () => {
+  it("is true for exactly 14 days after a dismissal and false with blocked storage", () => {
+    const s = memStorage();
+    const t0 = Date.parse("2026-11-23T15:00:00Z");
+    expect(isSnoozed(s, t0)).toBe(false);
+    dismissIosHint(s, t0);
+    expect(isSnoozed(s, t0 + 14 * 864e5 - 1)).toBe(true);
+    expect(isSnoozed(s, t0 + 14 * 864e5)).toBe(false);
+    expect(isSnoozed({ getItem() { throw new Error("x"); } }, t0)).toBe(false);
   });
 });

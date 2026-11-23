@@ -6,6 +6,7 @@ import type { GitHubRead } from "./github-read.mts";
 import { ReadRefused } from "./github-read.mts";
 import { createProposal, ProposalRejected, type ProposalRecord } from "./proposals.mts";
 import type { BlobStore } from "./blobs.mts";
+import type { PolicyOptions } from "./allowlist.mts";
 import type { SseEvent, ToolName } from "./sse.mts";
 
 const str = (description: string) => ({ type: "string", description });
@@ -79,6 +80,8 @@ export interface ToolRunnerDeps {
   emit?: (ev: SseEvent) => void;
   onProposal?: (record: ProposalRecord) => void | Promise<void>;
   now?: () => Date;
+  policy?: PolicyOptions;     // deps.settings.denyConsoleUi from the handler (D6), never the import
+  createdBy?: string;         // Supabase user id (sub) of the chat or job owner
 }
 
 class ToolInputError extends Error {}
@@ -137,6 +140,8 @@ export function createToolRunner(deps: ToolRunnerDeps) {
         baseSha: sha,
         readShas: state.readShas,
         now: deps.now,
+        policy: deps.policy,
+        createdBy: deps.createdBy,
       });
       deps.emit?.({
         type: "proposal",

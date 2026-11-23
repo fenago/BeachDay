@@ -184,6 +184,25 @@ describe("email links (token_hash): nothing happens until the tap", () => {
     expect(JSON.stringify(r)).not.toContain("invalid or has expired");
     expect(s.history.replaced).toEqual(["/console"]);
   });
+  it("a network failure on the tap keeps the link in memory only, so Try Again works after the URL was stripped", async () => {
+    let calls = 0;
+    const s = setup({ href: `${SITE}/console?token_hash=pkce_abc&type=email`,
+      routes: { "POST /auth/v1/verify": () => { calls += 1; if (calls === 1) throw new TypeError("fetch failed"); return Response.json(sessionBody()); } } });
+    const r1 = await s.auth.confirmFromEmailLink();
+    expect([r1.ok, r1.error.retryable]).toEqual([false, true]);
+    expect(s.location.href).toBe(`${SITE}/console`);
+    expect(s.auth.pendingEmailLink()).toEqual({ type: "email" });
+    expect(s.sessionStore.m.size + s.storage.m.size).toBe(0); // never written to storage
+    expect(await s.auth.confirmFromEmailLink()).toEqual({ ok: true, type: "email" });
+    expect(s.log.filter((c) => c.path === "/auth/v1/verify").map((c) => c.body.token_hash)).toEqual(["pkce_abc", "pkce_abc"]);
+    expect(s.auth.pendingEmailLink()).toBeNull();
+  });
+  it("a used or expired link is not held: pendingEmailLink is null afterwards", async () => {
+    const s = setup({ href: `${SITE}/console?token_hash=old&type=recovery`,
+      routes: { "POST /auth/v1/verify": () => Response.json({ code: 403, error_code: "otp_expired", msg: "x" }, { status: 403 }) } });
+    await s.auth.confirmFromEmailLink();
+    expect(s.auth.pendingEmailLink()).toBeNull();
+  });
   it("an unsupported type is refused before any network call", async () => {
     const s = setup({ href: `${SITE}/console?token_hash=x&type=invite` });
     expect((await s.auth.confirmFromEmailLink()).error.code).toBe("unsupported_link");

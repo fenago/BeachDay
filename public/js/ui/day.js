@@ -29,7 +29,6 @@ export function dayView({ beach, forecast, error, date, online, nowHHMM, expandH
   const setOpen = (open) => {
     list.hidden = !open;
     toggle.setAttribute("aria-expanded", String(open));
-    toggle.textContent = t(open ? "btn.hideHourly" in {} ? "btn.hideHourly" : "ui.hourly" : "btn.showHourly");
   };
   toggle.addEventListener("click", () => setOpen(list.hidden));
   if (expandHourly) queueMicrotask(() => setOpen(true));
@@ -37,7 +36,7 @@ export function dayView({ beach, forecast, error, date, online, nowHHMM, expandH
   const nodes = [
     back,
     VerdictCard({ day, beach }),
-    day.verdict ? h("section", { class: "day-summary", "aria-label": t("ui.key.feels") }, KeyNumbers(day.numbers, day)) : null,
+    day.verdict ? h("div", { class: "day-summary" }, KeyNumbers(day.numbers, day)) : null,
     day.hourScores?.length ? h("div", { class: "view-section" }, toggle, list) : null,
     safety,
     (prev || next) ? h("div", { class: "button-row" }, prev ? navLink(prev, "prev") : null, next ? navLink(next, "next") : null) : null,

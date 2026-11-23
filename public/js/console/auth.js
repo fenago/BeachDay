@@ -100,6 +100,7 @@ export function createAuth({
   });
 
   const params = () => new URL(location.href).searchParams;
+  let heldLink = null; // an email link whose tap failed on the network; memory only, cleared on the next tap
   function strip(names) {
     const u = new URL(location.href);
     let changed = false;
@@ -221,6 +222,7 @@ export function createAuth({
 
     /** S3b / S5 gate: is there an email link in the URL? Does nothing else; the token itself is never returned. */
     pendingEmailLink() {
+      if (heldLink) return { type: heldLink.type };
       const p = params();
       if (!p.has("token_hash") && !p.has("type")) return null;
       const type = p.get("type");
@@ -234,16 +236,19 @@ export function createAuth({
      */
     async confirmFromEmailLink() {
       const p = params();
-      const tokenHash = p.get("token_hash");
-      const type = p.get("type");
+      const fromUrl = p.has("token_hash") || p.has("type");
+      const tokenHash = fromUrl ? p.get("token_hash") : heldLink?.tokenHash;
+      const type = fromUrl ? p.get("type") : heldLink?.type;
       strip(EMAIL_PARAMS);
+      heldLink = null;
       if (!tokenHash || !EMAIL_LINK_TYPES.has(type)) return { ...fail("unsupported_link"), type: null };
       try {
         const { error } = await client.verifyOtp({ token_hash: tokenHash, type });
-        if (error) return { ...failFrom(error), type };
+        // Network/5xx: the link was not used. Hold it in memory (never storage) so Try Again works.
+        if (error) { if (isAuthRetryableFetchError(error)) heldLink = { tokenHash, type }; return { ...failFrom(error), type }; }
         if (type === "email") await client.signOut({ scope: "local" });
         return { ok: true, type };
-      } catch (e) { return { ...failFrom(e), type }; }
+      } catch (e) { heldLink = { tokenHash, type }; return { ...failFrom(e), type }; }
     },
 
     // ---- S4 / S5: reset ----
