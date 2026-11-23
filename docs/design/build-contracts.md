@@ -95,7 +95,7 @@ Handlers (W2, Remy-A). Each file exports `create<Name>Handler(deps)`, `export de
 | `jobs.mts` | `POST /api/jobs`, rateLimit 10/60 s `["ip","domain"]` | `guard`, `stores`, `registry`, `settings`, `startJob`, `now` | `jobs-request` | 202 `{jobId}` |
 | `job-run.mts` | `POST /api/jobs-run`, `background: true` | `guard`, `stores`, `registry`, `settings`, `getClient()`, `getReader({signal})`, `now` | internal `{jobId, nonce}` | always 202, writes Blobs only |
 | `job-status.mts` | `GET /api/jobs/:id` | `guard`, `stores` | — | 200 `job-view` |
-| `proposal.mts` | `GET /api/proposals/:id` | `guard`, `stores`, `settings`, `getReader({signal})`, `now` | — | 200 `proposal-view` |
+| `proposal.mts` | `GET /api/proposals/:id` | `guard`, `stores`, `settings`, `getReader({signal})`, `now` | — | 200 `proposal-view`, including top-level `warnings: [{path, code: "hidden_unicode"}]` (computed on read, never stored, `[]` when clean) |
 | `approve.mts` | `POST /api/proposals/:id/approve` | `guard`, `stores`, `settings`, `stepUp`, `getWriter()`, `now` | `{contentHash}` | 200 `approve-result`, or `api-error` (429 `approve_cap` carries `approvals`) |
 | `reject.mts` | `POST /api/proposals/:id/reject` | `guard`, `stores`, `now` | `{}` or `{reason}` (≤ 500 chars, display only) | 200 `{proposal: {id, status: "rejected", decidedAt}}` |
 

@@ -89,7 +89,12 @@ export function proposalCard(view, handlers) {
   const diffs = new Map((view.diffs ?? []).map((d) => [d.path, d.diff]));
   const anyDenied = files.some((f) => isDeniedPath(f.path));
   const warnIds = [...new Set(files.flatMap((f) => warningsFor(f.path)))];
-  if ((view.diffs ?? []).some((d) => hasHiddenChars(d.diff)) || files.some((f) => hasHiddenChars(f.content))) warnIds.push("agents.proposal.warn.hidden");
+  // Hidden-character paths: the server's flags (warnings[].code "hidden_unicode") plus what the client finds itself.
+  const hiddenPaths = [...new Set([
+    ...(Array.isArray(view.warnings) ? view.warnings : []).filter((w) => w?.code === "hidden_unicode" && typeof w.path === "string").map((w) => w.path),
+    ...(view.diffs ?? []).filter((d) => hasHiddenChars(d.diff)).map((d) => d.path),
+    ...files.filter((f) => hasHiddenChars(f.content)).map((f) => f.path),
+  ])];
   const heading = `h${handlers.headingLevel ?? 2}`;
 
   const card = h("article", { class: "proposal-card", "aria-labelledby": titleId, dataset: { testid: "proposal-card", proposal: p.id, status: p.status } },
@@ -105,8 +110,10 @@ export function proposalCard(view, handlers) {
         h("span", { class: `file-status file-status--${denied ? "denied" : "ok"}` },
           icon(denied ? "x-circle" : "check-circle"), say(denied ? "agents.proposal.denied" : "agents.proposal.allowed")));
     })),
-    warnIds.length ? h("ul", { class: "warning-list", dataset: { testid: "proposal-warnings" } },
-      warnIds.map((id) => h("li", {}, icon("alert"), h("span", {}, say(id))))) : null,
+    warnIds.length || hiddenPaths.length ? h("ul", { class: "warning-list", dataset: { testid: "proposal-warnings" } },
+      warnIds.map((id) => h("li", {}, icon("alert"), h("span", {}, say(id)))),
+      hiddenPaths.length ? h("li", { dataset: { testid: "proposal-warn-hidden" } }, icon("alert"),
+        h("span", {}, say("agents.proposal.warn.hidden"), " ", visible(hiddenPaths.join(", ")))) : null) : null,
     ...files.map((f) => diffBlock(f.path, diffs.get(f.path) ?? "")),
     actions, outcome, status, alert);
 

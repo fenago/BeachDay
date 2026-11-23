@@ -396,9 +396,8 @@ describe("GET /api/proposals/:id", () => {
     const id = await propose(token);
     const { res, body } = await view(token, id);
     expect(res.status).toBe(200);
-    const { warnings, ...rest } = body; // `warnings` awaits Rowan's proposal-view schema update (R12 S1)
-    expect(schemaErrors("proposal-view", rest)).toEqual([]);
-    expect(warnings).toEqual([]);
+    expect(schemaErrors("proposal-view", body)).toEqual([]);
+    expect(body.warnings).toEqual([]);
     expect(body.deploys).toBe(false); // docs/** never deploys
     expect(body.approvals).toEqual({ used31: 0, usedToday: 0, per31Days: 14, perDay: 5, retryAt: null });
     expect(body.diffs[0].diff).toContain("+Start with docs/README.md.");
