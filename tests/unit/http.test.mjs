@@ -21,3 +21,8 @@ test("error and 401: no-store, nosniff, www-authenticate; no CORS or cookie", ()
   expect(r.headers.get("cache-control")).toBe("no-store");
   expect(r.headers.has("access-control-allow-origin") || r.headers.has("set-cookie")).toBe(false);
 });
+
+test("ERROR_CODES includes bad_origin: 403 (Origin check)", async () => {
+  const { ERROR_CODES } = await import("../../netlify/functions/lib/http.mts");
+  expect(ERROR_CODES.bad_origin).toBe(403);
+});

@@ -13,6 +13,7 @@ export const ERROR_CODES: Readonly<Record<string, number | null>> = Object.freez
   unauthorized: 401,
   step_up_required: 401,
   forbidden: 403,
+  bad_origin: 403,
   not_found: 404,
   conflict: 409,
   stale: 409,

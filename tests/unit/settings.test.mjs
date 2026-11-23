@@ -93,7 +93,7 @@ describe("http.mts", () => {
   });
   it("ERROR_CODES is the docs/04 §2.1 table", () => {
     expect(ERROR_CODES).toEqual({
-      invalid_request: 400, unauthorized: 401, step_up_required: 401, forbidden: 403, not_found: 404,
+      invalid_request: 400, unauthorized: 401, step_up_required: 401, forbidden: 403, bad_origin: 403, not_found: 404,
       conflict: 409, stale: 409, rate_limited: 429, budget_exhausted: 429, approve_cap: 429,
       refusal: null, upstream: 502, timeout: 504, unavailable: 503, internal: 500,
     });
