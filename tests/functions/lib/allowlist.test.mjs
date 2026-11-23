@@ -3,8 +3,8 @@ import { checkPath, checkProposal, checkReadPath, checkReadDir } from "../../../
 
 // [path, allowed?, why] — the canonical docs/04 §6 table (security-engineer example 02) plus extras.
 const CASES = [
-  ["public/index.html", true, "page"], ["public/js/console/chat.js", true, "console js (D6 off)"],
-  ["public/manifest.webmanifest", true, "manifest"], ["public/console.html", true, "console page (D6 off)"],
+  ["public/index.html", true, "page"], ["public/js/console/chat.js", false, "console js (D6 on)"],
+  ["public/manifest.webmanifest", true, "manifest"], ["public/console.html", false, "console page (D6 on)"], ["public/js/app.js", true, "beach app js"],
   ["docs/notes/readme.md", true, "docs"], ["tests/unit/score.test.js", true, "tests"],
   [".claude/agents/qa-engineer.md", true, "agent"], [".claude/skills/beach-day-scoring/SKILL.md", true, "skill"],
   ["docs/netlify/notes.md", true, "'netlify' deeper in docs"],

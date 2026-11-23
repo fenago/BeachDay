@@ -36,8 +36,8 @@ describe('score config structure (docs/01 5.5)', () => {
     }
   });
 
-  it('pinned decisions: D3 off, D8 0.02 in (strict), version 1, outlook from day index 3', () => {
-    expect(C.reasons.positiveOnGoodDays).toBe(false); // D3
+  it('pinned decisions: D3 on, D8 0.02 in (strict), version 1, outlook from day index 3', () => {
+    expect(C.reasons.positiveOnGoodDays).toBe(true); // D3
     expect(C.rain.amountInchOver).toBe(0.02); // D8
     expect(C.version).toBe(1);
     expect(C.outlookFromDayIndex).toBe(3);

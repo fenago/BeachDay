@@ -618,6 +618,7 @@ describe("POST /api/proposals/:id/approve", () => {
 
   it("re-validates policy at approve time: a proposal on a path denied since (D6) fails, no commit", async () => {
     const token = await t.token();
+    setSettings({ denyConsoleUi: false }); // allowed when proposed (the default is now true, D6)
     const id = await propose(token, [{ path: "public/console.html", content: "<p>console</p>\n" }]);
     const hash = h.blobs.peek("proposals", id).contentHash;
     setSettings({ denyConsoleUi: true });
