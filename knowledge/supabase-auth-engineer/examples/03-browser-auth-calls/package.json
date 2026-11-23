@@ -1,0 +1,7 @@
+{
+  "name": "example-browser-auth-calls",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test" },
+  "dependencies": { "@supabase/supabase-js": "2.119.2" }
+}

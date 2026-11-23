@@ -1,5 +1,5 @@
 # 0001 — Static site + Netlify Functions, no other servers
-- Status: Accepted
+- Status: Superseded by 0006
 - Date: 2026-11-23
 - Deciders: Dr. Lee
 

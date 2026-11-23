@@ -1,20 +1,35 @@
-# Beach Day — netlify.toml (example; the real file lives at the repo root).
+# Beach Day: netlify.toml (example; the real file lives at the repo root).
 # All paths are relative to the base directory (repo root).
 # Settings here override the same settings in the Netlify UI.
 
 [build]
-  # Generates netlify/functions/lib/agents.json from .claude/agents/*.md.
-  # The script must never print environment variables (Free plan has no
-  # env-var scopes, so builds can read every variable, secrets included).
-  command = "node scripts/build-agents.mjs"
+  # 1. build-agents: .claude/agents/*.md -> netlify/functions/lib/agents.json
+  # 2. stamp-sw:     __BUILD_VERSION__ in public/sw.js -> short COMMIT_REF, and
+  #                  writes public/version.json (docs/03 §9).
+  # Neither script may print environment variables: the Free plan has no
+  # env-var scopes, so builds can read every variable, secrets included.
+  # vitest is deliberately NOT here (docs/03 §9.4): tests/** is writable by
+  # agents, and anything run at build time sees every secret on Free.
+  command = "node scripts/build-agents.mjs && node scripts/stamp-sw.mjs"
   publish = "public"
 
   # Skip the build (and the 15-credit production deploy) when nothing that
   # ships has changed. Exit 0 = skip, exit 1 = build.
-  # Watch everything the build reads: the site, the functions, this file,
-  # dependencies, the build script, and the agent files that agents.json
-  # is generated from. Docs-only commits are skipped.
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- public netlify netlify.toml package.json package-lock.json scripts .claude/agents"
+  #  * `[ -n "$CACHED_COMMIT_REF" ]` makes a missing cached ref BUILD. Without
+  #    it, an empty variable shifts the arguments and git compares the working
+  #    tree with COMMIT_REF, which is clean, so the very first build is skipped.
+  #  * `|| exit 1` turns every failure (git exit 128 when the cached commit is
+  #    not in the clone, for example) into exit 1, the documented "build" code,
+  #    so no failure mode can skip a build or depend on undocumented codes.
+  #  * The path list is the whitelist of what the build reads or publishes.
+  #    docs/, knowledge/, tests/, .claude/skills/ and root *.md never ship.
+  # Written as a TOML literal string so the inner double quotes need no escapes.
+  ignore = '[ -n "$CACHED_COMMIT_REF" ] && git diff --quiet "$CACHED_COMMIT_REF" "$COMMIT_REF" -- public netlify netlify.toml package.json package-lock.json scripts .claude/agents || exit 1'
+
+  [build.environment]
+    # Pin the build's Node so the functions runtime does not change silently.
+    # Build variables only. Functions cannot see this table, and it never holds secrets.
+    NODE_VERSION = "22"
 
 [functions]
   # Default is netlify/functions; set explicitly so it is obvious it lives
@@ -24,12 +39,7 @@
   # agents.json is read at runtime with a dynamic path, so include it.
   included_files = ["netlify/functions/lib/agents.json"]
 
-# Deploy Previews and branch deploys cost 0 credits. Nothing here changes
-# per context today; secrets are set per context in the UI/CLI, not here,
-# because variables declared in netlify.toml are NOT visible to functions.
-[context.deploy-preview]
-  command = "node scripts/build-agents.mjs"
-
-# Security headers live in public/_headers (one source of truth).
+# Security headers live in public/_headers (one source of truth, no [[headers]]).
 # Rate limits for functions live in each function's `config.rateLimit`;
 # they cannot be declared in netlify.toml.
+# Secrets and per-context values are set in the UI/CLI, never here.

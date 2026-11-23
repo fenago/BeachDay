@@ -17,6 +17,7 @@ Date: 2026-11-23. Notes are from the official Open-Meteo pages (each file lists 
 | [examples/01-openmeteo-client/](examples/01-openmeteo-client/) | URL builders, fetch-with-timeout, typed errors, validator, normalizer, fail-soft marine; 8 tests against **real** fixtures (forecast, marine, 400 error, multi-location) via a local mock server | Writing `public/js/api/openmeteo.js` or its tests; need fixtures |
 | [examples/02-beach-window/](examples/02-beach-window/) | Beach window max(sunrise+1h, 8am)..min(sunset−0.5h, 7pm) with DST-correct instants; 7 tests incl. DST shift | Scoring window, any time display |
 | [examples/03-cache-age/](examples/03-cache-age/) | Stale-after-30-min logic, refetch rules (no polling), "Updated / Offline — showing data from" labels; 4 tests | Caching, offline state, last-updated line |
+| [examples/04-score-config/](examples/04-score-config/) | Thresholds as data (half-open bands), reference `scoreHour`/`scoreDay`/`heatIndexF`, hand-written boundary table; 65 tests | Writing `score-config.js`, `score.js` or their tests; boundary list for QA |
 
 ## Key facts (one line each)
 - SST is always °C (even with `length_unit=imperial`); convert to °F.
@@ -25,4 +26,6 @@ Date: 2026-11-23. Notes are from the official Open-Meteo pages (each file lists 
 - Errors: HTTP 400 `{"error":true,"reason":...}`; match on `error`, never on `reason` text.
 - Multi-location → JSON array; first element has no `location_id`.
 - Call from the browser only; Open-Meteo warns Netlify IPs get rate-limited early.
+- Scoring bands are half-open, lower bound inclusive; preceding-hour fields are read from row T+1 h; rain family counts once (cap −60); thunder = 0 for the hour and the next.
+- Heat-index procedure and NWS band edges are UNVERIFIED (NWS hosts blocked 2026-11-23); live marine check at 25.781, -80.110 is pending.
 - Attribution link `Weather data by Open-Meteo.com` next to the data, always.

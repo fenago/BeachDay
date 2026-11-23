@@ -70,9 +70,13 @@ Request: `latitude=25.781&longitude=-80.110&hourly=wave_height,wave_period,wave_
 - `elevation: 0.0` on the full request; `5.0` on a daily-only request for the same point (cosmetic).
 Fixture: `examples/01-openmeteo-client/fixtures/marine-miami-beach.json`.
 
+## Live check, 2026-11-23 (pending)
+One direct call to `marine-api.open-meteo.com` at 25.781, -80.110 was blocked by the sandbox proxy (`CONNECT tunnel failed, response 403`). **Pending live verification**; the grid-cell figures above come from the earlier Firecrawl capture. Nothing was invented to fill the gap.
+
 ## Beach Day notes
 - Request: `wave_height, wave_period, wave_direction, swell_wave_height, swell_wave_period, swell_wave_direction, sea_surface_temperature` + daily `wave_height_max`, `length_unit=imperial`, explicit `forecast_days` ≤ 8. That is 7 hourly + 1 daily = 8 variables, so it stays at 1 call (the 10-variable threshold on the pricing page).
 - Label every wave figure **"offshore waves"**; it is a model cell ~1–15 km out, not breaking surf.
 - Each beach has a hand-picked `marine` point; test that the returned cell is within ~5 km (example 01 enforces `maxSnapKm = 5` and fails soft).
 - Never show `sea_level_height_msl` as tides and never derive rip-current risk from waves or currents (ADR-0002) — link to NWS (https://www.weather.gov/beach/mfl) and NOAA Tides & Currents.
+- Day values (docs/01 §5.2): water temp = mean of hourly SST (°F) over the best window; waves = max `wave_height` inside the best window. Daily `wave_height_max` covers 24 h including night, so don't headline it.
 - Marine failure must not break the forecast: score without wave/SST factors and say "Waves unavailable".

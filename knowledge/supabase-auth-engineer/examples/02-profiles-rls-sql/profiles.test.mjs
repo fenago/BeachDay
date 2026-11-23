@@ -1,0 +1,72 @@
+import { test, before } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { PGlite } from '@electric-sql/pglite';
+
+// Minimal stand-ins for what Supabase provides: roles, auth.users, auth.uid().
+const STUBS = `
+  create role anon nologin; create role authenticated nologin;
+  create schema auth;
+  create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
+  create function auth.uid() returns uuid language sql stable
+    as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+  grant usage on schema auth, public to anon, authenticated;
+  grant execute on function auth.uid() to anon, authenticated;
+`;
+const A = '11111111-1111-1111-1111-111111111111';
+const B = '22222222-2222-2222-2222-222222222222';
+let db;
+const asUser = async (id, fn) => {           // behave like the API: role authenticated + a JWT sub
+  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub', '${id}', false);`);
+  try { return await fn(); } finally { await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false);`); }
+};
+
+before(async () => {
+  db = new PGlite();
+  await db.exec(STUBS);
+  await db.exec(readFileSync(new URL('./profiles.sql', import.meta.url), 'utf8'));
+  await db.exec(`insert into auth.users (id, email) values ('${A}', 'a@example.com');`);
+  await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values ('${B}', 'b@example.com', '{"role":"super_admin"}');`);
+});
+
+test('trigger creates a profile with role user; user_metadata role is ignored', async () => {
+  const { rows } = await db.query('select id, role from public.profiles order by id');
+  assert.deepEqual(rows.map((r) => r.role), ['user', 'user']);
+});
+test('a user reads only their own row', async () => {
+  const rows = await asUser(A, async () => (await db.query('select id from public.profiles')).rows);
+  assert.deepEqual(rows.map((r) => r.id), [A]);
+});
+test('anon reads nothing (no grant)', async () => {
+  await db.exec('set role anon');
+  try { await assert.rejects(db.query('select * from public.profiles'), /permission denied/); } finally { await db.exec('reset role'); }
+});
+test('a user cannot update their own role (privilege denied)', async () => {
+  await asUser(A, async () => {
+    await assert.rejects(db.query(`update public.profiles set role = 'super_admin' where id = '${A}'`), /permission denied/);
+  });
+  assert.equal((await db.query(`select role from public.profiles where id='${A}'`)).rows[0].role, 'user');
+});
+test('a user cannot insert a profile or delete one', async () => {
+  await asUser(A, async () => {
+    await assert.rejects(db.query(`insert into public.profiles (id, role) values (gen_random_uuid(), 'super_admin')`), /permission denied/);
+    await assert.rejects(db.query(`delete from public.profiles where id = '${A}'`), /permission denied/);
+  });
+});
+test('role check constraint rejects unknown roles', async () => {
+  await assert.rejects(db.query(`update public.profiles set role = 'owner' where id = '${A}'`), /check constraint/);
+});
+test('the trigger function is not executable by API roles', async () => {
+  await asUser(A, async () => {
+    await assert.rejects(db.query('select public.handle_new_user()'), /permission denied/);
+  });
+});
+test('Dr. Lee by hand: the owner can promote one user; the user then sees super_admin', async () => {
+  await db.exec(`update public.profiles set role = 'super_admin' where id = '${A}'`);
+  const rows = await asUser(A, async () => (await db.query('select role from public.profiles')).rows);
+  assert.deepEqual(rows, [{ role: 'super_admin' }]);
+});
+test('deleting the auth user cascades to the profile', async () => {
+  await db.exec(`delete from auth.users where id = '${B}'`);
+  assert.equal((await db.query('select count(*)::int as n from public.profiles')).rows[0].n, 1);
+});

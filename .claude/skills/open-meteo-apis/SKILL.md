@@ -16,7 +16,7 @@ description: Open-Meteo Forecast and Marine API reference for Beach Day — endp
 - `forecast_days` ranges from 0 to 16. `daily` requires `timezone`.
 - DST changes within the requested range are ignored, so use `timeformat=unixtime` if you need DST precision.
 - Leave `models` at `best_match`. NAM was discontinued on 2026-11-01.
-- **Thunderstorm WMO codes:** 95, 96, 97, 99. Showers: 80–82. Rain: 61/63/65.
+- **Thunderstorm WMO codes:** 95, 96, 97, 99. Showers: 80–82. Rain: 61/63/65 only (there is no 62 or 64). Drizzle: 51/53/55. Fog: 45/48. Any other integer is unknown input, not clear sky.
 
 ## Marine
 `GET https://marine-api.open-meteo.com/v1/marine`
@@ -28,10 +28,10 @@ description: Open-Meteo Forecast and Marine API reference for Beach Day — endp
 ```
 - `forecast_days` ranges from 0 to 8. Always pass it explicitly: the docs disagree on the default.
 - **SST is returned in °C.** Convert it to °F yourself.
-- There is no daily SST value. Aggregate it from the hourly data.
+- There is no daily SST value. Aggregate it from the hourly data: the mean over the best window (docs/01 §5.2).
 - Waves come from coarse, roughly 8 km offshore models. **Label them "offshore waves"**, not surf height.
 - Don't show `sea_level_height_msl` as tides. The data is unreliable at the coast; link to NOAA instead.
-- **Grid snapping:** a point near Palm Beach or Jupiter can snap about 15 km out into the Gulf Stream. Use a hand-picked **marine point** for each beach, and test that the returned lat/lon is within about 5 km of it.
+- **Grid snapping:** a point near Palm Beach or Jupiter can snap about 15 km out into the Gulf Stream. Use a hand-picked **marine point** for each beach, and test that the returned lat/lon is within about 5 km of it. Live check of 25.781, -80.110 on 2026-11-23: pending live verification (host blocked in the sandbox).
 
 ## Response shape
 ```json
@@ -41,6 +41,7 @@ description: Open-Meteo Forecast and Marine API reference for Beach Day — endp
   "daily": { "time": ["2026-11-23"], "sunrise": ["2026-11-23T06:44"], "uv_index_max": [5.15] } }
 ```
 - Hourly data starts at local midnight. All arrays have the same length as `time`.
+- **Valid time:** `precipitation`, `precipitation_probability`, `wind_gusts_10m` and `uv_index` describe the **preceding hour**. For the slot starting at T read them from row T+1 h. The rest are instants. Values can be `null`.
 - Comma-separated lat/lon lists return a JSON **array**, with `location_id` set on elements after the first.
 - Errors come back as `400 {"error":true,"reason":"..."}`.
 - Validate the shape and fail soft: show "Waves unavailable" rather than breaking.

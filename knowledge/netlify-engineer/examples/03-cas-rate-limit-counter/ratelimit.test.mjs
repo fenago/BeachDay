@@ -1,7 +1,7 @@
 // Run: node --test ratelimit.test.mjs   (no dependencies)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hit, windowKey, pruneOlderThan } from "./ratelimit.mjs";
+import { hit, hitCapped, approveKey, windowKey, pruneOlderThan } from "./ratelimit.mjs";
 
 // Fake Blobs store with the documented conditional-write semantics.
 // Each call yields to the event loop so parallel callers interleave.
@@ -44,10 +44,10 @@ async function naiveHit(store, key, limit) {
   return { allowed: true };
 }
 
-const key = windowKey("session-abc", "chat", new Date("2026-11-23T15:00:00Z"));
+const key = windowKey("user-abc", "chat", new Date("2026-11-23T15:00:00Z"));
 
 test("key shape", () => {
-  assert.equal(key, "chat/session-abc/2026-11-23");
+  assert.equal(key, "chat/user-abc/2026-11-23");
   assert.ok(!key.startsWith("/") && Buffer.byteLength(key) <= 600);
 });
 
@@ -84,4 +84,40 @@ test("pruneOlderThan deletes only old day keys", async () => {
   const n = await pruneOlderThan(s, "chat", 7, new Date("2026-11-23T12:00:00Z"));
   assert.equal(n, 1);
   assert.deepEqual((await s.list({ prefix: "chat/" })).blobs.map((b) => b.key).sort(), ["chat/x/2026-11-20", "chat/x/2026-11-23"]);
+});
+
+// ---- site-wide Approve cap: 5 per UTC day AND 14 per UTC month (Dr. Lee, 2026-11-23) ----
+const CAPS = { dayLimit: 5, monthLimit: 14 };
+const at = (iso) => ({ now: new Date(iso) });
+
+test("approve cap: key is per UTC month", () => {
+  assert.equal(approveKey(new Date("2026-11-23T23:59:59Z")), "approve/site/2026-11");
+  assert.equal(approveKey(new Date("2026-12-01T00:00:00Z")), "approve/site/2026-12");
+});
+
+test("approve cap: the 6th approval in a day is refused (reason: day), the next day allows more", async () => {
+  const s = createFakeStore(), k = approveKey(new Date("2026-11-23T10:00:00Z"));
+  const got = [];
+  for (let i = 0; i < 6; i++) got.push(await hitCapped(s, k, CAPS, at("2026-11-23T10:00:00Z")));
+  assert.deepEqual(got.map((g) => g.allowed), [true, true, true, true, true, false]);
+  assert.equal(got[5].reason, "day");
+  assert.equal(got[5].count, 5, "a refused request does not use a month slot");
+  assert.equal((await hitCapped(s, k, CAPS, at("2026-11-24T00:00:01Z"))).allowed, true);
+});
+
+test("approve cap: 14 per month across days, the 15th is refused (reason: month)", async () => {
+  const s = createFakeStore(), k = "approve/site/2026-11";
+  const days = ["03", "03", "03", "03", "03", "10", "10", "10", "10", "10", "17", "17", "17", "17", "24"]; // 15 attempts
+  const res = [];
+  for (const d of days) res.push(await hitCapped(s, k, CAPS, at(`2026-11-${d}T12:00:00Z`)));
+  assert.equal(res.filter((r) => r.allowed).length, 14);
+  assert.equal(res[14].allowed, false);
+  assert.equal(res[14].reason, "month");
+});
+
+test("approve cap: 30 parallel approvals admit exactly 5 (one CAS decides both windows)", async () => {
+  const s = createFakeStore(), k = "approve/site/2026-11";
+  const res = await Promise.all(Array.from({ length: 30 }, () => hitCapped(s, k, CAPS, { ...at("2026-11-23T12:00:00Z"), maxAttempts: 100 })));
+  assert.equal(res.filter((r) => r.allowed).length, 5);
+  assert.equal((await s.getWithMetadata(k, { type: "json" })).data.count, 5);
 });

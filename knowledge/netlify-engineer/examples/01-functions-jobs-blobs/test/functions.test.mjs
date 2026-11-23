@@ -2,22 +2,26 @@
 // no Netlify account, no real secrets. Run: node --test test/functions.test.mjs
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { createHash, randomBytes, scryptSync } from "node:crypto";
+import { createHash } from "node:crypto";
 import { createFakeStore, fakeContext } from "./fake-blobs.mjs";
 import { setStoreFactory, store } from "../netlify/functions/lib/blobs.mjs";
-import login, { config as loginConfig } from "../netlify/functions/login.mjs";
+import { setVerifier, InvalidToken } from "../netlify/functions/lib/guard.mjs";
+import jobs, { config as jobsConfig, setTrigger } from "../netlify/functions/jobs.mjs";
 import jobRun, { config as runConfig } from "../netlify/functions/job-run.mjs";
 import jobStatus, { config as statusConfig } from "../netlify/functions/job-status.mjs";
 
-// Test-only values generated at runtime: obviously not real credentials.
-const TEST_PASSWORD = "correct horse test";
-const salt = randomBytes(16);
-process.env.CONSOLE_PASSWORD_HASH =
-  `scrypt$${salt.toString("base64")}$${scryptSync(TEST_PASSWORD, salt, 32).toString("base64")}`;
-process.env.SESSION_SECRET = "test-session-secret-EXAMPLE";
+// Fake tokens only. The stand-in verifier knows three of them.
+const ADMIN = "Bearer admin-token-EXAMPLE";
+const USER = "Bearer user-token-EXAMPLE";
+const USERS = { "admin-token-EXAMPLE": { sub: "u-admin", role: "super_admin" }, "user-token-EXAMPLE": { sub: "u-user", role: "user" } };
+const asHeaders = (auth) => (auth ? { authorization: auth } : {});
 
 let stores;
+let triggered;
 beforeEach(() => {
+  triggered = [];
+  setVerifier(async (t) => { if (!USERS[t]) throw new InvalidToken(); return USERS[t]; });
+  setTrigger(async (p) => { triggered.push(p); });
   stores = new Map();
   setStoreFactory((name) => {
     if (!stores.has(name)) stores.set(name, createFakeStore());
@@ -27,41 +31,66 @@ beforeEach(() => {
 
 const post = (url, body) =>
   new Request(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+const authed = (url, auth = ADMIN, init = {}) => new Request(url, { ...init, headers: { ...asHeaders(auth), ...(init.headers ?? {}) } });
 
 test("config objects match the Beach Day routing plan", () => {
-  assert.deepEqual(loginConfig.rateLimit, { windowLimit: 10, windowSize: 60, aggregateBy: ["ip", "domain"] });
-  assert.ok(loginConfig.rateLimit.windowSize <= 180, "windowSize max is 180 s");
+  assert.deepEqual(jobsConfig.rateLimit, { windowLimit: 10, windowSize: 60, aggregateBy: ["ip", "domain"] });
+  assert.ok(jobsConfig.rateLimit.windowSize <= 180, "windowSize max is 180 s");
+  assert.equal(jobsConfig.path, "/api/jobs");
   assert.equal(runConfig.background, true);
   assert.equal(statusConfig.path, "/api/jobs/:id");
 });
 
-test("login: wrong password -> 401 with security headers, no cookie", async () => {
-  const ctx = fakeContext();
-  const res = await login(post("https://x.test/api/login", { password: "nope" }), ctx);
-  assert.equal(res.status, 401);
-  assert.equal(res.headers.get("cache-control"), "no-store");
-  assert.equal(res.headers.get("x-content-type-options"), "nosniff");
-  assert.equal(ctx.setCookies.length, 0);
+test("guard: no header / garbled header -> 401 with security headers and no work done", async () => {
+  for (const auth of [undefined, "Basic abc", "Bearer ", "Bearer short"]) {
+    const res = await jobs(new Request("https://x.test/api/jobs", { method: "POST", headers: asHeaders(auth), body: '{"agent":"qa"}' }), fakeContext());
+    assert.equal(res.status, 401, String(auth));
+    assert.equal(res.headers.get("www-authenticate"), "Bearer");
+    assert.equal(res.headers.get("cache-control"), "no-store");
+    assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+  }
+  assert.equal(stores.size, 0, "no Blobs touched before the check passed");
+  assert.equal(triggered.length, 0);
 });
 
-test("login: bad JSON -> 400, GET -> 405", async () => {
-  const bad = new Request("https://x.test/api/login", { method: "POST", body: "{" });
-  assert.equal((await login(bad, fakeContext())).status, 400);
-  const get = await login(new Request("https://x.test/api/login"), fakeContext());
+test("guard: unknown or expired token -> 401; valid token but role user -> 403", async () => {
+  const bad = await jobs(authed("https://x.test/api/jobs", "Bearer forged-token-EXAMPLE", { method: "POST", body: '{"agent":"qa"}' }), fakeContext());
+  assert.equal(bad.status, 401);
+  const user = await jobs(authed("https://x.test/api/jobs", USER, { method: "POST", body: '{"agent":"qa"}' }), fakeContext());
+  assert.equal(user.status, 403);
+  assert.deepEqual(await user.json(), { error: "forbidden" });
+  assert.equal(triggered.length, 0);
+});
+
+test("guard fails closed: verifier down -> 503 and the error text is never echoed; no verifier -> 503", async () => {
+  setVerifier(async () => { throw new Error("connect ECONNREFUSED 10.0.0.1 secret-detail"); });
+  const down = await jobs(authed("https://x.test/api/jobs", ADMIN, { method: "POST", body: '{"agent":"qa"}' }), fakeContext());
+  assert.equal(down.status, 503);
+  assert.ok(!(await down.text()).includes("secret-detail"));
+  setVerifier(null);
+  const none = await jobStatus(authed("https://x.test/api/jobs/job-12345678"), fakeContext({ params: { id: "job-12345678" } }));
+  assert.equal(none.status, 503);
+});
+
+test("jobs: super_admin -> 202, job stored as queued with only a token HASH, worker triggered once", async () => {
+  const res = await jobs(authed("https://x.test/api/jobs", ADMIN, { method: "POST", body: '{"agent":"qa-engineer"}' }), fakeContext());
+  assert.equal(res.status, 202);
+  const { id } = await res.json();
+  const job = await store("jobs").get(id, { type: "json" });
+  assert.deepEqual([job.status, job.owner, job.agent], ["queued", "u-admin", "qa-engineer"]);
+  assert.equal(triggered.length, 1);
+  assert.equal(job.tokenHash, createHash("sha256").update(triggered[0].token).digest("hex"));
+  assert.ok(!JSON.stringify(job).includes(triggered[0].token), "raw token is not stored");
+});
+
+test("jobs: bad shape -> 400, oversize -> 413, GET -> 405 (all after the auth check)", async () => {
+  const mk = (body, method = "POST") => authed("https://x.test/api/jobs", ADMIN, { method, body: method === "GET" ? undefined : body });
+  assert.equal((await jobs(mk("{"), fakeContext())).status, 400);
+  assert.equal((await jobs(mk('{"agent":"../x"}'), fakeContext())).status, 400);
+  assert.equal((await jobs(mk("x".repeat(65 * 1024)), fakeContext())).status, 413);
+  const get = await jobs(mk(null, "GET"), fakeContext());
   assert.equal(get.status, 405);
   assert.equal(get.headers.get("allow"), "POST");
-});
-
-test("login: right password -> 200 and HttpOnly/Secure/Strict cookie; body leaks no secret", async () => {
-  const ctx = fakeContext();
-  const res = await login(post("https://x.test/api/login", { password: TEST_PASSWORD }), ctx);
-  assert.equal(res.status, 200);
-  const text = await res.text();
-  assert.ok(!text.includes(process.env.SESSION_SECRET));
-  assert.ok(!text.includes(process.env.CONSOLE_PASSWORD_HASH));
-  const [c] = ctx.setCookies;
-  assert.equal(c.name, "bd_session");
-  assert.deepEqual([c.httpOnly, c.secure, c.sameSite, c.path], [true, true, "Strict", "/api"]);
 });
 
 // What the sync /api/jobs function would do before invoking the background one.
@@ -80,7 +109,7 @@ test("background job: runs once, writes status to Blobs, status endpoint reads i
   const ret = await jobRun(post("https://x.test/api/jobs/run", { jobId: id, token: "tok-EXAMPLE" }), fakeContext());
   assert.equal(ret, undefined, "background handlers return nothing; Netlify sends 202");
 
-  const res = await jobStatus(new Request(`https://x.test/api/jobs/${id}`), fakeContext({ params: { id } }));
+  const res = await jobStatus(authed(`https://x.test/api/jobs/${id}`), fakeContext({ params: { id } }));
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("cache-control"), "no-store");
   const body = await res.json();
@@ -117,9 +146,12 @@ test("background job: wrong token never starts the job", async () => {
   assert.equal((await s.get(id, { type: "json" })).status, "queued");
 });
 
-test("status: invalid id -> 400, unknown id -> 404", async () => {
-  const bad = await jobStatus(new Request("https://x.test/api/jobs/..%2f"), fakeContext({ params: { id: "../x" } }));
+test("status: no token -> 401, role user -> 403, invalid id -> 400, unknown id -> 404", async () => {
+  const id = "job-nothere1";
+  assert.equal((await jobStatus(authed(`https://x.test/api/jobs/${id}`, null), fakeContext({ params: { id } }))).status, 401);
+  assert.equal((await jobStatus(authed(`https://x.test/api/jobs/${id}`, USER), fakeContext({ params: { id } }))).status, 403);
+  const bad = await jobStatus(authed("https://x.test/api/jobs/..%2f"), fakeContext({ params: { id: "../x" } }));
   assert.equal(bad.status, 400);
-  const missing = await jobStatus(new Request("https://x.test/api/jobs/job-nothere1"), fakeContext({ params: { id: "job-nothere1" } }));
+  const missing = await jobStatus(authed(`https://x.test/api/jobs/${id}`), fakeContext({ params: { id } }));
   assert.equal(missing.status, 404);
 });

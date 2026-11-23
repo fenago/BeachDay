@@ -1,0 +1,7 @@
+{
+  "name": "example-profiles-rls-sql",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test" },
+  "dependencies": { "@electric-sql/pglite": "0.6.0" }
+}

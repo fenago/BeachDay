@@ -3,7 +3,7 @@
 // so ALL output goes to Blobs. Netlify retries a failed invocation after
 // 1 min and again 2 min later, so this handler must be idempotent.
 //
-// Flow: a sync function (not shown) checks the session + CSRF, writes
+// Flow: the sync POST /api/jobs (jobs.mjs) runs the auth guard, writes
 // jobs/<id> = { status: "queued", tokenHash } with onlyIfNew, then POSTs
 // { jobId, token } here. The one-time token stops strangers starting jobs,
 // because a background function cannot send an error back to its caller.

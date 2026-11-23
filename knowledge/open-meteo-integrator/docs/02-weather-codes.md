@@ -39,18 +39,18 @@ Retrieved: 2026-11-23
 
 Footnote, quoted: "(*) Codes 96 and 99 are only reported by models with an explicit hail forecast, such as DWD ICON or UKMO. All other models derive thunderstorms from instability parameters and report codes 95 and 97."
 
-Note the table is **sparse**: there is no 4, 10–44, 46, etc. Any other integer is unexpected input — treat it as unknown, not as clear sky.
+Note the table is **sparse**: there is no 4, 10–44, 46, etc. Any other integer is unexpected input — treat it as unknown (no code penalty, no "clear" claim).
 
 ## Groups Beach Day uses
 | Group | Codes | Scoring use (beach-day-scoring skill) |
 |---|---|---|
 | Thunderstorm (hard stop) | 95, 96, 97, 99 | Hour = 0, also blocks the next hour |
 | Rain showers | 80, 81, 82 | −15 |
-| Rain | 61, 63, 65 | −25 |
-| Drizzle | 51, 53, 55 | not separately penalised in v1 (rain chance / amount cover it) |
-| Fog | 45, 48 | not penalised in v1 |
+| Rain | 61, 63, 65 only (the table has no 62 or 64) | −25 |
+| Drizzle | 51, 53, 55 | **−10 (decided 2026-11-23)**: chance is "more than 0.1 mm", so drizzle can read 0 % and 0 in while the code says it is wet |
+| Fog | 45, 48 | not penalised; advice line only |
 | Clear → overcast | 0–3 | cloud handled via `cloud_cover` |
-| Freezing / snow | 56, 57, 66, 67, 71–77, 85, 86 | Should never appear in South Florida; map to "Unusual weather" text and log |
+| Freezing / snow | 56, 57, 66, 67, 71–77, 85, 86 | Should never appear in South Florida; −25 with reason `unusual_weather`, and log |
 
 Since the models used for Florida under `best_match` are mostly US/ECMWF, expect 95/97 for storms more often than 96/99 (per the footnote). Test both anyway.
 
