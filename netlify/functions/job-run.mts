@@ -90,6 +90,9 @@ export function createJobRunHandler(deps: JobRunDeps) {
       return queue;
     };
     const finish = async (status: JobStatus, terminal: SseEvent | null, patch: Partial<JobRecord> = {}) => {
+      // A refusal discards the partial reply (docs/04 §2.1); otherwise the last text goes BEFORE the terminal event.
+      if (terminal?.type === "error" && terminal.code === "refusal") text = "";
+      flushText();
       if (terminal) pending.push(terminal);
       await persist({ ...patch, status });
     };

@@ -166,6 +166,7 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
     if (!text) return;
     if (utf8Bytes(text) > MAX_USER_MESSAGE_BYTES) { showAlert(say("agents.chat.toolong")); return; }
     showAlert("");
+    input.focus(); // after sending, focus stays in the composer (accessibility-wcag22)
     const userMsg = bubble("user", say("agents.you"), text).m;
     transcript.push({ role: "user", content: text });
     setBusy(true);
@@ -183,9 +184,9 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
       reply.m.remove();
       userMsg.remove();
       transcript.pop();
+      const msg = preStreamError(err); // sets budgetUntil first, so setBusy keeps Send aria-disabled
       setBusy(false);
       announce(status, "");
-      const msg = preStreamError(err);
       if (msg) showAlert(msg);
       input.focus();
       return;

@@ -112,7 +112,9 @@ export function makeKit(copy) {
       show.setAttribute("aria-pressed", String(on));
       f.input.type = on ? "text" : "password";
     });
-    f.input.replaceWith(el("div", { class: "password-row" }, f.input, show));
+    const row = el("div", { class: "password-row" });
+    f.input.before(row);
+    row.append(f.input, show);
     return { ...f, show };
   }
   function emailField({ autocomplete = "username", value = "" } = {}) {
@@ -169,12 +171,16 @@ export function errorCopy(error, where) {
  */
 export function mountAuthScreens(root, opts) {
   const {
-    auth, onSignedIn = () => {}, copy, notice, returnRoute = null, redirectResult, draftKept = false,
+    auth, onSignedIn = () => {}, copy, notice, redirectResult, draftKept = false,
     onDone, onSessionEnded,
     history = globalThis.history, location = globalThis.location,
     setTimer = globalThis.setTimeout.bind(globalThis), clearTimer = globalThis.clearTimeout.bind(globalThis),
   } = opts ?? {};
   if (!root || !auth) throw new Error("mountAuthScreens needs a root and auth");
+  // Where to go after sign-in (Google too): the caller's returnRoute, else the Agents route the person opened.
+  const startRoute = opts.route ?? location?.hash ?? "";
+  const CONTENT_ROUTE = /^#\/console(?:\/[A-Za-z0-9_-]{1,64}){1,4}$/;
+  const returnRoute = opts.returnRoute ?? (CONTENT_ROUTE.test(startRoute) && !isAuthRoute(startRoute) && startRoute !== AUTH_ROUTES.security ? startRoute : null);
   const k = makeKit(copy);
   const { tx, el, card, alertBox, emailField, passwordField, field, button, busy } = k;
   const timers = new Set();
@@ -186,6 +192,13 @@ export function mountAuthScreens(root, opts) {
   const later = (fn, ms) => { const id = setTimer(() => { timers.delete(id); if (alive) fn(); }, ms); timers.add(id); return id; };
   const announce = (region, id, vars) => { region.textContent = ""; later(() => { region.textContent = tx(id, vars); }, 60); };
   const validEmail = (v) => EMAIL_RE.test(v);
+  function liveCheck(f, problem, active, check) {
+    f.input.addEventListener("input", () => { if (active() && !problem()) f.setError(null); });
+    f.input.addEventListener("blur", (e) => {
+      // Moving to a button of the same form: leave it to submit, so nothing shifts under the tap.
+      if (active() && !(e.relatedTarget && f.input.form?.contains(e.relatedTarget))) check();
+    });
+  }
 
   function place(section, focusEl) {
     if (child) { child.unmount(); child = null; }
@@ -195,7 +208,9 @@ export function mountAuthScreens(root, opts) {
   let first = true;
   function go(route) {
     try {
-      if (location && location.hash !== route) history?.[first ? "replaceState" : "pushState"](history.state, "", route);
+      // S1 over an Agents route (#/console/agent/…): leave that route in the URL; it is where sign-in returns.
+      const keep = route === AUTH_ROUTES.signIn && !isAuthRoute(location?.hash ?? "");
+      if (location && !keep && location.hash !== route) history?.[first ? "replaceState" : "pushState"](history.state, "", route);
     } catch { /* ignore */ }
     first = false;
   }
@@ -239,8 +254,10 @@ export function mountAuthScreens(root, opts) {
       pw.setError(!p ? "auth.error.password.empty" : null);
       return !e ? em.input : !validEmail(e) ? em.input : !p ? pw.input : null;
     };
-    em.input.addEventListener("blur", () => { if (tried) check(); });
-    pw.input.addEventListener("blur", () => { if (tried) check(); });
+    // After the first submit: clear a field's error as soon as it is fixed (while typing), and re-check on blur.
+    // Clearing on input, not blur, keeps the layout still when the person taps Sign In next.
+    liveCheck(em, () => (em.input.value.trim() && validEmail(em.input.value.trim()) ? null : "x"), () => tried, check);
+    liveCheck(pw, () => (pw.input.value ? null : "x"), () => tried, check);
 
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -306,8 +323,8 @@ export function mountAuthScreens(root, opts) {
       pw.setError(!p ? "auth.error.password.empty" : p.length < MIN_PASSWORD_LENGTH ? "auth.error.password.short" : null, { min: MIN_PASSWORD_LENGTH });
       return !e || !validEmail(e) ? em.input : !p || p.length < MIN_PASSWORD_LENGTH ? pw.input : null;
     };
-    em.input.addEventListener("blur", () => { if (tried) check(); });
-    pw.input.addEventListener("blur", () => { if (tried) check(); });
+    liveCheck(em, () => (em.input.value.trim() && validEmail(em.input.value.trim()) ? null : "x"), () => tried, check);
+    liveCheck(pw, () => (pw.input.value.length >= MIN_PASSWORD_LENGTH ? null : "x"), () => tried, check);
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       if (submit.getAttribute("aria-disabled") === "true") return;
@@ -365,7 +382,7 @@ export function mountAuthScreens(root, opts) {
     }
     const other = button("btn.useOtherEmail", "btn--text", () => showSignUp());
     const existing = button("auth.confirm.existing", "btn--text", () => showSignIn());
-    c.section.append(body, em?.wrap ?? null, err.box, el("div", { class: "form-actions" }, resend, wait), el("div", { class: "auth-links" }, other, existing));
+    c.section.append(...[body, em?.wrap, err.box].filter(Boolean), el("div", { class: "form-actions" }, resend, wait), el("div", { class: "auth-links" }, other, existing));
     place(c.section);
     if (expired) err.say("auth.confirm.expired");
     if (resent) { announce(c.status, "auth.confirm.resent", { email }); startCooldown(); }
@@ -478,7 +495,7 @@ export function mountAuthScreens(root, opts) {
 
   const onPop = () => { if (alive && (isAuthRoute(location.hash) || location.hash === AUTH_ROUTES.signIn || location.hash === "")) show(location.hash || AUTH_ROUTES.signIn); };
   globalThis.addEventListener?.("popstate", onPop);
-  show(opts.route ?? location?.hash ?? AUTH_ROUTES.signIn);
+  show(startRoute || AUTH_ROUTES.signIn);
 
   return {
     show,

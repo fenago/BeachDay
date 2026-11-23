@@ -10,12 +10,11 @@ test.describe("picker to Today to Next days to day detail", () => {
   test("choose a beach, read the verdict and why, then open a day", async ({ page, baseURL }) => {
     const { guard, om } = await beachApp(page, { baseURL, fixture: "good", saveBeach: false });
     await page.goto("/");
-    await expect(h1(page)).toHaveText(t("ui.choose.title"));
-    await expect(h1(page)).toBeFocused();
+    await expect(h1(page)).toHaveText(t("ui.choose.title")); // first load does not steal focus (Pip); route changes do
     await expect(page.getByRole("button", { name: t("btn.nearest") })).toBeVisible();
     await page.locator('[data-beach="miami-beach"]').click();
     // Today: h1 is the beach, focus moved to it, the status region announces the choice and then the update
-    await expect(h1(page)).toHaveText(/Miami Beach/);
+    await expect(h1(page)).toHaveText(/South Beach/); // Miami Beach is the area; the beach is South Beach
     await expect(h1(page)).toBeFocused();
     const card = page.getByTestId("verdict-card");
     await expect(card).toBeVisible();
@@ -51,29 +50,30 @@ test.describe("picker to Today to Next days to day detail", () => {
   test("the beach is remembered, favourites toggle with a name and aria-pressed, and Change beach returns to the picker", async ({ page, baseURL }) => {
     await beachApp(page, { baseURL, fixture: "great" });
     await page.goto("/#/beaches");
-    const star = page.locator('[data-star="haulover"]');
+    const star = page.locator('[data-star="haulover"]').first();
     await expect(star).toHaveAttribute("aria-pressed", "false");
     await expect(star).toHaveAccessibleName(t("ui.favorite.add", { beach: "Haulover" }), { ignoreCase: true }).catch(async () => {
       await expect(star).toHaveAccessibleName(/Add .* to favorites/);
     });
     await star.click();
-    await expect(page.locator('[data-star="haulover"]')).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator('[data-star="haulover"]')).toBeFocused(); // focus stays on the star after the list re-renders
+    await expect(page.locator('[data-star="haulover"]').first()).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("favorites").locator('[data-star="haulover"]')).toBeVisible(); // it also appears in a Favorites group
+    await expect(page.locator('[data-star="haulover"]').first()).toBeFocused(); // focus stays on the star after the list re-renders
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem("beachday:favorites")))).toEqual(["haulover"]);
-    await page.locator('[data-beach="haulover"]').click();
+    await page.locator('[data-beach="haulover"]').first().click();
     await expect(h1(page)).toHaveText(/Haulover/);
     expect(await page.evaluate((k) => localStorage.getItem(k), BEACH_KEY)).toBe("haulover");
     await page.reload();
     await expect(h1(page)).toHaveText(/Haulover/);
   });
 
-  test("Use Nearest Beach with geolocation picks the closest beach (Key West)", async ({ page, context, baseURL }) => {
+  test("Use Nearest Beach with geolocation picks the closest beach (Smathers Beach, Key West)", async ({ page, context, baseURL }) => {
     await beachApp(page, { baseURL, fixture: "great", saveBeach: false });
     await context.grantPermissions(["geolocation"]);
     await context.setGeolocation({ latitude: 24.555, longitude: -81.78 });
     await page.goto("/");
     await page.getByRole("button", { name: t("btn.nearest") }).click();
-    await expect(h1(page)).toHaveText(/Key West/);
+    await expect(h1(page)).toHaveText(/Smathers Beach/);
   });
 
   test("with location denied the picker says so and stays usable", async ({ page, context, baseURL }) => {
@@ -175,9 +175,7 @@ test.describe("failures and edge states", () => {
     await beachApp(page, { baseURL, fixture: "great" });
     await page.goto("/");
     await expect(page.getByTestId("verdict-card")).toBeVisible();
-    await context.setOffline(true);
-    await page.reload();
-    await expect(page.getByTestId("verdict-card")).toBeVisible();
+    await context.setOffline(true); // fires the window 'offline' event; no service worker here, so a reload cannot work
     await expect(page.getByTestId("status")).toContainText(/Offline — showing .* forecast/);
     await context.setOffline(false);
   });

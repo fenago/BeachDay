@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { API_ROUTES } from "../harness/routes.mjs";
-import { CELLS, applies, runCell, runHangCase, pendingRoutes, startMatrixHarness, setup } from "../helpers/matrix.mjs";
+import { CELLS, applies, runCell, runHangCase, pendingRoutes, startMatrixHarness, setup, mutantGuards } from "../helpers/matrix.mjs";
 
 let h;
 beforeAll(async () => { h = await startMatrixHarness(); });
@@ -63,4 +63,19 @@ describe("jobs-run: rejected callers leave no job record (the nonce cases live w
     expect(h.blobs.callCount).toBe(0);
     expect(h.anthropic.requests.length).toBe(0);
   });
+});
+
+describe("mutants against the REAL handlers: a guard that is wrong must make the matrix fail (docs/06 §3.1)", () => {
+  for (const [name, make] of Object.entries(mutantGuards())) {
+    it(`guard ${name} is caught on /api/agents and /api/proposals/:id/reject`, async (ctx) => {
+      const routes = API_ROUTES.filter((r) => ["GET /api/agents", "POST /api/proposals/:id/reject"].includes(r.key));
+      if (routes.some((r) => !h.hasHandler(r.key))) return ctx.skip("PENDING: handler file missing");
+      for (const r of routes) h.registerDeps(r.module, (bag) => ({ ...bag, guard: make() }));
+      try {
+        let caught = 0;
+        for (const r of routes) for (const c of CELLS) if (applies(c, r) && c.group !== "control" && (await runCell(h, c, r)).length) caught++;
+        expect(caught, `no cell caught the mutant "${name}"`).toBeGreaterThan(0);
+      } finally { h.clearDepsAdapters(); }
+    }, 60_000);
+  }
 });

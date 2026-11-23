@@ -50,7 +50,7 @@ test.describe("navigation", () => {
     await expect(page).toHaveURL(/\/resources\/$/);
     await page.getByRole("navigation", { name: STRINGS["nav.label"] }).getByRole("link", { name: STRINGS["nav.agents"] }).click();
     await expect(page).toHaveURL(/\/console$/);
-    await page.getByRole("navigation", { name: STRINGS["nav.label"] }).getByRole("link", { name: STRINGS["nav.home"] }).click();
+    await page.getByRole("banner").getByRole("link", { name: STRINGS["nav.home"] }).click(); // the brand is a sibling of the nav
     await expect(page).toHaveURL(/\/$/);
   });
 

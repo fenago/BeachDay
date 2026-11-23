@@ -65,8 +65,12 @@ function secretsOf(h, token) {
 }
 
 /** Call one cell for one route. Returns the list of problems (empty = pass). */
-async function call(h, route, { token, wantStatus, nothingTouched = true, profileReadsAtMost, request = {}, deployContext }) {
+async function call(h, route, { token, wantStatus: wantStatus0, nothingTouched = true, profileReadsAtMost, request = {}, deployContext }) {
   const req = buildRequest(h, route, { token, ...request });
+  // /api/jobs-run is a background function: it ALWAYS answers 202 and refuses silently (Netlify discards the status, docs/03 §9.3).
+  // Its refusals are proved by "nothing touched" below, not by a status.
+  let wantStatus = wantStatus0;
+  if (route.key === "POST /api/jobs-run" && wantStatus !== undefined) wantStatus = 202;
   const before = downstream(h);
   h.supabase.resetCalls();
   let res;
@@ -99,7 +103,7 @@ async function positive(h, route) {
   let res; try { res = await h.callHandler(route.key, req); } catch (e) { return [`handler threw: ${String(e?.message ?? e).split("\n")[0]}`]; }
   const text = await res.text();
   const p = checkEnvelope(res, text, { tokens: secretsOf(h, "") });
-  if (!NOT_DENIED(res.status)) p.push(`a valid super_admin got ${res.status}`);
+  if (route.key !== "POST /api/jobs-run" && !NOT_DENIED(res.status)) p.push(`a valid super_admin got ${res.status}`);
   if (route.key === "GET /api/agents" && res.status !== 200) p.push(`agents answered ${res.status}, wanted 200`);
   if (route.key === "GET /api/agents" && /systemPrompt/.test(text)) p.push("agents response carries a system prompt");
   return p;
@@ -168,7 +172,7 @@ export async function runHangCase(h, routes) {
   h.supabase.fail("rest", "hang");
   const out = await Promise.all(routes.map(async (route) => {
     const res = await h.callHandler(route.key, buildRequest(h, route, { token })); const text = await res.text();
-    return { route: route.key, problems: checkEnvelope(res, text, { status: 503, tokens: secretsOf(h, token) }) };
+    return { route: route.key, problems: checkEnvelope(res, text, { status: route.key === "POST /api/jobs-run" ? 202 : 503, tokens: secretsOf(h, token) }) };
   }));
   h.supabase.clearFailures();
   return out.filter((o) => o.problems.length).map((o) => `${o.route}: ${o.problems.join("; ")}`);
