@@ -220,10 +220,15 @@ describe("seam: DayVerdict <-> copy deck (open-meteo-integrator <-> ux-designer 
     }
   });
 
-  it.skipIf(!hasDeck)("D3 positive codes are the deck's POSITIVE_REASON_IDS keys", async () => {
+  it.skipIf(!hasDeck)("D3 positive codes (R8) are in the contract and each copyId reason.pos.* exists in the deck", async () => {
     const deck = await imp("public/js/copy/copy-deck.js");
-    const positives = Object.keys(deck.POSITIVE_REASON_IDS).sort();
-    expect(dv.reason.properties.code.enum.filter((c) => positives.includes(c)).sort()).toEqual(positives);
+    const R8 = { dry: "reason.pos.dry", sunny_sky: "reason.pos.sunny", comfortable: "reason.pos.comfortable",
+      light_wind: "reason.pos.wind", calm_waves: "reason.pos.waves", warm_water: "reason.pos.water" };
+    for (const [code, id] of Object.entries(R8)) {
+      expect(dv.reason.properties.code.enum, code).toContain(code);
+      expect(deck.STRINGS, id).toHaveProperty([id]);
+    }
+    expect(Object.keys(deck.STRINGS).filter((k) => k.startsWith("reason.pos.")).sort()).toEqual(Object.values(R8).sort());
   });
 
   it.skipIf(!hasDeck || !exists("public/js/forecast.js"))("real loadForecast() on the Miami captures: every day is a valid DayVerdict and every reason/advice renders", async () => {

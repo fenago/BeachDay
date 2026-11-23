@@ -193,6 +193,10 @@ describe('day verdict', () => {
     expect(d.bestWindow.hours).toBe(2);
     expect(d.reasons[0]).toMatchObject({ code: 'short_window', copyId: 'reason.short', params: { hours: 2 } });
   });
+  it('one usable hour uses the singular copy id', () => {
+    const d = scoreDay({ hours: dayOf({}, 1) });
+    expect(d.reasons[0]).toMatchObject({ code: 'short_window', copyId: 'reason.short.one', params: { hours: 1 } });
+  });
   it('short window that scores below Good keeps its own verdict', () => {
     const d = scoreDay({ hours: dayOf({ rainChance: 65, cloudPct: 50 }, 1) });
     expect([d.verdict, d.score, d.bestWindow.hours]).toEqual(['fair', 55, 1]);
@@ -299,6 +303,17 @@ describe('reasons: codes, copy ids, placeholders, order, limit', () => {
     expect(first({ seaTempF: 72 })).toMatchObject({ code: 'water_temp', copyId: 'reason.water.cool', params: { temp: 72 } });
     expect(first({ seaTempF: 76 }).copyId).toBe('reason.water');
   });
+  it('water and feels-like text come from the UNROUNDED mean, display is rounded', () => {
+    const wat = (vals) => scoreDay({ hours: vals.map((v, i) => calm({ time: T(9 + i), seaTempF: v })) }).reasons.find((r) => r.code === 'water_temp');
+    expect(wat([77.6, 77.6, 77.6])).toMatchObject({ copyId: 'reason.water', params: { temp: 78 } }); // not "Warm water, 78"
+    expect(wat([73.6, 73.6, 73.6])).toMatchObject({ copyId: 'reason.water.cool', params: { temp: 74 } });
+    expect(wat([73.9, 74, 74]).copyId).toBe('reason.water.cool'); // mean 73.97 < 74
+    const fl = (vals) => scoreDay({ hours: vals.map((v, i) => calm({ time: T(9 + i), feelsF: v, heatIndexF: 80 })) }).reasons.find((r) => r.code === 'feels_like');
+    expect(fl([91, 91, 90])).toMatchObject({ copyId: 'reason.feels', params: { temp: 91 } }); // mean 90.67 is not "hot"
+    expect(fl([91, 91, 91]).copyId).toBe('reason.hot');
+    expect(fl([70, 71, 72.5])).toMatchObject({ copyId: 'reason.cool', params: { temp: 71 } });
+    expect(fl([71, 72, 72.9])).toMatchObject({ copyId: 'reason.cool', params: { temp: 72 } }); // mean 71.97 < 72: cool text, rounded display
+  });
   it('storm risk: "after {time}" when the first risky hour is not the first window hour', () => {
     const hs = [calm({ time: T(9) }), calm({ time: T(10) }), calm({ time: T(11), cape: 2000, rainChance: 45 })];
     const r = scoreDay({ hours: hs, formatTime: (t) => `at ${t.slice(11, 13)}` }).reasons.find((x) => x.code === 'storm_risk');
@@ -324,24 +339,28 @@ describe('D3: positive reasons on good days (SCORE_CONFIG.reasons.positiveOnGood
   it('default (false): a perfect day lists no reasons', () => {
     expect(scoreDay({ hours: dayOf({}) }).reasons).toEqual([]);
   });
-  it('when true: a Great day lists what is going well, using codes that have strings in the deck', async () => {
+  it('when true: a Great day lists what is going well with deck codes and reason.pos.* ids, inside the 4 cap', async () => {
     // The config is frozen on purpose, so load a second copy of score.js bound to a modified config.
-    const cfgUrl = new URL('../../public/js/score-config.js', import.meta.url).href;
-    const src = (await import('node:fs')).readFileSync(new URL('../../public/js/score.js', import.meta.url), 'utf8');
-    const patched = src.replace("'./score-config.js'", JSON.stringify(cfgUrl + '?d3on'));
-    const cfgSrc = (await import('node:fs')).readFileSync(new URL('../../public/js/score-config.js', import.meta.url), 'utf8')
+    const fs = await import('node:fs');
+    const toData = (t) => 'data:text/javascript;base64,' + Buffer.from(t).toString('base64');
+    const cfgSrc = fs.readFileSync(new URL('../../public/js/score-config.js', import.meta.url), 'utf8')
       .replace('positiveOnGoodDays: false', 'positiveOnGoodDays: true');
-    const toData = (s) => 'data:text/javascript;base64,' + Buffer.from(s).toString('base64');
-    const cfgData = toData(cfgSrc);
-    const mod = await import(toData(patched.replace(JSON.stringify(cfgUrl + '?d3on'), JSON.stringify(cfgData))));
+    const src = fs.readFileSync(new URL('../../public/js/score.js', import.meta.url), 'utf8')
+      .replace("'./score-config.js'", JSON.stringify(toData(cfgSrc)));
+    const mod = await import(toData(src));
     const d = mod.scoreDay({ hours: dayOf({}) });
-    expect(d.reasons.map((r) => r.code)).toEqual(['sunny_comfortable', 'light_wind', 'calm_waves', 'warm_water']);
-    expect(d.reasons.map((r) => r.copyId)).toEqual(['reason.sunny', 'reason.wind.light', 'reason.waves.calm', 'reason.water.warm']);
-    expect(d.reasons[0].params).toEqual({ temp: 82 });
+    expect(d.reasons.map((r) => r.code)).toEqual(['dry', 'sunny_sky', 'comfortable', 'light_wind']); // 4-item cap
+    expect(d.reasons.map((r) => r.copyId)).toEqual(['reason.pos.dry', 'reason.pos.sunny', 'reason.pos.comfortable', 'reason.pos.wind']);
+    expect(d.reasons[2].params).toEqual({ temp: 82 });
+    // drivers come first, positives fill the rest: one driver (rain 45%) + positives that remain true
+    const g = mod.scoreDay({ hours: dayOf({ rainChance: 45 }) });
+    expect(g.reasons.map((r) => r.code)).toEqual(['rain_chance', 'sunny_sky', 'comfortable', 'light_wind']);
+    // calm waves and warm water appear when room is left
+    const all = mod.scoreDay({ hours: dayOf({ rainChance: 45, cloudPct: 50 }) });
+    expect(all.reasons.map((r) => r.code)).toEqual(['rain_chance', 'clouds', 'comfortable', 'light_wind']);
     // a Skip day never gets positive reasons
     expect(mod.scoreDay({ hours: dayOf({ weatherCode: 95 }) }).reasons.map((r) => r.code)).toEqual(['thunderstorms']);
-    // and the default module is unchanged
-    expect(C.reasons.positiveOnGoodDays).toBe(false);
+    expect(C.reasons.positiveOnGoodDays).toBe(false); // default module unchanged
   });
 });
 

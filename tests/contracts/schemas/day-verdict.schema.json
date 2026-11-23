@@ -81,7 +81,7 @@
         "copyId",
         "params"
       ],
-      "description": "Drivers first (docs/01 §5.2 order), then D3 positives (codes = copy-deck POSITIVE_REASON_IDS keys, copyId reason.pos.*) only when SCORE_CONFIG.reasons.positiveOnGoodDays is true. Status codes only when verdict is null.",
+      "description": "Drivers first (docs/01 §5.2 order), then D3 positives (codes dry, sunny_sky, comfortable, light_wind, calm_waves, warm_water; copyId reason.pos.*, ruling R8) only when SCORE_CONFIG.reasons.positiveOnGoodDays is true. Status codes only when verdict is null.",
       "properties": {
         "code": {
           "enum": [

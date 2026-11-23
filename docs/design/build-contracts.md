@@ -48,7 +48,7 @@ These are the signatures **as landed in W1** (checked 2026-11-23). W1R reviewers
 | `js/data/beaches.js` | Dewey | `BEACHES` (13, each with land point, marine point, NWS office link and zone), `getBeach(id)`, `DEFAULT_BEACH_ID = "miami-beach"` |
 | `js/data/beach-window.js`, `js/data/cache-age.js` | Dewey | window and DST helpers; `cacheAge`, `shouldRefetch`, `ageTier`, `freshnessLabel` |
 | `js/forecast.js` | Dewey | **`loadForecast(beachId, {fetchImpl, storage, now, online, userForced, days, timeoutMs}) → Forecast`**; **`getCached(beachId, storage, {now}) → Forecast or null`**; `buildDays(model, now)` |
-| `js/copy/copy-deck.js` | Wren | `STRINGS`, **`t(id, params)`** (throws on a missing id or placeholder), `VERDICTS`, `verdictFor(keyOrScore)`, `SAFETY`, `DECK`, `REASON_IDS`, `ADVICE_IDS`, `POSITIVE_REASON_IDS` |
+| `js/copy/copy-deck.js` | Wren | `STRINGS`, **`t(id, params)`** (throws on a missing id or placeholder), `VERDICTS`, `verdictFor(keyOrScore)`, `SAFETY`, `DECK` |
 | `js/app.js`, `js/ui/*.js` | Pip (W2) | boot, hash router (`#/`, `#/beach/:id`, `#/day/:date`), views. Imports `forecast.js`, `copy/*`, `data/beaches.js`, `pwa/*` only |
 | `js/pwa/sw-register.js`, `js/pwa/install-hint.js` | Pip | SW registration and the `SKIP_WAITING` message; install hint with a 14-day snooze |
 | `sw.js` | Pip | classic worker; may `importScripts` only `/sw/**`; never intercepts `/api/*`, `/version.json`, `/generated/*`, `/vendor/*`, `/console*`, `/js/console/*` or Supabase |
@@ -179,8 +179,8 @@ Never stored: tokens, `Authorization`, request bodies (other than the job's own 
 | R4 | Handler files: `agents`, `chat`, `jobs`, `job-run`, `job-status`, `proposal`, `approve`, `reject` (`.mts`) | docs/03 §2 |
 | R5 | No scheduled cleanup function in v1; retention is a follow-up | Saves a function and its credits; `site:*` records prune themselves |
 | R6 | Chat output renders as **plain text** (`textContent`, `white-space: pre-wrap`), not Markdown | No sanitizer dependency, no image exfiltration path |
-| R7 | **DayVerdict reasons/advice are `{code, copyId, params}`; the UI renders `t(copyId, params)`.** Variant choice lives in the data layer, from `score-config.js` bands | One home for thresholds. `reasonText`/`reasonId` in the deck duplicate the band edges, so the beach UI must not use them (Wren may keep them for tests or delete them) |
-| R8 | D3 positive codes are the deck's `POSITIVE_REASON_IDS` keys (`dry`, `sunny_sky`, `comfortable`, `light_wind`, `calm_waves`, `warm_water`), with `copyId` `reason.pos.*`. They go in `reasons` after the drivers, inside the 4-item cap | The deck already has six distinct strings; `score.js` currently emits `sunny_comfortable` with `reason.sunny` (D3 path only, off by default) |
+| R7 | **DayVerdict reasons/advice are `{code, copyId, params}`; the UI renders `t(copyId, params)`.** Variant choice lives in the data layer, from `score-config.js` bands | One home for thresholds. The deck's duplicate `reasonText`/`reasonId`/`*_IDS` maps were removed in W1F |
+| R8 | D3 positive codes are `dry`, `sunny_sky`, `comfortable`, `light_wind`, `calm_waves` and `warm_water`, with `copyId` `reason.pos.dry`, `.sunny`, `.comfortable`, `.wind`, `.waves` and `.water`. They go in `reasons` after the drivers, inside the 4-item cap | The deck already has six distinct strings (applied in W1F) |
 | R9 | The approve lock is key `approve-lock` in the `proposals` store | No fifth store; the key never matches `^p_` |
 | R10 | `lib/ids.mts` is Remy-A's per build_plan §2. It landed in W1 with the content Remy-A needs; whoever wrote it, Remy-A owns it from W2 | One owner per file |
 | R11 | Approvals usage is `{used31, usedToday, per31Days, perDay, retryAt}`, mapped from `checkApproveCap()` with `per31Days`/`perDay` from `APPROVE_CAP`, and `retryAt: null` when `allowed`. The schema doesn't hard-code 14 and 5 | D7 lives in `settings.mts` only |

@@ -285,6 +285,44 @@ describe('cache: 30 min stale, never polls, falls back to what is saved', () => 
   });
 });
 
+describe('service-worker cache stamp (x-bd-source: cache, x-bd-fetched-at)', () => {
+  const now = Date.parse('2026-11-23T12:00:00Z');
+  const stampedFetch = (fx, stamps) => async (url) => {
+    const marineHost = new URL(url).host.startsWith('marine');
+    const at = marineHost ? stamps.marine : stamps.forecast;
+    const body = marineHost ? fx.marine : fx.forecast;
+    const h = new Map(at ? [['x-bd-source', 'cache'], ['x-bd-fetched-at', String(at)]] : []);
+    return { ok: true, status: 200, headers: { get: (k) => h.get(k) ?? null }, json: async () => body };
+  };
+  it('a copy the service worker saved 25 h ago is too old: no verdicts, never "Updated just now"', async () => {
+    const fx = derived('great'); const old = now - 25 * 3_600_000;
+    const f = await loadForecast('miami-beach', { fetchImpl: stampedFetch(fx, { forecast: old, marine: old }), now, storage: memStorage(), online: true });
+    expect([f.fetchedAt, f.source, f.tooOld, f.days]).toEqual([old, 'cache', true, []]);
+  });
+  it('the OLDEST stamp of forecast and marine wins; a 4 h stamp shows the stale banner', async () => {
+    const fx = derived('great');
+    const f = await loadForecast('miami-beach', { fetchImpl: stampedFetch(fx, { forecast: now - 4 * 3_600_000, marine: now - 3_600_000 }), now, storage: memStorage(), online: true });
+    expect([f.fetchedAt, f.source, f.stale, f.staleBanner, f.tooOld]).toEqual([now - 4 * 3_600_000, 'cache', true, true, false]);
+    expect(f.days.length).toBeGreaterThan(0);
+  });
+  it('responses without the headers are fresh from the network (fetchedAt = now)', async () => {
+    const fx = derived('great');
+    const f = await loadForecast('miami-beach', { fetchImpl: stampedFetch(fx, {}), now, storage: memStorage(), online: true });
+    expect([f.fetchedAt, f.source]).toEqual([now, 'network']);
+  });
+  it('a saved localStorage entry that is newer than the SW stamp is returned instead', async () => {
+    const fx = derived('great'); const storage = memStorage();
+    await loadForecast('miami-beach', { fetchImpl: serve(fx).fetchImpl, now: now - 2 * 3_600_000, storage, online: true }); // saved 2 h ago
+    const f = await loadForecast('miami-beach', { fetchImpl: stampedFetch(fx, { forecast: now - 5 * 3_600_000, marine: now - 5 * 3_600_000 }), now, storage, online: true });
+    expect([f.fetchedAt, f.source]).toEqual([now - 2 * 3_600_000, 'cache']);
+  });
+  it('bad stamps (non-numeric, zero) count as fresh', async () => {
+    const fx = derived('great');
+    const f = await loadForecast('miami-beach', { fetchImpl: stampedFetch(fx, { forecast: 0, marine: 0 }), now, storage: memStorage(), online: true });
+    expect(f.source).toBe('network');
+  });
+});
+
 describe('real captured data end to end (2026-11-23, 2 days)', () => {
   it('scores the real Miami Beach day: drizzle code 53 on day 2 costs points; day 1 is Great', async () => {
     const forecast = read('forecast-miami-beach.json'); const marine = read('marine-miami-beach.json');

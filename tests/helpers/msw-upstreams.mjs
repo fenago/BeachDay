@@ -71,18 +71,21 @@ export function createFakeAnthropic() {
       queue.shift();
       const id = `msg_fake_${++n}`;
       const thinking = { type: "thinking", thinking: "", signature: `sig_fake_${n}` }; // adaptive thinking, display omitted: always first
-      const content = [thinking, ...turn.blocks].map((b, i0) => { if (b.type === "thinking") return b; const i = i0 - 1; return b;}).map((b, i) => (b.type === "text" ? { type: "text", text: b.chunks.join("") } : { type: "tool_use", id: b.id ?? `toolu_fake_${n}_${i}`, name: b.name, input: b.input }));
+      const content = [thinking, ...turn.blocks.map((b, i) => (b.type === "text" ? { type: "text", text: b.chunks.join("") } : { type: "tool_use", id: b.id ?? `toolu_fake_${n}_${i}`, name: b.name, input: b.input }))];
       const stopReason = turn.stop ?? "end_turn";
       const usage = { input_tokens: 100, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
       if (body.stream !== true) {
-        return HttpResponse.json({ id, type: "message", role: "assistant", model: body.model, content, stop_reason: stopReason, stop_sequence: null, usage });
+        return HttpResponse.json({ id, type: "message", role: "assistant", model: body.model, content, stop_reason: stopReason, stop_sequence: null, stop_details: null, usage });
       }
       const sig = request.signal;
       const stream = new ReadableStream({
         async start(controller) {
           const send = async (event, data) => { if (sig.aborted) return; controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)); if (turn.eventDelayMs) await sleep(turn.eventDelayMs, sig); };
-          await send("message_start", { type: "message_start", message: { id, type: "message", role: "assistant", content: [], model: body.model, stop_reason: null, stop_sequence: null, usage: { ...usage, output_tokens: 1 } } });
-          let idx = 0;
+          await send("message_start", { type: "message_start", message: { id, type: "message", role: "assistant", content: [], model: body.model, stop_reason: null, stop_sequence: null, stop_details: null, usage: { ...usage, output_tokens: 1 } } });
+          await send("content_block_start", { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "", signature: "" } });
+          await send("content_block_delta", { type: "content_block_delta", index: 0, delta: { type: "signature_delta", signature: thinking.signature } });
+          await send("content_block_stop", { type: "content_block_stop", index: 0 });
+          let idx = 1;
           for (const b of turn.blocks) {
             if (b.type === "text") {
               await send("content_block_start", { type: "content_block_start", index: idx, content_block: { type: "text", text: "" } });
@@ -100,7 +103,7 @@ export function createFakeAnthropic() {
           else {
             const delta = stopReason === "refusal"
               ? { stop_reason: "refusal", stop_sequence: null, stop_details: { type: "refusal", category: "cyber", explanation: "This request was declined." } }
-              : { stop_reason: stopReason, stop_sequence: null };
+              : { stop_reason: stopReason, stop_sequence: null, stop_details: null };
             await send("message_delta", { type: "message_delta", delta, usage: { output_tokens: 20 } });
             await send("message_stop", { type: "message_stop" });
           }
@@ -192,8 +195,9 @@ export function createFakeGithub({ owner = FIXTURE_REPO.owner, repo = FIXTURE_RE
     const isWrite = tok === writeToken;
     const isRead = tok === readToken;
     if (!isWrite && !isRead) return err(401, "Bad credentials");
-    if (!(request.headers.get("accept") ?? "").includes("application/vnd.github")) return err(415, "Unsupported Accept");
-    if (request.headers.get("x-github-api-version") && request.headers.get("x-github-api-version") !== "2022-11-28") return err(400, "Unsupported API version");
+    if (!request.headers.get("user-agent")) return err(403, "Request forbidden by administrative rules. Please make sure your request has a User-Agent header.");
+    if (!/^application\/vnd\.github(\.(raw|object|json|diff|patch))?(\+json)?$/.test(request.headers.get("accept") ?? "")) return err(415, "Unsupported Accept (Beach Day sends application/vnd.github+json)");
+    if (request.headers.get("x-github-api-version") !== "2022-11-28") return err(400, "X-GitHub-Api-Version 2022-11-28 is required by Beach Day");
     if (method !== "GET" && !isWrite) return err(403, "Resource not accessible by personal access token");
     const key = `${method} ${p}`;
     const fi = mode.failNext.findIndex((f) => f.re.test(key));
@@ -219,7 +223,7 @@ export function createFakeGithub({ owner = FIXTURE_REPO.owner, repo = FIXTURE_RE
       const c = commits.get(sha); if (!c) return err(404, "No commit found for the ref " + ref);
       const t = trees.get(c.tree);
       const hit = t.get(path);
-      if (hit) { const text = blobs.get(hit); return HttpResponse.json({ type: "file", encoding: "base64", size: Buffer.byteLength(text), name: path.split("/").pop(), path, sha: hit, content: Buffer.from(text).toString("base64") }); }
+      if (hit) { const text = blobs.get(hit); if (Buffer.byteLength(text) > 1_000_000) return HttpResponse.json({ type: "file", encoding: "none", size: Buffer.byteLength(text), name: path.split("/").pop(), path, sha: hit, content: "" }); return HttpResponse.json({ type: "file", encoding: "base64", size: Buffer.byteLength(text), name: path.split("/").pop(), path, sha: hit, content: Buffer.from(text).toString("base64") }); }
       const dir = path ? `${path}/` : "";
       const names = new Map();
       for (const [fp, bs] of t) if (fp.startsWith(dir)) { const rest = fp.slice(dir.length); const [head, ...tail] = rest.split("/"); names.set(head, tail.length ? { type: "dir", sha: sha1("dir " + dir + head) } : { type: "file", sha: bs }); }
@@ -229,7 +233,7 @@ export function createFakeGithub({ owner = FIXTURE_REPO.owner, repo = FIXTURE_RE
     if (method === "GET" && p === "/commits") {
       const since = url.searchParams.get("since");
       const per = Math.min(100, Number(url.searchParams.get("per_page") ?? 30)); const page = Number(url.searchParams.get("page") ?? 1);
-      let list = chain().filter((sha) => commits.get(sha).parents.length || true);
+      let list = chain();
       if (since) list = list.filter((sha) => Date.parse(commits.get(sha).author.date) >= Date.parse(since));
       list = list.slice((page - 1) * per, page * per);
       return HttpResponse.json(list.map((sha) => { const c = commits.get(sha); return { sha, commit: { message: c.message, author: c.author, committer: c.author, tree: { sha: c.tree } }, parents: c.parents.map((x) => ({ sha: x })) }; }));
@@ -247,8 +251,7 @@ export function createFakeGithub({ owner = FIXTURE_REPO.owner, repo = FIXTURE_RE
         if (e.mode !== "100644" || e.type !== "blob") { state.violations.push(`bad mode/type ${e.mode} ${e.type}`); return err(422, "fake: only 100644 blobs are allowed"); }
         if (e.sha === null) { state.violations.push(`deletion of ${e.path}`); return err(422, "fake: Beach Day never deletes (sha:null)"); }
         if (typeof e.content === "string") t.set(e.path, putBlob(e.content));
-        else if (typeof e.sha === "string" && blobs.has(e.sha)) t.set(e.path, e.sha);
-        else return err(422, "fake: each tree entry needs content or a known sha");
+        else { state.violations.push(`tree entry without content: ${e.path}`); return err(422, "fake: Beach Day always sends content in tree entries"); }
       }
       return HttpResponse.json({ sha: putTree(t), truncated: false }, { status: 201 });
     }
@@ -261,7 +264,7 @@ export function createFakeGithub({ owner = FIXTURE_REPO.owner, repo = FIXTURE_RE
       return HttpResponse.json({ ...commitJson(sha) }, { status: 201 });
     }
     if (method === "PATCH" && (p === "/git/refs/heads/main" || p === "/git/refs/heads/main/")) {
-      if (body.force !== false) { state.violations.push(`force=${body.force}`); return err(422, "fake: Beach Day always sends force:false"); }
+      if (body.force !== false) { state.violations.push(`force=${body.force}`); return err(body.force === undefined ? 400 : 422, "fake: Beach Day always sends force:false"); }
       const patchMode = mode.patch; mode.patch = null;
       if (patchMode === "race") { state.pushConcurrent("docs/other.md", "someone else\n"); return err(422, "Update is not a fast forward"); }
       if (patchMode === "fails_502") return err(502, "Bad Gateway");

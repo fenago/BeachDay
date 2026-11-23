@@ -9,7 +9,7 @@ Page-specific CSS (`beach.css`, `pages.css`, `console.css`) comes in W2. Markup 
 2. **No text directly on the sky gradient.** Put titles, status lines and prose in `.panel` (solid) or on glass. Only gaps and glass show the sky.
 3. **At most 3 visible blur surfaces:** `.site-header`, `.verdict-card`, an open `.sheet`. `.glass` is a utility for a 4th kind of surface: don't use it on a page that already shows those. No glass inside glass. The chat composer is solid on purpose.
 4. Verdict = chip colour + icon + text. The icon is `aria-hidden="true"`; the text is the accessible name.
-5. Every interactive control is at least 44 x 44 CSS px (checked at 320 and 390 px).
+5. Every interactive control is at least 44 x 44 CSS px (checked at 320 and 390 px). Inline links inside a sentence (`.attribution`, `.footer-safety`, prose) are exempt under WCAG 2.5.8.
 6. Dynamic colour or size cannot use `style=""`. Use classes, `data-condition`, or CSSOM (`el.style.setProperty('--agent-color', v)`).
 7. Condition tint: `data-condition="sunny|overcast|stormy|night"` on `<html>` or `<body>`. Default is sunny.
 8. Dark mode follows `prefers-color-scheme`; there is no in-app toggle (HIG).
@@ -17,8 +17,8 @@ Page-specific CSS (`beach.css`, `pages.css`, `console.css`) comes in W2. Markup 
 
 ## 1. Icon sprite ids (`/img/sprite.svg`)
 Verdicts: `sun` (Great), `sun-cloud` (Good), `cloud` (Fair), `storm` (Skip it). Weather: `rain`, `moon`, `wind`, `wave`, `uv`, `thermometer`, `flag`.
-Status: `info`, `alert`, `check-circle`, `x-circle`, `check`. Actions: `chevron-right`, `chevron-left`, `chevron-down`, `refresh`, `location`, `star`, `close`, `external-link`, `lock`, `send`, `file`, `book`, `clock`. Brand: `brand` (header mark; the app icon itself is Pip's).
-Validated with the example 03 validator (extended id list): well-formed, 30 symbols, 24x24 viewBox, `<title>`, `currentColor`, 0 problems.
+Status: `info`, `alert`, `check-circle`, `x-circle`, `check`. Actions: `chevron-right`, `chevron-left`, `chevron-down`, `refresh`, `location`, `star`, `close`, `external-link`, `lock`, `send`, `file`, `book`, `clock`, `share`, `plus-square`. Brand: `brand` (header mark; the app icon itself is Pip's).
+Validated with the example 03 validator (extended id list): well-formed, 32 symbols, 24x24 viewBox, `<title>`, `currentColor`, 0 problems.
 
 ## 2. Components (class, markup)
 
@@ -140,13 +140,13 @@ The left stripe uses `--agent-color` (decorative). The model is always text in `
 
 ### Chat log and bubbles
 ```html
-<div class="chat"><ol class="chat-log" role="log" aria-label="Conversation">
-  <li class="msg msg--user"><span class="msg__author">You</span><p class="msg__body">...</p></li>
-  <li class="msg msg--agent" aria-busy="true"><span class="msg__author">Sable</span><p class="msg__body">...</p></li></ol>
+<div class="chat"><div class="chat-log" role="log" aria-label="Conversation">
+  <div class="msg msg--user"><span class="msg__author">You</span><p class="msg__body">...</p></div>
+  <div class="msg msg--agent" aria-busy="true"><span class="msg__author">Sable</span><p class="msg__body">...</p></div></div>
   <form class="composer"><label class="visually-hidden" for="m">Message</label><textarea id="m" class="input" rows="1"></textarea>
     <button class="btn btn--primary" type="submit">Send</button></form></div>
 ```
-Variants `msg--system`, `msg--error`. The body is `white-space: pre-wrap`; set it with `textContent`. While `aria-busy="true"` a static ellipsis follows the text; remove the attribute when done. The composer is sticky and solid; `scroll-padding` keeps focus clear of it.
+The log is a `div`, not an `ol`/`li` (axe listitem). `.chat` is a solid panel (surface, border, padding), so chat text never sits on the sky. Variants `msg--system`, `msg--error`. The body is `white-space: pre-wrap`; set it with `textContent`. While `aria-busy="true"` a static ellipsis follows the text; remove the attribute when done. The composer is sticky and solid; `scroll-padding` keeps focus clear of it.
 
 ### Proposal card and diff
 ```html
@@ -160,6 +160,23 @@ Variants `msg--system`, `msg--error`. The body is `white-space: pre-wrap`; set i
   <div class="button-row"><button class="btn btn--primary">Review and Approve</button><button class="btn btn--secondary">Reject</button></div></article>
 ```
 Denied file: `file-status--denied` with an `x-circle` icon and the words "Not allowed". Line kinds: `--add`, `--del`, `--hunk`; the `+` / `−` marker is real text on every changed line (WCAG 1.4.1). Build lines in JS with `textContent`; the pre is a scrollable region and must be focusable.
+
+### Favourites row, empty state, page bar, TOTP setup (W1F additions)
+```html
+<ul class="beach-group__items"><li class="beach-item">
+  <button class="beach-row" type="button">Hollywood Beach</button>
+  <button class="btn btn--icon" type="button" aria-pressed="true" aria-label="Favorite: Hollywood Beach"><svg class="icon" aria-hidden="true"><use href="/img/sprite.svg#star"/></svg></button></li></ul>
+```
+`.beach-item` = row (flex 1) + 44 px star toggle as siblings. `.btn--icon[aria-pressed="true"]` is a filled button **and** a filled glyph (shape change, not colour alone).
+```html
+<div class="empty-state"><p class="empty-state__title">No favorite beaches yet</p><button class="btn btn--primary">Choose Beach</button></div>
+<div class="page-bar"><h1 tabindex="-1">Hollywood Beach</h1><button class="btn btn--icon" aria-label="Refresh">...</button></div>   <!-- inside .panel -->
+<div class="safety-line"><svg class="icon" aria-hidden="true">...flag</svg><div class="safety-line__body"><p class="safety-line__title">Not a safety service</p><p>Check <a href="...">NWS rip-current risk</a> and posted beach flags.</p></div></div>
+<div class="qr-tile"><img src="..." alt="QR code for your authenticator app" width="192" height="192"></div>
+<div class="copy-row"><code class="key-line">JBSW Y3DP EHPK 3PXP</code><button class="btn btn--secondary" type="button">Copy Key</button></div>
+<input class="input input--code" inputmode="numeric" autocomplete="one-time-code" aria-label="Authenticator code">
+```
+`.qr-tile` is always white with a 3:1 edge, so it scans in dark mode. `.key-line` is monospace with `overflow-wrap: anywhere` and `user-select: all`. `.brand[aria-current="page"]` is underlined (header brand as a sibling link). Agent card: `.agent-card__role` (alias `__persona`) is the role line. Sprite adds `share` and `plus-square` (iOS install hint; original drawings).
 
 ### Content pages (How it works, Resources, Guide)
 - `.prose` (inside `.panel`): h2/h3, p, lists, `code`, `pre`, `blockquote`, `table` (wrap in `.table-scroll` with `tabindex="0" role="region" aria-label`), `.callout`.
@@ -177,7 +194,7 @@ Denied file: `file-status--denied` with an `x-circle` icon and the words "Not al
 | dark mode | `prefers-color-scheme: dark` token block (one block, nothing else after it in `tokens.css`) |
 
 ## 4. Contrast results (not rounded; WCAG 2.2 formulas; worst background behind glass)
-Script: the knowledge example `contrast.mjs` (34/34 on `public/css/tokens.css`) plus Sable's extended copy with 130 checks. Extended copy path (session scratchpad, will vanish): `/tmp/claude-0/-home-user-BeachDay/7a354bc5-0cbe-5f38-8014-ccb069bf5379/scratchpad/sable/contrast-beachday.mjs`; ask Tess to land it under `tests/` if she wants it as a gate. Result: **120/120 pass** (the extra checks are rows in the table below).
+Script: the knowledge example `contrast.mjs` (34/34 on `public/css/tokens.css`) plus Sable's extended script `tests/helpers/contrast-beachday.mjs` (relative tokens path; exits 1 on a failure; Tess wraps it as a test). Result: **120/120 pass**. It also prints sky-stop rows (informational, not counted): `--text` and `--text-2` fail on most sky stops (for example 1.79:1 on sunny bottom), which is why no text may sit on the sky.
 
 | Pair | Light | Dark | Min |
 |---|---|---|---|
