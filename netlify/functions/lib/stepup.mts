@@ -4,10 +4,11 @@
 //   2. the token's newest password/oauth amr entry is <= 600 s old (and <= 60 s in the future): binds THIS session;
 //   3. user.last_sign_in_at is <= 600 s old (per user, so only a cross-check of rule 2);
 //   4. any verified MFA factor => aal2.
-// getUser outage (a RETURNED AuthRetryableFetchError, or any throw) => 503 unavailable, never 401.
+// getUser: 401 unauthorized only when the token was rejected (tokenRejected, guard.mts); any other returned
+// error (retryable, 429, other 5xx, AuthUnknownError, look-alikes) or any throw => 503 unavailable.
 // Reference: knowledge/security-engineer/examples/01-bearer-step-up-and-origin/stepup.mjs.
-import { isAuthRetryableFetchError } from "@supabase/auth-js";
 import { SETTINGS } from "./settings.mts";
+import { tokenRejected } from "./guard.mts";
 
 export const CLOCK_SKEW_S = 60;
 // totp is deliberately NOT primary: a token thief could enrol their own factor. token_refresh, recovery, otp,
@@ -54,6 +55,7 @@ export function checkStepUp({ claims, user, now, windowS = SETTINGS.stepUpWindow
 }
 
 // getUser is the guard's (guard.getUser), so it shares the client, the publishable key and the 5 s timeout.
+// now: seconds since the epoch (the approve handler passes Math.floor(deps.now() / 1000)).
 export async function approveStepUp(token: string, claims: Claims, getUser: GetUser,
   now: number = Math.floor(Date.now() / 1000)): Promise<StepUpResult> {
   let res: Awaited<ReturnType<GetUser>>;
@@ -63,9 +65,9 @@ export async function approveStepUp(token: string, claims: Claims, getUser: GetU
     return { ok: false, status: 503, code: "unavailable" };
   }
   if (res?.error) {
-    return isAuthRetryableFetchError(res.error)
-      ? { ok: false, status: 503, code: "unavailable" }
-      : { ok: false, status: 401, code: "unauthorized" };
+    return tokenRejected(res.error)
+      ? { ok: false, status: 401, code: "unauthorized" }
+      : { ok: false, status: 503, code: "unavailable" };
   }
   if (!res?.data?.user) return { ok: false, status: 401, code: "unauthorized" };
   return checkStepUp({ claims, user: res.data.user, now });

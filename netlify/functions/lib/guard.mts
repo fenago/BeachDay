@@ -5,7 +5,7 @@
 // Uses only SUPABASE_URL and the publishable key. The secret key and the legacy service_role key are used nowhere.
 // The role comes from public.profiles, read WITH the caller's token (RLS: own row only). Never from the JWT,
 // user_metadata or the request. Not cached. The request body is never read here.
-import { AuthClient, isAuthRetryableFetchError } from "@supabase/auth-js";
+import { AuthClient, isAuthRetryableFetchError, isAuthApiError, isAuthError } from "@supabase/auth-js";
 import { SETTINGS } from "./settings.mts";
 import { error } from "./http.mts";
 
@@ -74,6 +74,20 @@ export function precheckJwtHeader(token: string): boolean {
   if (!h || typeof h !== "object" || Array.isArray(h)) return false;
   const { alg, kid } = h as { alg?: unknown; kid?: unknown };
   return typeof alg === "string" && ALLOWED_ALGS.has(alg) && typeof kid === "string" && kid.length > 0 && kid.length <= 200;
+}
+
+// 401 only when Supabase (or auth-js's local JWT check) actually rejected the token. Everything else returned
+// (429, other 4xx/5xx, AuthUnknownError such as an HTML WAF page, look-alike objects) is an outage: 503.
+// R1 (Vera): docs/04 §4.1 step 5, §4.2 rule 1.
+const REJECT_STATUSES = new Set([400, 401, 403, 404, 422]);
+export function tokenRejected(err: unknown): boolean {
+  if (isAuthRetryableFetchError(err)) return false;
+  if (isAuthApiError(err)) return REJECT_STATUSES.has((err as { status?: number }).status ?? 0);
+  if (isAuthError(err)) {
+    const name = (err as { name?: unknown }).name;
+    return name === "AuthInvalidJwtError" || name === "AuthSessionMissingError";
+  }
+  return false;
 }
 
 function validConfig(url: unknown, key: unknown): URL | null {
@@ -161,7 +175,7 @@ export function createGuard(opts: GuardOptions = {}): Guard {
       let claims: Record<string, unknown>;
       try {
         const { data, error: err } = await auth.getClaims(token);
-        if (err) return isAuthRetryableFetchError(err) ? deny(503, "auth_unavailable") : deny(401, "invalid_token");
+        if (err) return tokenRejected(err) ? deny(401, "invalid_token") : deny(503, "auth_unavailable");
         if (!data?.claims || typeof data.claims !== "object") return deny(401, "invalid_token");
         claims = data.claims;
       } catch {
