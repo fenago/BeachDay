@@ -72,7 +72,18 @@ The agent supplies a path string, and our function sends it to GitHub as a tree 
 | `contentHash` on Approve | `^[0-9a-f]{64}$`; must equal the recomputed hash |
 
 ## File-upload cheat sheet points that carry over ([File Upload](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html))
-Proposals are effectively uploads into the repo. The relevant rules are an extension allow-list (not a denylist), size limits, and not trusting the client's view of a file's type. The specific wording of those rules was not re-quoted in this pass (**[UNVERIFIED]** exact phrasing).
+Proposals are effectively uploads into the repo. The cheat sheet's rules that carry over, quoted:
+- "List allowed extensions. Only allow safe and critical extensions for business functionality"
+- "Ensure that input validation is applied before validating the extensions."
+- "Set a filename length limit. Restrict the allowed characters if possible"
+- "Only allow authorized users to upload files"
+
+Extension-validation bypasses it lists:
+- double extensions (`.jpg.php`)
+- null bytes (`.php%00.jpg`)
+- alternative extensions mapped to the same interpreter
+
+Our tests include `public/index.html.php` and the NUL and `%` cases.
 
 ## Beach Day notes
 - `lib/allowlist` is the **only** path control. Fine-grained PATs can't be scoped to paths (ADR-0005). GitHub push rulesets that restrict file paths exist, but their plan availability was not confirmed this pass (doc 06).

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/forecast-hour.schema.json",
+  "title": "ForecastHour",
+  "description": "One normalized hour for one beach, produced in the browser by public/js/api/openmeteo.js from the Open-Meteo Forecast + Marine responses. Units are fixed by the request (°F, mph, inch, imperial waves). Marine fields are null when the Marine API has no value for that hour; they are never guessed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["time", "isDay", "tempF", "feelsLikeF", "humidityPct", "precipProbPct", "precipIn", "weatherCode",
+    "cloudPct", "windMph", "gustMph", "windDirDeg", "uvIndex", "capeJkg", "waveHeightFt", "wavePeriodS", "waterTempF"],
+  "properties": {
+    "time": {
+      "description": "Local wall-clock time in America/New_York, as Open-Meteo returns it (no offset). From hourly.time.",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:00$"
+    },
+    "isDay": { "description": "hourly.is_day (0/1) as boolean", "type": "boolean" },
+    "tempF": { "description": "temperature_2m, °F", "type": "number", "minimum": -40, "maximum": 130 },
+    "feelsLikeF": { "description": "apparent_temperature, °F", "type": "number", "minimum": -60, "maximum": 150 },
+    "humidityPct": { "description": "relative_humidity_2m, %", "type": "integer", "minimum": 0, "maximum": 100 },
+    "precipProbPct": { "description": "precipitation_probability, %", "type": "integer", "minimum": 0, "maximum": 100 },
+    "precipIn": { "description": "precipitation, inch", "type": "number", "minimum": 0 },
+    "weatherCode": { "description": "WMO weather_code (95/96/97/99 = thunderstorm)", "type": "integer", "minimum": 0, "maximum": 99 },
+    "cloudPct": { "description": "cloud_cover, %", "type": "integer", "minimum": 0, "maximum": 100 },
+    "windMph": { "description": "wind_speed_10m, mph", "type": "number", "minimum": 0 },
+    "gustMph": { "description": "wind_gusts_10m, mph", "type": "number", "minimum": 0 },
+    "windDirDeg": { "description": "wind_direction_10m, degrees", "type": "integer", "minimum": 0, "maximum": 360 },
+    "uvIndex": { "description": "uv_index (advice only, never a penalty)", "type": "number", "minimum": 0, "maximum": 20 },
+    "capeJkg": { "description": "cape, J/kg", "type": "number", "minimum": 0 },
+    "waveHeightFt": { "description": "Marine wave_height, ft, OFFSHORE model value (label it 'offshore waves'); null if missing", "type": ["number", "null"], "minimum": 0 },
+    "wavePeriodS": { "description": "Marine wave_period, seconds; null if missing", "type": ["number", "null"], "minimum": 0 },
+    "waterTempF": { "description": "Marine sea_surface_temperature converted from °C to °F; null if missing", "type": ["number", "null"], "minimum": 32, "maximum": 100 }
+  }
+}
