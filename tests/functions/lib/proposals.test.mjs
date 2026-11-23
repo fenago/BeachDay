@@ -163,3 +163,33 @@ describe("audit", () => {
     expect(Object.keys(JSON.parse(row.raw)).sort()).toEqual(["action", "actor", "at", "commitSha", "proposalId", "requestId"]);
   });
 });
+
+describe("Blobs edge cases (R3)", () => {
+  const emptyEtag = (store) => ({ ...store, async setJSON(k, v, o) { const r = await store.setJSON(k, v, o); return r.modified ? { modified: true, etag: "" } : r; }, getWithMetadata: store.getWithMetadata.bind(store) });
+  it("R3-1: modified with an empty etag is success, not a false conflict (etag re-read)", async () => {
+    const base = createFakeStore();
+    const store = emptyEtag(base);
+    const r = await make(store);
+    const t = await transition(store, await loadProposal(store, r.id), "rejected", { decidedAt: NOW().toISOString() });
+    expect(t.ok).toBe(true);
+    expect(t.etag).toBe(base.rows.get(r.id).etag);
+    const lock = await acquireApproveLock(store, "r1", 0);
+    expect(lock?.owner).toBe("r1");
+    await releaseApproveLock(store, { owner: "r1", etag: "" });
+    expect(base.json(APPROVE_LOCK_KEY).released).toBe(true);
+  });
+  it("R3-3: a lock with a missing or malformed `at` counts as held", async () => {
+    for (const bad of [{ owner: "x" }, { owner: "x", at: "not a date" }, "garbage", null]) {
+      const store = createFakeStore();
+      await store.setJSON(APPROVE_LOCK_KEY, bad);
+      expect(await acquireApproveLock(store, "r2", Date.parse("2030-01-01T00:00:00Z"))).toBeNull();
+    }
+  });
+  it("R3-4: audit retries once on a key collision", async () => {
+    const store = createFakeStore();
+    let n = 0;
+    const s2 = { ...store, async setJSON(k, v, o) { return n++ === 0 ? { modified: false } : store.setJSON(k, v, o); } };
+    await writeAudit(s2, { action: "reject", actor: "u" }, NOW());
+    expect(store.rows.size).toBe(1);
+  });
+});

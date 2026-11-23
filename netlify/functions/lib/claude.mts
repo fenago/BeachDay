@@ -17,6 +17,8 @@ export const MIN_ROUND_MS = 15_000;          // a new tool round starts only wit
 export const JOB_SDK_TIMEOUT_MS = 840_000;
 
 export type Effort = "low" | "medium" | "high";
+export const DEFAULT_MAX_TOOL_CALLS_PER_ROUND = 10;
+const toolError = (id: string, content: string) => ({ type: "tool_result" as const, tool_use_id: id, content, is_error: true });
 
 export class ModelNotAllowed extends Error {
   constructor() {
@@ -34,6 +36,7 @@ export function createAnthropicClient(kind: "chat" | "job", apiKey: string | und
   return new Anthropic({
     baseURL: ANTHROPIC_BASE_URL,
     apiKey,
+    authToken: null, // a stray ANTHROPIC_AUTH_TOKEN env var is never sent (R2-S6)
     timeout: kind === "chat" ? SETTINGS.chatSdkTimeoutMs : JOB_SDK_TIMEOUT_MS,
     maxRetries: kind === "chat" ? 1 : 2,
   });
@@ -105,6 +108,7 @@ export interface RunTurnDeps {
   usage?: Usage;                     // carried in when a job resumes
   maxRounds?: number;
   maxTokens?: number;
+  maxToolCallsPerRound?: number;     // R2-2: default SETTINGS.perTurn.maxToolCallsPerRound, else 10
   log?: (msg: string, data: object) => void;
 }
 
@@ -112,9 +116,11 @@ const sumUsage = (u: any): number =>
   (u?.input_tokens ?? 0) + (u?.output_tokens ?? 0) + (u?.cache_creation_input_tokens ?? 0) + (u?.cache_read_input_tokens ?? 0);
 
 export async function runTurn(d: RunTurnDeps): Promise<TurnResult> {
-  const log = d.log ?? ((m, x) => console.error(m, x));
+  const log = d.log ?? ((m, x) => console.error(JSON.stringify({ msg: m, ...x })));
   const maxRounds = d.maxRounds ?? SETTINGS.perTurn.maxToolRounds;
+  // Known limit (R2-S7): the token cap is checked between rounds, so a turn can overshoot by one round.
   const maxTokens = d.maxTokens ?? SETTINGS.perTurn.maxTokens;
+  const maxCalls = d.maxToolCallsPerRound ?? (SETTINGS.perTurn as any).maxToolCallsPerRound ?? DEFAULT_MAX_TOOL_CALLS_PER_ROUND;
   const usage: Usage = { tokens: d.usage?.tokens ?? 0, rounds: d.usage?.rounds ?? 0 };
   const convo = [...d.messages];
   try {
@@ -162,7 +168,13 @@ export async function runTurn(d: RunTurnDeps): Promise<TurnResult> {
       convo.push({ role: "assistant", content }); // unchanged, thinking blocks included
       const calls = content.filter((b: any) => b?.type === "tool_use") as ToolUseBlock[];
       const results = [];
-      for (const call of calls) results.push(await d.runTool(call)); // serial (GitHub)
+      for (let i = 0; i < calls.length; i++) {
+        const call = calls[i];
+        // Every tool_use still gets exactly one tool_result; capped or late calls never reach GitHub.
+        if (i >= maxCalls) results.push(toolError(call.id, `too many tool calls in one round (at most ${maxCalls}); ask again for the rest`));
+        else if (!d.deadline.canStartRound()) results.push(toolError(call.id, "out of time for this turn; not run"));
+        else results.push(await d.runTool(call)); // serial (GitHub)
+      }
       convo.push({ role: "user", content: results }); // all results, one message, results only
       usage.rounds += 1;
       continue;

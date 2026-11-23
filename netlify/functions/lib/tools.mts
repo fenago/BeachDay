@@ -4,7 +4,8 @@
 // Tool results (repo files) are untrusted data and stay inside tool_result blocks.
 import type { GitHubRead } from "./github-read.mts";
 import { ReadRefused } from "./github-read.mts";
-import { createProposal, ProposalRejected, type BlobStore, type ProposalRecord } from "./proposals.mts";
+import { createProposal, ProposalRejected, type ProposalRecord } from "./proposals.mts";
+import type { BlobStore } from "./blobs.mts";
 import type { SseEvent, ToolName } from "./sse.mts";
 
 const str = (description: string) => ({ type: "string", description });
