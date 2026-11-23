@@ -1,0 +1,6 @@
+{
+  "name": "beachday-example-sw-version-stamp",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test/stamp.test.mjs" }
+}
