@@ -53,7 +53,7 @@ Nothing is built yet. This round changed only docs, ADRs, agents, skills and kno
 4. **Email:** turn on **email confirmation** and **leaked-password protection** (if the latter needs a paid plan, record that **[UNVERIFIED]**). Set the minimum password rules security-engineer specifies.
 5. **Run the profiles SQL** from `knowledge/supabase-auth-engineer/`: the `profiles` table (`id` references `auth.users` on delete cascade, `role` defaults to `'user'`), the trigger that creates the row on sign-up, and RLS that lets a user read only their own row and never change `role`.
 6. **Sign up once in the Console, then make yourself admin** in the Supabase SQL editor: `update public.profiles set role = 'super_admin' where id = '<your auth user id>';`. Nobody else can set this.
-7. **Netlify env:** `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `GITHUB_REPO` as plain values. `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` as secrets (`GITHUB_TOKEN` Production-only if Free allows it; see docs/03). Remove `CONSOLE_PASSWORD_HASH` and `SESSION_SECRET` if they were ever set.
+7. **Netlify env:** `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `GITHUB_REPO` as plain values. `ANTHROPIC_API_KEY` and `GITHUB_TOKEN` as secrets (`GITHUB_TOKEN` Production-only if Free allows it; see docs/03). Delete the two old Console-password variables listed in ADR-0006 §7, if they were ever set.
 8. Create the fine-grained PAT (ADR-0005), the Anthropic workspace with a spend limit, and the `main` ruleset (no force push, no deletion).
 
 **Phase 1: platform skeleton** (netlify-engineer, then security-engineer review)

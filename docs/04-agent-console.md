@@ -28,7 +28,7 @@ Auth on **every** route (ADR-0006): `Authorization: Bearer <Supabase access toke
 | `POST /api/proposals/:id/approve` | sync | Bearer + super_admin + step-up (§4) | Body `{contentHash}`; re-validate, cap check (ADR-0008), commit to GitHub |
 | `POST /api/proposals/:id/reject` | sync | Bearer + super_admin | Mark rejected |
 
-Background functions can't answer the caller (they return `202` immediately), so the **sync** `/api/jobs` wrapper checks auth and limits and creates the job record, including a random 256-bit nonce. It then calls `/api/jobs-run`, forwarding the caller's `Authorization` header and `{jobId, nonce}`. The background function repeats the token and role check, consumes the nonce with a compare-and-swap, and does nothing if either check fails. No shared signing secret is needed (`SESSION_SECRET` is gone). Deploy status needs no function: the Console polls `/generated/version.json` (ADR-0006 §8).
+Background functions can't answer the caller (they return `202` immediately), so the **sync** `/api/jobs` wrapper checks auth and limits and creates the job record, including a random 256-bit nonce. It then calls `/api/jobs-run`, forwarding the caller's `Authorization` header and `{jobId, nonce}`. The background function repeats the token and role check, consumes the nonce with a compare-and-swap, and does nothing if either check fails. No shared signing secret is needed. Deploy status needs no function: the Console polls `/generated/version.json` (ADR-0006 §8).
 
 ### 2.1 Shared contracts (builders code against these)
 
