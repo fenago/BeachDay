@@ -79,14 +79,15 @@ Sources: [MDN Caching](https://developer.mozilla.org/en-US/docs/Web/Progressive_
 | App shell (HTML, CSS, JS, icons, offline page) | **Precache** at install (cache-first) | Never changes within a version |
 | Open-Meteo forecast & marine (`api.open-meteo.com`, `marine-api.open-meteo.com`) | **Network-first**, fallback to cache, with a 3–5 s timeout; show "last updated …" | Freshness matters but stale beats nothing at the beach |
 | `/api/*` (Agent Console) | **Network-only**, never cached | Auth'd, private, streaming |
-| Images/fonts | Stale-while-revalidate | Responsiveness |
+| Images | Stale-while-revalidate (no web fonts: system fonts only) | Responsiveness |
 
 Update flow (avoid stale apps after a Netlify deploy):
 
-1. Keep `sw.js` at a **stable URL**; embed the build version so each deploy changes its bytes (`const VERSION = "2026-11-23T…"`).
+1. Keep `sw.js` at a **stable URL**; embed the build version so each deploy changes its bytes (`const VERSION = "__BUILD_VERSION__"`). A build step stamps it from `COMMIT_REF` (never printing env); the design, fallback, smoke test and kill-switch note live in [docs/03](03-architecture-netlify.md) (netlify-engineer). `public/sw.js` is deny-listed for Agent Console proposals, together with every file it imports.
 2. Versioned cache names (`beachday-shell-<VERSION>`); delete old caches in `activate`.
 3. Don't blindly `skipWaiting()` + `clients.claim()` (a page with old assets can be controlled by a new SW → 404s on removed files). Instead: detect a waiting SW → show "New version available — Refresh" → `postMessage({type:"SKIP_WAITING"})` → reload on `controllerchange`.
-4. Browsers ignore HTTP caching for SW update checks by default (Chrome 68+), but still set `/sw.js  Cache-Control: no-cache` in `_headers` as a guard. Netlify's default for static files is already `max-age=0, must-revalidate`, and every deploy invalidates the CDN. [Netlify caching](https://docs.netlify.com/build/caching/caching-overview/)
+4. Match precached shell requests with `ignoreSearch: true` (the `start_url` is `/?source=pwa`).
+5. Browsers ignore HTTP caching for SW update checks by default (Chrome 68+), but still set `/sw.js  Cache-Control: no-cache` in `_headers` as a guard. Netlify's default for static files is already `max-age=0, must-revalidate`, and every deploy invalidates the CDN. [Netlify caching](https://docs.netlify.com/build/caching/caching-overview/)
 
 ## 6. Native wrapper decision
 

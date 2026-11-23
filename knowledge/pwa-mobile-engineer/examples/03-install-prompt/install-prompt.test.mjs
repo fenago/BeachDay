@@ -45,13 +45,13 @@ test('iOS hint variants: Chrome 16.4+ ok, Chrome <=16.3 -> Safari, in-app -> ope
   assert.equal(iosHint({ userAgent: UA.iphoneInstagram, matchMedia: mm(false) }).variant, 'open-in-browser');
 });
 
-test('dismissal snoozes the hint for 30 days; blocked storage still works', () => {
+test('dismissal snoozes the hint for 14 days; blocked storage still works', () => {
   const s = memStorage();
   const t0 = Date.parse('2026-11-23T15:00:00Z');
   dismissIosHint(s, t0);
   const env = { userAgent: UA.iphoneSafari26, matchMedia: mm(false) };
-  assert.equal(iosHint(env, { storage: s, now: t0 + 29 * 864e5 }), null);
-  assert.equal(iosHint(env, { storage: s, now: t0 + 30 * 864e5 }).variant, 'share-sheet');
+  assert.equal(iosHint(env, { storage: s, now: t0 + 13 * 864e5 }), null);
+  assert.equal(iosHint(env, { storage: s, now: t0 + 14 * 864e5 }).variant, 'share-sheet');
   const throwing = { getItem() { throw new Error('SecurityError'); }, setItem() { throw new Error('SecurityError'); } };
   assert.equal(iosHint(env, { storage: throwing }).variant, 'share-sheet');
   dismissIosHint(throwing); // must not throw

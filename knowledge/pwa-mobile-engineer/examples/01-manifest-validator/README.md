@@ -1,7 +1,7 @@
 # Example 01: valid manifest + install-field validator
 
 ## What it shows
-- `manifest.webmanifest`: Beach Day's manifest meeting every Chromium install criterion (`name`/`short_name`, 192 + 512 icons, `start_url`, installable `display`, no `prefer_related_applications`) plus our rules: `id: "/"`, `scope: "/"`, separate 512 `maskable` icon, `description`, a labelled `narrow` screenshot, `/console` shortcut.
+- `manifest.webmanifest`: Beach Day's manifest meeting every Chromium install criterion (`name`/`short_name`, 192 + 512 icons, `start_url`, installable `display`, no `prefer_related_applications`) plus our rules: `id: "/"`, `scope: "/"`, separate 512 `maskable` icon, `description`, a labelled `narrow` screenshot, and **no** `shortcuts` (the validator errors on a `/console` shortcut: Dr. Lee's decision). Chrome itself needs only the 192 and 512 icons; the separate maskable file, `id`, `scope` and screenshot are Beach Day rules. `theme_color`/`background_color` (`#0e7490` here) are placeholders until Sable's final value.
 - `validate-manifest.mjs`: a no-dependency Node CLI/module that reports **ERRORs** (install-blocking or Beach Day-required) and **WARNings**, resolves `src`/`start_url`/`scope` against the manifest URL, checks `start_url` is same-origin and inside `scope`, and opens every icon/screenshot PNG to confirm its real pixel size matches `sizes` (reads the IHDR) and that maskable icons are opaque.
 - `make-icons.mjs`: generates the placeholder PNGs at exact sizes (192, 512, 512 maskable with the sun inside the 40%-radius safe zone, 180 apple-touch-icon, 1080×2340 screenshot). Real art comes from the UI designer.
 - `validate-manifest.test.mjs`: one negative test per criterion, plus asset checks.
@@ -18,7 +18,7 @@ node --test validate-manifest.test.mjs
 In the real app: `node validate-manifest.mjs public/manifest.webmanifest --root public`.
 
 ## Verified
-Node v22.23.5, 2026-11-23.
+Node v22.23.5, 2026-11-23 (re-run after removing the shortcut and adding the no-`/console`-shortcut rule; the 5 tests now include that case).
 ```
 $ node validate-manifest.mjs manifest.webmanifest; echo "exit=$?"
 OK: installable per Chromium criteria + Beach Day rules (0 warning(s))

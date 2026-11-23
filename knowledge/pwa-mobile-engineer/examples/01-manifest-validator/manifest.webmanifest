@@ -25,8 +25,5 @@
       "form_factor": "narrow",
       "label": "Today's verdict for Miami Beach with the best hours to go"
     }
-  ],
-  "shortcuts": [
-    { "name": "Agent Console", "short_name": "Console", "url": "/console", "description": "Chat with the Beach Day agents (password required)" }
   ]
 }

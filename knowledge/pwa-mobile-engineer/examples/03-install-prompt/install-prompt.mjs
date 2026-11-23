@@ -3,7 +3,7 @@
 // Sources: MDN beforeinstallprompt_event, MDN Making_PWAs_installable, web.dev/learn/pwa/installation,
 //          webkit.org/blog/13878 (iOS 16.4), webkit.org/blog/16993 + 17333 (iOS 26 "Open as Web App").
 
-const HINT_SNOOZE_MS = 30 * 24 * 60 * 60 * 1000; // product choice: re-show a dismissed hint after 30 days
+const HINT_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000; // Dr. Lee's decision: re-show a dismissed hint after 14 days
 const KEY = 'bd.installHintDismissedAt';
 
 /** Classify the device from navigator-like fields. */

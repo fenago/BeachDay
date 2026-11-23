@@ -94,6 +94,12 @@ try {
   assert.equal(apiOffline, 'failed', '/api/* must not be served from cache');
   log(`offline reload: shell from cache, status = "${offlineText}", /api/hello -> ${apiOffline}`);
 
+  // 4b. The installed app launches at start_url "/?source=pwa": the precache holds "/", so ignoreSearch must match it.
+  await page.goto(`${ORIGIN}/?source=pwa`);
+  await page.waitForFunction(() => /showing data from|no saved/.test(document.querySelector('#status').textContent));
+  assert.equal(await page.textContent('#sunrise'), 'Sunrise 06:44');
+  log('offline launch at /?source=pwa: shell served from the "/" precache (ignoreSearch)');
+
   // 5. Update flow: deploy v2 (same URL, different bytes) -> waiting -> toast -> SKIP_WAITING -> reload once.
   await context.setOffline(false);
   mode = 'ok';

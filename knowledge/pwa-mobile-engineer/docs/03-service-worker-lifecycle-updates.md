@@ -31,7 +31,7 @@ Retrieved: 2026-11-23
 **clients.claim() caution**: if the SW changes how pages load, claiming pages that loaded without it "can be troublesome".
 
 ## The Beach Day update flow (implemented and tested in examples/02-service-worker)
-1. Build injects a version: `const VERSION = "__BUILD_VERSION__"` → bytes change every deploy; URL stays `/sw.js`.
+1. Build injects a version: `const VERSION = "__BUILD_VERSION__"` → bytes change every deploy; URL stays `/sw.js`. The stamp comes from `COMMIT_REF` in a build step; its design, fallback and smoke test are in `docs/03-architecture-netlify.md` (netlify-engineer), not repeated here. `public/sw.js` and every file it imports are deny-listed for Console proposals.
 2. New worker installs, precaches `beachday-shell-${VERSION}`, then **waits** (no skipWaiting in install).
 3. Page sees `reg.waiting` (or `updatefound` → `statechange` = `installed` while a controller exists) → shows toast "New version available. Refresh" (`role="status"`).
 4. Tap → `reg.waiting.postMessage({type: "SKIP_WAITING"})` → SW calls `self.skipWaiting()`.
