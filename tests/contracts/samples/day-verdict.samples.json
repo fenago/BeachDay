@@ -1,0 +1,17 @@
+[
+  { "expect": "valid", "why": "great day, marine present",
+    "data": { "date": "2026-11-23", "verdict": "great", "score": 86, "bestWindow": { "start": "11:00", "end": "14:00" },
+      "reasons": ["Light wind", "Warm"], "advice": ["UV 5: sunscreen"], "confidence": "forecast", "marineAvailable": true } },
+  { "expect": "valid", "why": "outlook day with marine missing and the required reason",
+    "data": { "date": "2026-11-27", "verdict": "fair", "score": 52, "bestWindow": { "start": "10:00", "end": "13:00" },
+      "reasons": ["Showers likely", "Wave data unavailable"], "advice": [], "confidence": "outlook", "marineAvailable": false } },
+  { "expect": "invalid", "why": "verdict great but score 70 (band is 80-100)",
+    "data": { "date": "2026-11-23", "verdict": "great", "score": 70, "bestWindow": { "start": "11:00", "end": "14:00" },
+      "reasons": [], "advice": [], "confidence": "forecast", "marineAvailable": true } },
+  { "expect": "invalid", "why": "marine missing but no 'Wave data unavailable' reason (must say so, never guess)",
+    "data": { "date": "2026-11-23", "verdict": "good", "score": 70, "bestWindow": { "start": "11:00", "end": "14:00" },
+      "reasons": ["Breezy"], "advice": [], "confidence": "forecast", "marineAvailable": false } },
+  { "expect": "invalid", "why": "display text instead of verdict key, and 5 reasons",
+    "data": { "date": "2026-11-23", "verdict": "Great beach day", "score": 90, "bestWindow": { "start": "11:00", "end": "14:00" },
+      "reasons": ["a", "b", "c", "d", "e"], "advice": [], "confidence": "forecast", "marineAvailable": true } }
+]

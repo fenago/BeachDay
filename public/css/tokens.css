@@ -1,0 +1,179 @@
+/* Beach Day design tokens (Sable). Light values in :root, dark values in the
+   single prefers-color-scheme block below.
+   RULE: every colour here is #rrggbb or rgb(r g b / a) so the contrast script
+   (see docs/design/visual-system.md) can parse and check it.
+   Do not add other @media blocks to this file: the checker treats everything
+   after the first dark block as dark values. Contrast-more, forced-colors and
+   reduced-* rules live in glass.css / base.css / components.css. */
+:root {
+  color-scheme: light dark;
+
+  /* Brand (manifest theme_color and background_color; docs/02 section 2). */
+  --brand: #0b3b5c;
+  --on-brand: #ffffff;
+
+  /* Condition backgrounds (content layer). Two stops each so the checker can
+     composite glass over every one. Night is the same in both schemes. */
+  --bg-sunny-top: #6cc4f2;
+  --bg-sunny-bottom: #0b6aa2;
+  --bg-overcast-top: #c7d2dc;
+  --bg-overcast-bottom: #6f7d8a;
+  --bg-stormy-top: #5b6675;
+  --bg-stormy-bottom: #1f2833;
+  --bg-night-top: #1b2a4a;
+  --bg-night-bottom: #070b16;
+  /* Worst case for content scrolling under bars (white cards, dark photos). */
+  --bg-scroll-worst-light: #ffffff;
+  --bg-scroll-worst-dark: #000000;
+
+  /* Glass material (control and navigation layer only). */
+  --glass-bg: rgb(255 255 255 / 0.74);
+  --glass-highlight-top: rgb(255 255 255 / 0.35);
+  --glass-bg-strong: rgb(255 255 255 / 0.92);
+  --glass-border: rgb(255 255 255 / 0.70);   /* decorative rim, not a control boundary */
+  --glass-blur: 20px;
+  --glass-saturate: 1.6;
+  --glass-shadow: 0 8px 32px rgb(0 30 60 / 0.18);
+
+  /* Solid surfaces: content layer, reduced transparency, no backdrop-filter. */
+  --surface-solid: #f4f7fa;
+  --surface-2: #e6edf3;          /* inset areas: chat bubbles, code, inputs' wells */
+  --border: #c3cfdb;             /* decorative dividers only */
+  --scrim: rgb(0 15 30 / 0.45);  /* behind <dialog> */
+  --skeleton: #d3dde6;           /* decorative, aria-hidden */
+
+  /* Text */
+  --text: #0b1b2b;
+  --text-2: #33414f;
+  --link: #0a4677;
+
+  /* Controls */
+  --accent: #0b3b5c;             /* = brand; white label 11.70:1 */
+  --on-accent: #ffffff;
+  --control-border: #4f5d6b;     /* boundary of controls with no text label, 3:1 */
+  --focus: #0b3a66;
+  --danger: #b3261e;
+  --on-danger: #ffffff;
+  --error-text: #a32019;
+
+  /* Verdicts: solid chip + on-colour text and icon. Same in both schemes. */
+  --verdict-great: #1d7f46;
+  --on-verdict-great: #ffffff;
+  --verdict-good: #0f6b7b;
+  --on-verdict-good: #ffffff;
+  --verdict-fair: #f2a93b;
+  --on-verdict-fair: #1f1400;
+  --verdict-skip: #b3261e;
+  --on-verdict-skip: #ffffff;
+
+  /* Status banners: solid fill, text uses --text, icon uses the -icon colour (3:1). */
+  --banner-info-bg: #e3f0fb;
+  --banner-info-icon: #0a4677;
+  --banner-warn-bg: #fff1cc;
+  --banner-warn-icon: #7a4700;
+  --banner-error-bg: #fde8e6;
+  --banner-error-icon: #a32019;
+  --banner-ok-bg: #e0f3e7;
+  --banner-ok-icon: #17663a;
+
+  /* Diff: background AND a text marker (+ or -) on every line. */
+  --diff-add-bg: #dcf2e3;
+  --diff-del-bg: #fbe0dd;
+
+  /* Shape, space, target */
+  --radius-l: 28px;
+  --radius-m: 20px;
+  --radius-s: 14px;
+  --radius-xs: 8px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --target-min: 44px;
+  --content-max: 35rem;          /* 560px single column */
+  --content-wide: 48rem;         /* prose and Console */
+
+  /* Type. System stack only; never bundle SF Pro. rem so text size scales. */
+  --font: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --fs-large-title: 2.125rem;    /* 34 */
+  --fs-title-1: 1.75rem;         /* 28 */
+  --fs-title-2: 1.375rem;        /* 22 */
+  --fs-title-3: 1.25rem;         /* 20 */
+  --fs-headline: 1.0625rem;      /* 17 semibold */
+  --fs-body: 1.0625rem;          /* 17 */
+  --fs-callout: 1rem;            /* 16 */
+  --fs-subhead: 0.9375rem;       /* 15 */
+  --fs-footnote: 0.8125rem;      /* 13 */
+  --fs-caption: 0.75rem;         /* 12, never used for verdict information */
+
+  /* Motion: transform and opacity only, never blur. */
+  --dur-fast: 200ms;
+  --dur-base: 280ms;
+  --dur-slow: 350ms;
+  --ease-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-sunny-top: #0f3a5c;
+    --bg-sunny-bottom: #04192c;
+    --bg-overcast-top: #3a4652;
+    --bg-overcast-bottom: #161d24;
+    --bg-stormy-top: #2a2f3a;
+    --bg-stormy-bottom: #0b0e13;
+    --bg-night-top: #1b2a4a;
+    --bg-night-bottom: #070b16;
+    --bg-scroll-worst-light: #ffffff;
+    --bg-scroll-worst-dark: #000000;
+
+    --glass-bg: rgb(13 27 42 / 0.80);
+    --glass-highlight-top: rgb(255 255 255 / 0.08);
+    --glass-bg-strong: rgb(13 27 42 / 0.94);
+    --glass-border: rgb(255 255 255 / 0.18);
+    --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.45);
+
+    --surface-solid: #101c28;
+    --surface-2: #1a2a3a;
+    --border: #2f4458;
+    --scrim: rgb(0 0 0 / 0.6);
+    --skeleton: #243546;
+
+    --text: #f2f6fa;
+    --text-2: #c3cfdb;
+    --link: #a8dcff;
+
+    --accent: #6cc0f5;
+    --on-accent: #04192c;
+    --control-border: #a7b4c2;
+    --focus: #ffd166;
+    --danger: #b3261e;
+    --on-danger: #ffffff;
+    --error-text: #ffa8a0;
+
+    --verdict-great: #1d7f46;
+    --on-verdict-great: #ffffff;
+    --verdict-good: #0f6b7b;
+    --on-verdict-good: #ffffff;
+    --verdict-fair: #f2a93b;
+    --on-verdict-fair: #1f1400;
+    --verdict-skip: #b3261e;
+    --on-verdict-skip: #ffffff;
+
+    --banner-info-bg: #12283c;
+    --banner-info-icon: #8fd0ff;
+    --banner-warn-bg: #33270a;
+    --banner-warn-icon: #ffd166;
+    --banner-error-bg: #3a1512;
+    --banner-error-icon: #ffa8a0;
+    --banner-ok-bg: #0f2e1d;
+    --banner-ok-icon: #7be0a4;
+
+    --diff-add-bg: #12351f;
+    --diff-del-bg: #4a1a17;
+  }
+}

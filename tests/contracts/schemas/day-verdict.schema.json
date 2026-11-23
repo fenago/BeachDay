@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/day-verdict.schema.json",
+  "title": "DayVerdict",
+  "description": "Output of scoreDay() for one beach and one local date (beach-day-scoring skill). The verdict is derived from the average score of the best 3-hour window, and the score/verdict bands are enforced below so the two can never disagree.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["date", "verdict", "score", "bestWindow", "reasons", "advice", "confidence", "marineAvailable"],
+  "properties": {
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Local date, America/New_York" },
+    "verdict": {
+      "description": "Key, not display text. Display text and colour token come from the UI: great='Great beach day', good='Good', fair='Fair — pick your hours', skip='Skip it'.",
+      "enum": ["great", "good", "fair", "skip"]
+    },
+    "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "bestWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "pattern": "^\\d{2}:00$" },
+        "end": { "type": "string", "pattern": "^\\d{2}:00$" }
+      }
+    },
+    "reasons": {
+      "description": "Top reasons, most important first (skill: top 3-4). Plain text, rendered with textContent.",
+      "type": "array", "maxItems": 4, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 60 }
+    },
+    "advice": {
+      "description": "Non-scoring advice such as UV ('sunscreen, shade 10 am–4 pm').",
+      "type": "array", "maxItems": 4,
+      "items": { "type": "string", "minLength": 1, "maxLength": 80 }
+    },
+    "confidence": {
+      "description": "'outlook' for days 4 and later (skill). 'forecast' for days 1-3. The name 'forecast' is this contract's choice; the skill only names 'outlook'.",
+      "enum": ["forecast", "outlook"]
+    },
+    "marineAvailable": {
+      "description": "false when wave/water factors were skipped because Marine data was missing; a reason must then say so.",
+      "type": "boolean"
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "verdict": { "const": "great" } } }, "then": { "properties": { "score": { "type": "integer", "minimum": 80 } } } },
+    { "if": { "properties": { "verdict": { "const": "good" } } },  "then": { "properties": { "score": { "type": "integer", "minimum": 65, "maximum": 79 } } } },
+    { "if": { "properties": { "verdict": { "const": "fair" } } },  "then": { "properties": { "score": { "type": "integer", "minimum": 45, "maximum": 64 } } } },
+    { "if": { "properties": { "verdict": { "const": "skip" } } },  "then": { "properties": { "score": { "type": "integer", "maximum": 44 } } } },
+    {
+      "if": { "properties": { "marineAvailable": { "const": false } } },
+      "then": { "properties": { "reasons": { "type": "array", "contains": { "const": "Wave data unavailable" } } } }
+    }
+  ]
+}

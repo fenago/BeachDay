@@ -1,0 +1,9 @@
+[
+  { "expect": "invalid", "why": "string number and missing marine keys (must be null, not absent)",
+    "data": { "time": "2026-11-23T12:00", "isDay": true, "tempF": "73.7", "feelsLikeF": 78.2, "humidityPct": 80, "precipProbPct": 0, "precipIn": 0,
+      "weatherCode": 1, "cloudPct": 32, "windMph": 5.4, "gustMph": 6.3, "windDirDeg": 319, "uvIndex": 5.05, "capeJkg": 0 } },
+  { "expect": "invalid", "why": "SST kept in °C under an extra key waterTempC (must be converted to °F as waterTempF)",
+    "data": { "time": "2026-11-23T12:00", "isDay": true, "tempF": 73.7, "feelsLikeF": 78.2, "humidityPct": 80, "precipProbPct": 0, "precipIn": 0,
+      "weatherCode": 1, "cloudPct": 32, "windMph": 5.4, "gustMph": 6.3, "windDirDeg": 319, "uvIndex": 5.05, "capeJkg": 0,
+      "waveHeightFt": 2.1, "wavePeriodS": 7, "waterTempF": null, "waterTempC": 24.5 } }
+]

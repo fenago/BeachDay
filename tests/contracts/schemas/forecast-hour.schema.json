@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/forecast-hour.schema.json",
+  "title": "ForecastHour",
+  "description": "One element of normalize(forecast, marine).hours in public/js/api/openmeteo.js -> public/js/score.js (both open-meteo-integrator). Field names follow the reference normalizer in knowledge/open-meteo-integrator/examples/01-openmeteo-client/openmeteo.mjs (docs/01 §5). Units are fixed by the request: degF, mph, inch, ft. SST is converted to degF (seaTempF). Marine fields are present but null when Marine is missing or snapped too far away: never absent, never guessed. Any value can be null (Open-Meteo nulls); a null core field makes the hour unscorable (docs/01 §5.2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["time", "tempF", "feelsF", "humidity", "rainChance", "rainIn", "weatherCode", "cloudPct", "windMph", "gustMph", "windDir", "uv", "cape", "isDay", "waveFt", "wavePeriodS", "waveDir", "swellFt", "swellPeriodS", "swellDir", "seaTempF"],
+  "$defs": {
+    "num": { "type": ["number", "null"] },
+    "pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+    "deg": { "type": ["number", "null"], "minimum": 0, "maximum": 360 },
+    "nonneg": { "type": ["number", "null"], "minimum": 0 }
+  },
+  "properties": {
+    "time": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:00$", "description": "Local wall-clock hour as Open-Meteo returns it (timezone=America/New_York)" },
+    "tempF": { "$ref": "#/$defs/num" },
+    "feelsF": { "$ref": "#/$defs/num" },
+    "humidity": { "$ref": "#/$defs/pct" },
+    "rainChance": { "$ref": "#/$defs/pct" },
+    "rainIn": { "$ref": "#/$defs/nonneg" },
+    "weatherCode": { "type": ["integer", "null"], "minimum": 0, "maximum": 99 },
+    "cloudPct": { "$ref": "#/$defs/pct" },
+    "windMph": { "$ref": "#/$defs/nonneg" },
+    "gustMph": { "$ref": "#/$defs/nonneg" },
+    "windDir": { "$ref": "#/$defs/deg" },
+    "uv": { "$ref": "#/$defs/nonneg" },
+    "cape": { "$ref": "#/$defs/nonneg" },
+    "isDay": { "type": "boolean" },
+    "waveFt": { "$ref": "#/$defs/nonneg" },
+    "wavePeriodS": { "$ref": "#/$defs/nonneg" },
+    "waveDir": { "$ref": "#/$defs/deg" },
+    "swellFt": { "$ref": "#/$defs/nonneg" },
+    "swellPeriodS": { "$ref": "#/$defs/nonneg" },
+    "swellDir": { "$ref": "#/$defs/deg" },
+    "seaTempF": { "type": ["number", "null"], "minimum": 28, "maximum": 100, "description": "Converted from Open-Meteo's degC; a degC value (e.g. 26.4) would fail the minimum only by luck, so the test also checks the conversion" }
+  }
+}
