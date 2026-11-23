@@ -33,7 +33,8 @@ This note replaces `02-password-storage-and-sessions.md` (scrypt, HMAC cookie, `
 ## Decisions (docs/04 §4)
 | Question | Decision | Why |
 |---|---|---|
-| Step-up mechanism | `getUser(token)`, then a `password`/`oauth` `amr` entry ≤ 600 s old, plus `last_sign_in_at` ≤ 600 s old, plus `aal2` if a verified factor exists | `reauthenticate()` is for password changes only. `amr` recency is Supabase's documented pattern. `last_sign_in_at` corroborates it server-side |
+| Step-up mechanism | `getUser(token)`, then a `password`/`oauth` `amr` entry ≤ 600 s old, plus `last_sign_in_at` ≤ 600 s old, plus `aal2` if a verified factor exists | `reauthenticate()` is for password changes only. `amr` recency is Supabase's documented pattern. `amr` is **per session** and binds the step-up to this session; `last_sign_in_at` is **per user** (a sign-in on another device refreshes it), so it only corroborates server-side |
+| `getUser` failures | A **returned** `AuthRetryableFetchError` (network, 5xx) or a throw → 503; any other returned error → 401 | auth-js returns, not throws, outage errors (supabase-auth-engineer example 01, test 21). Bug fixed in our example 01 on 2026-11-23 |
 | TOTP | Recommended for `super_admin`; additive only | It is free. A thief with a stolen aal1 session could enrol their own factor, so `totp` must never replace a fresh primary sign-in |
 | Access-token lifetime | **600 s** | Bounds stolen or signed-out tokens. Inside Supabase's ≥ 5 min advice. The longest token-checked request is 60 s; jobs-run checks only at its start |
 | Does Approve call `getUser`? | **Yes**; the other functions don't | A server-side user lookup catches deleted or banned users before `exp`. Whether it rejects a signed-out session is **UNVERIFIED** |
@@ -41,8 +42,8 @@ This note replaces `02-password-storage-and-sessions.md` (scrypt, HMAC cookie, `
 | Time-box / inactivity | Not available on Free; 12 h / 2 h if ever on Pro | Pro-only per sessions.mdx |
 
 ## UNVERIFIED (test on the real project before Approve is enabled)
-1. The `password`/`oauth` `amr` timestamp survives a refresh unchanged. The `token_refresh` method in the list suggests a refresh may *add* an entry, which our rule ignores. It must not *move* the sign-in timestamp.
-2. `last_sign_in_at` is updated by password and OAuth sign-ins and not by refresh.
+1. The `password`/`oauth` `amr` timestamp survives a refresh unchanged. The Auth server source supports it: each `amr` timestamp is a per-session, per-method row written when a sign-in creates the session, and the refresh grant writes no row (knowledge/supabase-auth-engineer/docs/03). Hosted behaviour is still to be tested.
+2. `last_sign_in_at` is updated by password and OAuth sign-ins and not by refresh. The server source supports it (written when a new session is issued). It is per user, not per session.
 3. `getUser` after `signOut({scope:'local'})`.
 4. Whether Google honours a forced re-login parameter through `queryParams`. Without it, a Google step-up proves a live Google session, not a typed password.
 

@@ -59,7 +59,7 @@ Why weather calls skip Functions: Open-Meteo is keyless and CORS-enabled, so a p
 │  └─ _headers
 ├─ netlify/functions/      ← kept outside publish dir
 │  ├─ agents.mts, chat.mts, jobs.mts, job-run.mts, job-status.mts, proposal.mts, approve.mts, reject.mts
-│  └─ lib/ (guard.mts, ratelimit.mts, github.mts, claude.mts, allowlist.mts, agents.json ← generated)
+│  └─ lib/ (guard.mts, ratelimit.mts, github.mts, claude.mts, allowlist.mts, deploys.mts ← DEPLOY_PATHS and deploysOnCommit() (docs/04 §1), agents.json ← generated)
 ├─ scripts/build-agents.mjs   parses .claude/agents/*.md → netlify/functions/lib/agents.json
 ├─ scripts/stamp-sw.mjs       stamps sw.js and writes version.json (§9)
 ├─ scripts/gen-config.mjs     writes public/generated/config.js; fails unless the key starts sb_publishable_ (§9.5)

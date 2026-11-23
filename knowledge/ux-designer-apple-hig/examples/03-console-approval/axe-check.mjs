@@ -150,6 +150,7 @@ for (const colorScheme of ['light', 'dark']) {
   assert((await page.locator('#c-desc').innerText()).includes('no deploy runs'), `${s('nodeploy')}: sheet still promises a deploy`);
   await page.fill('#pw', 'demo-password'); await page.click('#approve');
   await page.locator('#status', { hasText: 'No deploy needed' }).waitFor();
+  assert((await statusText(page)).includes('docs, tests or skill files'), `${s('nodeploy')}: detail must name docs, tests or skill files only`);
   await axe(page, s('committed, no deploy'));
 
   // 5. Stale base outcome → alert
@@ -165,6 +166,30 @@ for (const colorScheme of ['light', 'dark']) {
   assert(await active(page) === 'review' && (await page.locator('#review').innerText()) === 'Try Again', `${s('fail')}: Try Again not offered/focused`);
   await axe(page, s('commit failed'));
   console.log(`  alert now: "${await alertText(page)}"`);
+
+  // 6b. Two-step code (account has an authenticator factor): empty and wrong code, then success
+  await page.goto(base + '?totp=1');
+  await page.click('#review');
+  assert(await page.getAttribute('#code', 'autocomplete') === 'one-time-code', `${s('totp')}: autocomplete not one-time-code`);
+  assert(await page.getAttribute('#code', 'inputmode') === 'numeric', `${s('totp')}: inputmode not numeric`);
+  await axe(page, s('confirm sheet + code field'));
+  await page.fill('#pw', 'demo-password'); await page.click('#approve');
+  assert((await page.locator('#code-error').innerText()).includes('Enter the 6-digit code'), `${s('totp')}: empty code message`);
+  assert(await active(page) === 'code', `${s('totp')}: focus not on the code field`);
+  await page.fill('#code', '000000'); await page.click('#approve');
+  assert((await page.locator('#code-error').innerText()).includes("didn't match"), `${s('totp')}: wrong code message`);
+  assert(await page.getAttribute('#code', 'aria-invalid') === 'true', `${s('totp')}: aria-invalid not set on code`);
+  await axe(page, s('wrong code'));
+  await page.fill('#code', '123456'); await page.click('#approve');
+  await page.locator('#status', { hasText: 'Live.' }).waitFor();
+
+  // 6c. Approve 502: not confirmed, no Try Again, link focused
+  await page.goto(base + '?outcome=unconfirmed');
+  await page.click('#review'); await page.fill('#pw', 'demo-password'); await page.click('#approve');
+  await page.locator('#alert', { hasText: "Couldn\u2019t confirm the commit yet." }).waitFor();
+  assert(await active(page) === 'commits', `${s('unconfirmed')}: link not focused`);
+  assert(await page.locator('#review').isHidden(), `${s('unconfirmed')}: a retry button must not be offered`);
+  await axe(page, s('commit not confirmed (502)'));
 
   // 7. Reject
   await page.goto(base);
