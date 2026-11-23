@@ -6,7 +6,7 @@ import type { GitHubRead } from "./github-read.mts";
 import { ReadRefused } from "./github-read.mts";
 import { createProposal, ProposalRejected, type ProposalRecord } from "./proposals.mts";
 import type { BlobStore } from "./blobs.mts";
-import type { PolicyOptions } from "./allowlist.mts";
+import { contentWarnings, type PolicyOptions } from "./allowlist.mts";
 import type { SseEvent, ToolName } from "./sse.mts";
 
 const str = (description: string) => ({ type: "string", description });
@@ -150,7 +150,11 @@ export function createToolRunner(deps: ToolRunnerDeps) {
         files: record.files.map((f) => ({ path: f.path, bytes: Buffer.byteLength(f.content, "utf8") })),
       });
       await deps.onProposal?.(record);
-      return `Proposal ${record.id} is stored as pending. A human reviews the diff and decides in the Console; you cannot commit. Tell the user what you proposed and how to test it.`;
+      const hidden = contentWarnings(record.files).map((w) => w.path);
+      const warn = hidden.length
+        ? ` Warning: ${hidden.join(", ")} contain hidden Unicode format or line-separator characters (bidi controls, zero-width, U+2028/2029). The reviewer will see them flagged; remove them unless they are intended.`
+        : "";
+      return `Proposal ${record.id} is stored as pending. A human reviews the diff and decides in the Console; you cannot commit.${warn} Tell the user what you proposed and how to test it.`;
     },
   };
 

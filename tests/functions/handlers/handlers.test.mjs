@@ -396,11 +396,27 @@ describe("GET /api/proposals/:id", () => {
     const id = await propose(token);
     const { res, body } = await view(token, id);
     expect(res.status).toBe(200);
-    expect(schemaErrors("proposal-view", body)).toEqual([]);
+    const { warnings, ...rest } = body; // `warnings` awaits Rowan's proposal-view schema update (R12 S1)
+    expect(schemaErrors("proposal-view", rest)).toEqual([]);
+    expect(warnings).toEqual([]);
     expect(body.deploys).toBe(false); // docs/** never deploys
     expect(body.approvals).toEqual({ used31: 0, usedToday: 0, per31Days: 14, perDay: 5, retryAt: null });
     expect(body.diffs[0].diff).toContain("+Start with docs/README.md.");
     expect(body.diffs[0].diff).toMatch(/^--- a\/docs\/README\.md\n\+\+\+ b\/docs\/README\.md/);
+  });
+
+  it("hidden Unicode (\\p{Cf}, U+2028/2029) in public js/html is a warning on the view and in the tool result, not a refusal", async () => {
+    const token = await t.token();
+    const files = [
+      { path: "public/js/app-extra.js", content: "const ok = 1; // \u202E bidi override\n" },
+      { path: "public/index.html", content: "<p>line\u2028sep</p>\n" },
+      { path: "docs/notes.md", content: "zero\u200Bwidth in docs is not flagged\n" },
+    ];
+    const id = await propose(token, files);
+    expect(h.anthropic.requests[2].body.messages.at(-1).content[0].content).toMatch(/hidden Unicode/);
+    const { body } = await view(token, id);
+    expect(body.warnings).toEqual([{ path: "public/js/app-extra.js", code: "hidden_unicode" }, { path: "public/index.html", code: "hidden_unicode" }]);
+    expect(h.blobs.peek("proposals", id).status).toBe("pending");
   });
 
   it("approveEnabled mirrors deps.settings (D10)", async () => {

@@ -129,3 +129,15 @@ export function checkReadDir(dir: unknown): string | null {
 
 /** Hide denied entries from directory listings too. */
 export const isReadable = (path: string): boolean => checkReadPath(path) === null;
+
+// ---- Hidden Unicode warning (Vera-B R12 S1): format characters (\p{Cf}: bidi controls, zero-width) and U+2028/2029
+// in code that runs next to the tokens (public/**/*.js, *.html) can make a diff read differently from what runs.
+// A WARNING, never a refusal: the human reviews, and the Console renders these characters visibly.
+const HIDDEN_UNICODE = /[\p{Cf}\u2028\u2029]/u;
+const RUNS_IN_PAGE = /^public\/.+\.(js|html)$/;
+export type ContentWarning = { path: string; code: "hidden_unicode" };
+export function contentWarnings(files: ReadonlyArray<{ path: string; content: string }>): ContentWarning[] {
+  return (files ?? [])
+    .filter((f) => typeof f?.path === "string" && RUNS_IN_PAGE.test(f.path) && typeof f.content === "string" && HIDDEN_UNICODE.test(f.content))
+    .map((f) => ({ path: f.path, code: "hidden_unicode" as const }));
+}

@@ -1414,15 +1414,13 @@ export function t(id, vars = {}) {
 }
 
 /**
- * Pick the verdict copy from a band-rounded score or a verdict key ("great" | "good" | "fair" | "skip").
- * Lower bound inclusive: [80,100] great, [65,80) good, [45,65) fair, [0,45) skip.
+ * Get the verdict copy for a verdict key: "great" | "good" | "fair" | "skip".
+ * Score bands live only in score-config.js, so a number throws here.
  */
-export function verdictFor(keyOrScore) {
-  const key = typeof keyOrScore === 'number'
-    ? (keyOrScore >= 80 ? 'great' : keyOrScore >= 65 ? 'good' : keyOrScore >= 45 ? 'fair' : 'skip')
-    : keyOrScore;
+export function verdictFor(key) {
+  if (typeof key !== 'string') throw new Error('copy: verdictFor takes a verdict key, not ' + typeof key);
   const v = VERDICTS[key];
-  if (!v) throw new Error('copy: unknown verdict ' + keyOrScore);
+  if (!v) throw new Error('copy: unknown verdict ' + key);
   return v;
 }
 

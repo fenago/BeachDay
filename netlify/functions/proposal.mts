@@ -14,6 +14,7 @@ import { reconcile, type Loaded } from "./lib/reconcile.mts";
 import { proposalDiffs } from "./lib/diff.mts";
 import { deploysOnCommit } from "./lib/deploys.mts";
 import { checkApproveCap } from "./lib/limits.mts";
+import { contentWarnings } from "./lib/allowlist.mts";
 import { authorize, methodNotAllowed, isProduction, notProduction, badRequest, unavailable, approvalsView, type Ctx, type Settings, safe } from "./lib/handler.mts";
 
 const ROUTE = "GET /api/proposals/:id";
@@ -79,6 +80,7 @@ export function createProposalHandler(deps: ProposalDeps) {
       deploys: deploysOnCommit(record.files.map((f) => f.path)),
       approveEnabled: deps.settings.approveEnabled === true,
       approvals,
+      warnings: contentWarnings(record.files), // [{path, code: "hidden_unicode"}], computed on read (R12 S1)
     });
   });
 }
