@@ -365,15 +365,18 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
 
 ```
 0. Auth + role + step-up (§2, §4). Validate the id (^p_[0-9A-Z]{26}$).
-   Take the site-wide approve lock (Blobs `approve-lock`, onlyIfNew; a lock older than 90 s may be taken over with onlyIfMatch).
+   Take the site-wide approve lock (Blobs `approve-lock`, onlyIfNew; a lock older than 90 s may be
+   taken over with onlyIfMatch — longer than any approve can run, since sync functions stop at 60 s).
+   Run the reconciler (below) if this proposal is stuck in "committing".
    Load the proposal: status must be "pending". Recompute its content hash and COMPARE it with the
    `contentHash` the client sent (the hash the user saw). Mismatch → 409 conflict.
-   Check the cap (ADR-0008): over → 429 approve_cap, status stays "pending".
+   CHECK the cap, read-only: checkApproveCap() (ADR-0008). Over → 429 approve_cap {retryAt, approvals};
+   status stays "pending"; release the lock. Nothing is written to site:approvals here.
    Re-run the allow-list, size, text-only and secret-scan checks (§6).
-   CAS status "pending" → "committing".
+   CAS status "pending" → "committing" {committingAt}.
 1. GET  /repos/fenago/BeachDay/git/ref/heads/main             → headSha
 2. If headSha ≠ proposal.baseSha: for each file, compare the current blob SHA on main with
-   readBlobSha (null = the file must still not exist). Any difference → CAS "stale"; the agent proposes again.
+   readBlobSha (null = the file must still not exist). Any difference → CAS "stale"; 409 stale.
 3. GET  /repos/.../git/commits/{headSha}                       → baseTreeSha
 4. POST /repos/.../git/trees  { base_tree: baseTreeSha,
         tree: [{path, mode:"100644", type:"blob", content}, …] }   → treeSha
@@ -381,17 +384,39 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
 5. POST /repos/.../git/commits { message (ends with the trailer "Beach-Day-Proposal: p_…"),
         tree: treeSha, parents:[headSha], author:{name:"Beach Day Agent (<agent>)", email:"…"} } → commitSha
 6. PATCH /repos/.../git/refs/heads/main { sha: commitSha, force:false }
-        (not fast-forward → main moved → redo steps 1–6 once, else CAS "stale")
-7. CAS "committing" → "committed" {commitSha, decidedAt}; append to the approve cap record;
-   write the audit record (actor = Supabase user id); release the lock.
-   Any GitHub error in 1–6 → CAS "failed" {error}; release the lock.
+   a. 200 → main moved; go to 7.
+   b. 422 not fast-forward (a definite "no": main moved first) → redo steps 1–6 once, else CAS "stale".
+   c. UNKNOWN OUTCOME (timeout, network error, 5xx): never assume failure. Re-read
+      GET /git/ref/heads/main (up to 3 tries, serially):
+        ref == commitSha              → main moved; go to 7.
+        re-read succeeded, ref ≠ commitSha → the update did not land; go to 8.
+        every re-read failed           → leave "committing"; release the lock; answer 502 upstream.
+                                         The reconciler decides later.
+7. RECORD, then mark (the "committed ⇒ counted" invariant, §2.1):
+   a. recordApproval(now) — CAS append to site:approvals, pruned to 31 days (ADR-0008).
+   b. CAS "committing" → "committed" {commitSha, decidedAt}.
+   c. Audit record (actor = Supabase user id, proposalId, commitSha). Release the lock.
+   d. Answer 200 {proposal, deploys, approvals}.
+   If 7a or 7b still fails after retries, main HAS moved: answer 200 committed with commitSha anyway
+   (it is true on GitHub), log + audit "approve_record_pending", leave the record "committing" and
+   release the lock. The reconciler records and marks it. Never retry the commit, never roll back main.
+8. Definite GitHub error in 1–5, or 6c "did not land" → CAS "failed" {error}; release the lock;
+   answer 502 upstream. Nothing is recorded, so no slot is used.
 ```
+
+**Reconciler** (runs from `GET /api/proposals/:id` and from approve, for a record in `committing` whose `committingAt` is more than 120 s old; it takes the approve lock and skips if the lock is held):
+1. Look for the proposal's commit on `main`: `GET /repos/.../commits?sha=main&since=<committingAt − 5 min>&per_page=50`, and match the exact trailer line `Beach-Day-Proposal: p_…` in each message.
+2. **Found** → record, then mark, exactly as step 7a–7b (the reconciled commit **counts**, ADR-0008). If an earlier 7a had already succeeded, this records it a second time: an overcount of one, which is the safe direction.
+3. **Re-read succeeded and not found** → CAS `failed` {error: "commit did not reach main"}. No slot is used.
+4. **GitHub unreachable** → leave it `committing` and try again on the next GET.
+
+**Check-then-record, in one place.** The cap is **checked** read-only in step 0, inside the approve lock and before any GitHub call, and **recorded** only in step 7a or the reconciler, when `main` has actually moved. Because only one approve holds the lock, the check and the record can't race (ADR-0008 point 3). `failed`, `stale`, `rejected` and `approve_cap` never record, so nothing is ever refunded (§9). The functions are `checkApproveCap()` and `recordApproval()` in `netlify/functions/lib/limits.mts`, shaped like `knowledge/netlify-engineer/examples/03-cas-rate-limit-counter/`.
 
 **Where the agent's reads come from (ADR-0007):** `read_file` and `list_files` read from GitHub `main`, pinned to the `main` head SHA resolved at the start of the turn or job. `propose_change` records that SHA as `baseSha`, and each file's blob SHA as `readBlobSha` (`null` for a new or unread file). The read tools refuse `.env*`, `*.pem`, `*.key`, `.git/**`, non-UTF-8 files and files over 200 KB. They use a read-only GitHub module, and only the approve function can write.
 
 Headers: `Authorization: Bearer $GITHUB_TOKEN`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28` (supported until 10 Mar 2028; a newer `2026-03-10` exists — read its changelog before switching; [API versions](https://docs.github.com/en/rest/about-the-rest-api/api-versions)). Make requests **serially**; GitHub's secondary limits allow ≤80 content-creating requests/min and ≤500/hour ([rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)); honor `retry-after`.
 
-Netlify auto-deploys the push to `main` ([deploy overview](https://docs.netlify.com/deploy/deploy-overview/)). Show deploy status without a function (ADR-0006 §8): after `committed`, the Console polls `/version.json` (`no-store`, never cached by the service worker) every 10 s until `commit` equals `commitSha` → "Live". After 10 min it shows "Still deploying — check Netlify". Rollback = "Publish deploy" on the previous deploy in Netlify (instant), or a revert commit.
+Netlify auto-deploys the push to `main` ([deploy overview](https://docs.netlify.com/deploy/deploy-overview/)) unless the `ignore` command skips it; the approve response says which (`deploys`, §2.1). Show deploy status without a function (ADR-0006 §8): after `committed` with `deploys: true`, the Console polls `/version.json` (`no-store`, never cached by the service worker) every 10 s until `commit` equals `commitSha` → "Live". After 10 min it shows "Still deploying — check Netlify". Rollback = "Publish deploy" on the previous deploy in Netlify (instant), or a revert commit.
 
 **Decided (ADR-0003): Approve commits straight to `main`** using the steps above. The PR flow below is recorded as a future option only.
 

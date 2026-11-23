@@ -183,7 +183,10 @@ Pattern (prose; the verifier itself is supabase-auth-engineer's, reviewed by sec
 2. Verify the token with Supabase (the project's own issuer, `SUPABASE_URL`; the method, `getClaims()` or `getUser()`, is decided in the supabase-auth-engineer notes). Invalid, expired or wrong project: **401**.
 3. Look up the role. Anything other than `super_admin`: **403**.
 4. If the verifier or its configuration is unavailable: **503**. **Fail closed**: never fall through to "allowed", and never echo the underlying error.
-5. Only then read the body, count limits, or touch Blobs, GitHub or Claude.
+5. **Production-context check** (for `chat`, `jobs-run` and `approve`, the functions that read a secret): if `context.deploy.context !== "production"`, answer **503 `unavailable`** before reading the secret (§6, layer 3).
+6. Only then read the body, count limits, or touch Blobs, GitHub or Claude.
+
+`/api/jobs-run` runs the same steps 1 to 5 on the bearer token forwarded by `/api/jobs`, but because a background function always answers `202`, a refusal can only return silently (no read, no write).
 
 No cookies, no session secret, no `Set-Cookie`. The only keys the functions use are the project URL and the **publishable** key; the Supabase secret / `service_role` key is used nowhere.
 
@@ -312,7 +315,7 @@ The `ignore` command in §3.1 skips commits that change nothing shipped. A skipp
 
 ### 9.2 Design: `scripts/stamp-sw.mjs`
 
-Specified here, not built in this round. A working, tested copy is in `knowledge/netlify-engineer/examples/04-sw-version-stamp/` (11 tests pass with `gen-config`). Run as the second step of the build command (§3.1), before `gen-config.mjs`.
+Specified here, not built in this round. A working, tested copy is in `knowledge/netlify-engineer/examples/04-sw-version-stamp/` (12 tests pass, with `gen-config` and the smoke test). Run as the second step of the build command (§3.1), before `gen-config.mjs`.
 
 | Rule | Detail |
 |---|---|
@@ -345,7 +348,7 @@ The same reasoning is why `scripts/build-agents.mjs` must treat `.claude/agents/
 
 ### 9.5 Design: `scripts/gen-config.mjs` (browser config, ADR-0006 point 3)
 
-Specified here, not built in this round. A working, tested copy is `gen-config.mjs` in `knowledge/netlify-engineer/examples/04-sw-version-stamp/` (4 tests, run on 2026-11-23). It is the last build step (§3.1).
+Specified here, not built in this round. A working, tested copy is `gen-config.mjs` in `knowledge/netlify-engineer/examples/04-sw-version-stamp/` (5 tests, re-run in wave 3, with fixtures built at runtime). It is the last build step (§3.1).
 
 | Rule | Detail |
 |---|---|
