@@ -1,13 +1,11 @@
 // Server-sent events for POST /api/chat, exactly the docs/04 §2.1 events: text, tool, proposal, handoff, error, done.
 // Every stream ends with exactly ONE `done` or `error`. A refusal is error{code:"refusal",retryable:false}, never done.
 // Raw Anthropic events, thinking blocks, signatures and upstream error bodies never reach the browser.
-import { sseHeaders, ERROR_CODES as HTTP_ERROR_CODES } from "./http.mts";
+import { sseHeaders, ERROR_CODES as HTTP_ERROR_CODES, type ErrorCode as HttpErrorCode } from "./http.mts";
 
 export type ToolName = "read_file" | "list_files" | "propose_change";
 export type DoneReason = "end_turn" | "max_tokens" | "handoff" | "tool_rounds_exhausted";
-export type ErrorCode =
-  | "invalid_request" | "unauthorized" | "step_up_required" | "forbidden" | "not_found" | "conflict" | "stale"
-  | "rate_limited" | "budget_exhausted" | "approve_cap" | "refusal" | "upstream" | "timeout" | "unavailable" | "internal";
+export type ErrorCode = HttpErrorCode; // one list: lib/http.mts ERROR_CODES (docs/04 §2.1)
 
 export type SseEvent =
   | { type: "text"; delta: string }
@@ -23,7 +21,8 @@ const ERROR_CODES: ReadonlySet<string> = new Set(Object.keys(HTTP_ERROR_CODES));
 export const MAX_TEXT_DELTA = 8192;
 
 /** User-safe default copy per code (Wren may override in the UI). Never upstream text. */
-export const ERROR_MESSAGES: Readonly<Record<ErrorCode, string>> = Object.freeze({
+export const ERROR_MESSAGES: Readonly<Partial<Record<ErrorCode, string>>> = Object.freeze({
+  bad_origin: "This request must come from the Beach Day site.",
   invalid_request: "That message couldn't be sent.",
   unauthorized: "Your session ended. Sign in again.",
   step_up_required: "Confirm it's you to continue.",
@@ -43,7 +42,8 @@ export const ERROR_MESSAGES: Readonly<Record<ErrorCode, string>> = Object.freeze
 const RETRYABLE: ReadonlySet<ErrorCode> = new Set(["upstream", "timeout", "unavailable", "internal"]);
 
 export function errorEvent(code: ErrorCode, message?: string): SseEvent {
-  return { type: "error", code, message: (message ?? ERROR_MESSAGES[code]).slice(0, 500), retryable: RETRYABLE.has(code) };
+  // A code added to http.mts without copy here still gets a safe, generic message (never undefined).
+  return { type: "error", code, message: (message ?? ERROR_MESSAGES[code] ?? ERROR_MESSAGES.internal!).slice(0, 500), retryable: RETRYABLE.has(code) };
 }
 
 /** Throws on anything outside the §2.1 contract, so a bug can't leak a raw object to the browser. */

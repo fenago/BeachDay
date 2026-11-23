@@ -45,7 +45,8 @@ async function boot() {
   let screens = null;               // mounted auth screens
   let reopenStepUp = null;          // proposal id to reopen confirmed after a Google step-up
   let redirectResult = { kind: "none" };
-  let signingOut = false;           // true while a Sign Out button runs (R14-1)
+  let signingOut = false;           // true from a Sign Out click until the next sign-in (R14-1)
+  let authShowing = false;          // an auth screen is mounted or mounting
   let pendingNotice = null;         // e.g. auth.reset.done after S5; shown once on the next page bar
 
   const api = createApi({ auth, onSessionEnded: () => showAuth("sessionExpired"), onNoAccess: () => showNoAccess() });
@@ -57,6 +58,7 @@ async function boot() {
 
   /** notice: sessionExpired (S7) | signedOut | signedOutAll | emailConfirmed | undefined */
   async function showAuth(notice) {
+    authShowing = true; // set before any await, so a late SIGNED_OUT event can't mount a second screen
     for (const d of document.querySelectorAll("dialog[open]")) d.close();
     const hash = location.hash || "#/console";
     const keepRoute = parseRoute(hash).name !== "list" ? hash : null; // a content route is where sign-in returns to
@@ -78,6 +80,8 @@ async function boot() {
   }
 
   async function onSignedIn(returnRoute, noticeId) {
+    authShowing = false;
+    signingOut = false;
     pendingNotice = typeof noticeId === "string" ? noticeId : null;
     screens?.unmount?.();
     screens = null;
@@ -98,7 +102,6 @@ async function boot() {
     // Wrap signOut so the SIGNED_OUT event from a deliberate sign-out doesn't flash S7.
     const deliberate = { ...auth, signOut: (o) => { signingOut = true; return auth.signOut(o); } };
     return mod.createSignOutControls({ auth: deliberate, copy, prominent, onSignedOut: ({ notice }) => {
-      signingOut = false;
       chats.clear(); access = "unknown"; accountId = null;
       showAuth(notice);
     } });
@@ -237,10 +240,10 @@ async function boot() {
     focusHeading(appHost);
   }
 
-  window.addEventListener("hashchange", () => { if (!screens) render(); });
+  window.addEventListener("hashchange", () => { if (!authShowing) render(); });
   // SIGNED_OUT that we didn't ask for (revoked elsewhere, refresh ticker) is S7: keep the drafts and transcripts (R14-1).
   // A deliberate sign-out clears them in signOutControls' onSignedOut instead.
-  auth.onChange((event) => { if (event === "SIGNED_OUT" && !signingOut && !screens && access !== "denied") showAuth("sessionExpired"); });
+  auth.onChange((event) => { if (event === "SIGNED_OUT" && !signingOut && !authShowing && access !== "denied") showAuth("sessionExpired"); });
 
   // ---- start ----
   redirectResult = await auth.completeRedirect().catch(() => ({ kind: "none" }));
