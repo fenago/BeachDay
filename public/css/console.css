@@ -110,3 +110,15 @@
   .cap-note, .warning-list > li { border: 1.5px solid CanvasText; }
 }
 @media print { .composer { display: none; } }
+
+/* Fix: grid children must not size to max-content (long diff lines widened the page). */
+.chat-log > *, .proposal-card > *, .proposal-list > *, .console > *, .chat > *, .sheet__body > * { min-inline-size: 0; }
+.proposal-card, .chat, .chat-log { max-inline-size: 100%; }
+.diff { max-inline-size: 100%; overflow-x: auto; overflow-y: auto; }
+
+/* Agent stripe colours: decoration only (name, model and personality are text).
+   Set from JS with el.style.setProperty("--agent-color", "var(--agent-" + color + ")"). */
+:root {
+  --agent-blue: #1f6fb5; --agent-cyan: #0f8fa3; --agent-green: #1d7f46; --agent-orange: #c9600f;
+  --agent-pink: #b83280; --agent-purple: #6b46c1; --agent-red: #b3261e; --agent-yellow: #b58300;
+}
