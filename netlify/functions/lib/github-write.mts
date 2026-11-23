@@ -3,8 +3,32 @@
 // Steps follow docs/04 §7 1–6 exactly: serial requests, base_tree ALWAYS, mode 100644 blobs with content
 // (never a null blob sha, so no deletions), one parent, force:false, 6b retry once, 6c re-read on unknown outcome.
 // The handler owns the lock, the CAS status changes, the cap and the audit; this module only talks to GitHub.
-import { createGitHubRead, makeRequester, GitHubError, type GhOptions } from "./github-read.mts";
-import { buildCommitMessage, commitAuthorName, COMMIT_AUTHOR_EMAIL, type ProposalRecord } from "./proposals.mts";
+import { createGitHubRead, ghHeaders, GitHubError, GITHUB_API, OWNER, REPO, REQUEST_TIMEOUT_MS, type FetchLike, type GhOptions } from "./github-read.mts";
+import { buildCommitMessage, commitAuthorName, COMMIT_AUTHOR_EMAIL, revalidate, type ProposalRecord } from "./proposals.mts";
+
+/** Write-capable requester. It lives only here, so modules that import github-read can't build one (R2-5). */
+function makeWriteRequester({ token, fetchImpl, signal, timeoutMs = REQUEST_TIMEOUT_MS }: GhOptions) {
+  if (!token) throw new Error("GitHub token missing");
+  const doFetch: FetchLike = fetchImpl ?? ((u, i) => fetch(u, i));
+  return async function gh(method: "GET" | "POST" | "PATCH", path: string, body?: unknown): Promise<any> {
+    const signals = [AbortSignal.timeout(timeoutMs)];
+    if (signal) signals.push(signal);
+    let res: Response;
+    try {
+      res = await doFetch(`${GITHUB_API}/repos/${OWNER}/${REPO}${path}`, {
+        method,
+        headers: ghHeaders(token, body !== undefined),
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.any(signals),
+      });
+    } catch {
+      throw new GitHubError(`GitHub ${method} unreachable`, null);
+    }
+    const data = res.status === 204 ? null : await res.json().catch(() => null);
+    if (!res.ok) throw new GitHubError(`GitHub ${method} ${path.split("?")[0]} -> ${res.status}`, res.status, res.headers.get("retry-after"));
+    return data;
+  };
+}
 
 const SHA1 = /^[0-9a-f]{40}$/;
 
@@ -36,7 +60,7 @@ export function githubFailureMessage(status: number | null): string {
 export interface CommitDeps extends GhOptions { reReadTries?: number }
 
 export function createGitHubWrite(opts: CommitDeps) {
-  const gh = makeRequester(opts, true);
+  const gh = makeWriteRequester(opts);
   const reader = createGitHubRead(opts); // approve's own GETs (stale check, reconciler)
   const reReadTries = opts.reReadTries ?? 3;
 
@@ -110,6 +134,9 @@ export function createGitHubWrite(opts: CommitDeps) {
   /** docs/04 §7 steps 1–6 for a proposal the handler has already moved to `committing`. */
   async function commitProposal(p: ProposalRecord): Promise<CommitOutcome> {
     if (p.status !== "committing") throw new Error("commitProposal needs a committing record");
+    // Last hop before the write PAT (which can't be path-scoped): re-check policy even if a handler forgot (R2-S1).
+    const v = revalidate(p);
+    if (!v.ok) return { status: "failed", error: "The proposal failed its safety checks.", httpStatus: null, retryAfter: null };
     return commitOnce(p, 1);
   }
 

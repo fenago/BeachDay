@@ -7,13 +7,17 @@ import { checkProposal, type PolicyOptions } from "./allowlist.mts";
 import { scanProposal, type Finding } from "./secretscan.mts";
 import { isProposalId, newProposalId } from "./ids.mts";
 
-// ---- Store seam (matches @netlify/blobs Store; tests pass a fake) ----
-export interface WriteResult { modified: boolean; etag?: string }
-export interface BlobStore {
-  get(key: string, opts: { type: "json" }): Promise<any>;
-  getWithMetadata(key: string, opts: { type: "json" }): Promise<{ data: any; etag?: string } | null>;
-  setJSON(key: string, value: unknown, opts?: { onlyIfNew?: boolean; onlyIfMatch?: string }): Promise<WriteResult>;
-  delete?(key: string): Promise<void>;
+import type { BlobStore, WriteResult } from "./blobs.mts";
+export type { BlobStore, WriteResult };
+
+/** Etag after a successful write. Real Blobs may report "" (R3-1): then re-read; "" if even that fails. */
+async function etagAfterWrite(store: BlobStore, key: string, res: WriteResult): Promise<string> {
+  if (res.etag) return res.etag;
+  try {
+    return (await store.getWithMetadata(key, { type: "json" }))?.etag ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export type ProposalStatus = "pending" | "committing" | "committed" | "failed" | "stale" | "rejected";
@@ -173,8 +177,9 @@ export async function transition(
   if (next.error !== undefined) next.error = String(next.error).slice(0, 500);
   if (next.rejectReason !== undefined) next.rejectReason = String(next.rejectReason).slice(0, 500);
   const res = await store.setJSON(current.record.id, next, { onlyIfMatch: current.etag });
-  if (!res.modified || !res.etag) return { ok: false, reason: "conflict" };
-  return { ok: true, record: next, etag: res.etag };
+  if (!res.modified) return { ok: false, reason: "conflict" };
+  // modified === true is success even with an empty etag; an "" etag makes the next CAS fail safe (caller reloads).
+  return { ok: true, record: next, etag: await etagAfterWrite(store, current.record.id, res) };
 }
 
 /** A committing record older than this is reconciled by the next GET or approve (docs/04 §2.1). */
@@ -192,20 +197,30 @@ export interface LockHandle { owner: string; etag: string }
 export async function acquireApproveLock(store: BlobStore, owner: string, nowMs: number = Date.now()): Promise<LockHandle | null> {
   const value = { owner, at: new Date(nowMs).toISOString() };
   const created = await store.setJSON(APPROVE_LOCK_KEY, value, { onlyIfNew: true });
-  if (created.modified && created.etag) return { owner, etag: created.etag };
+  if (created.modified) return { owner, etag: await etagAfterWrite(store, APPROVE_LOCK_KEY, created) };
   const cur = await store.getWithMetadata(APPROVE_LOCK_KEY, { type: "json" });
-  if (!cur || typeof cur.etag !== "string") return null;
-  const held = cur.data && typeof cur.data.at === "string" && !cur.data.released ? Date.parse(cur.data.at) : 0;
-  if (Number.isFinite(held) && nowMs - held <= LOCK_STALE_MS) return null; // held by a live approve
+  if (!cur || typeof cur.etag !== "string" || cur.etag === "") return null;
+  const d: any = cur.data;
+  const free = d && typeof d === "object" && d.released === true;
+  const at = d && typeof d.at === "string" ? Date.parse(d.at) : NaN;
+  // Fail closed (R3-3): a malformed or missing `at` counts as held, unless the record says released.
+  const stale = Number.isFinite(at) && nowMs - at > LOCK_STALE_MS;
+  if (!free && !stale) return null;
   const taken = await store.setJSON(APPROVE_LOCK_KEY, value, { onlyIfMatch: cur.etag });
-  return taken.modified && taken.etag ? { owner, etag: taken.etag } : null;
+  return taken.modified ? { owner, etag: await etagAfterWrite(store, APPROVE_LOCK_KEY, taken) } : null;
 }
 
 /** Release only our own lock (CAS on our etag), by marking it released. Never throws. */
 export async function releaseApproveLock(store: BlobStore, lock: LockHandle | null): Promise<void> {
   if (!lock) return;
   try {
-    await store.setJSON(APPROVE_LOCK_KEY, { owner: lock.owner, at: new Date(0).toISOString(), released: true }, { onlyIfMatch: lock.etag });
+    let etag = lock.etag;
+    if (!etag) {
+      const cur = await store.getWithMetadata(APPROVE_LOCK_KEY, { type: "json" });
+      if (!cur || (cur.data as any)?.owner !== lock.owner || cur.etag === "") return; // expires after LOCK_STALE_MS
+      etag = cur.etag;
+    }
+    await store.setJSON(APPROVE_LOCK_KEY, { owner: lock.owner, at: new Date(0).toISOString(), released: true }, { onlyIfMatch: etag });
   } catch {
     /* a lock we couldn't release expires after LOCK_STALE_MS */
   }
@@ -215,9 +230,11 @@ export async function releaseApproveLock(store: BlobStore, lock: LockHandle | nu
 export interface AuditEntry { action: string; actor: string; proposalId?: string; jobId?: string; commitSha?: string; requestId?: string; detail?: string }
 export async function writeAudit(store: BlobStore, entry: AuditEntry, now: Date = new Date()): Promise<void> {
   const id = entry.proposalId ?? entry.jobId ?? "site";
-  const key = `${now.toISOString()}_${id}_${Math.random().toString(36).slice(2, 8)}`;
   const rec = { ...entry, at: now.toISOString(), detail: entry.detail?.slice(0, 500) };
-  await store.setJSON(key, rec, { onlyIfNew: true });
+  for (let i = 0; i < 2; i++) { // a suffix collision retries once with a fresh suffix (R3-4)
+    const key = `${now.toISOString()}_${id}_${Math.random().toString(36).slice(2, 8).padEnd(6, "0")}`;
+    if ((await store.setJSON(key, rec, { onlyIfNew: true })).modified) return;
+  }
 }
 
 // ---- Commit message (docs/04 §7 step 5), server-built only ----

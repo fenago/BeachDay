@@ -423,7 +423,13 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
    c. UNKNOWN OUTCOME (timeout, network error, 5xx): never assume failure. Re-read
       GET /git/ref/heads/main (up to 3 tries, serially):
         ref == commitSha              → main moved; go to 7.
-        re-read succeeded, ref ≠ commitSha → the update did not land; go to 8.
+        re-read succeeded, ref ≠ commitSha → a human push may have landed on top of ours, so
+                                         check ancestry: GET /compare/{commitSha}...{ref}
+                                         status "ahead" or "identical" (our commit is an ancestor of
+                                         main) → main moved; go to 7. status "diverged" or "behind"
+                                         (ours is not in main's history) → the update did not land;
+                                         go to 8. Compare fails or is unclear → leave "committing",
+                                         release the lock, answer 502 upstream; the reconciler decides.
         every re-read failed           → leave "committing"; release the lock; answer 502 upstream.
                                          The reconciler decides later.
 7. RECORD, then mark (the "committed ⇒ counted" invariant, §2.1):

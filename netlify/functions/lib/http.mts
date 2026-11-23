@@ -44,7 +44,8 @@ export function assertSafeHeaders(headers: Record<string, string> | Headers = {}
 export function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   assertSafeHeaders(headers);
   // Caller headers go FIRST so SECURITY_HEADERS and the content type always win (no-store, nosniff, CSP).
-  const h: Record<string, string> = { ...headers, ...SECURITY_HEADERS, "content-type": JSON_TYPE };
+  const lowered = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
+  const h: Record<string, string> = { ...lowered, ...SECURITY_HEADERS, "content-type": JSON_TYPE };
   if (status === 401) h["www-authenticate"] = "Bearer";
   return new Response(JSON.stringify(body), { status, headers: h });
 }

@@ -15,7 +15,7 @@ describe("SETTINGS pins every decision (change deliberately)", () => {
       approveEnabled: false,
       jwtHeaderPrecheck: false,
       perUserDaily: { chat: 200, jobs: 20 },
-      perTurn: { maxToolRounds: 15, maxTokens: 1_000_000, maxUserMessageBytes: 32_768 },
+      perTurn: { maxToolRounds: 15, maxToolCallsPerRound: 10, maxTokens: 1_000_000, maxUserMessageBytes: 32_768 },
       chatDeadlineMs: 55_000,
       chatSdkTimeoutMs: 50_000,
       jobWallClockMs: 840_000,

@@ -20,7 +20,7 @@ const KEY_OK = ["sb", "publishable", tail()].join("_");                       //
 const SECRET = ["sb", "secret", tail()].join("_");                            // rejected: a secret key
 const LEGACY = [b64({ alg: "HS256", typ: "JWT" }), b64({ role: "service" + "_role" }), tail()].join("."); // rejected: legacy JWT key
 const OTHER = ["sk", "ant", tail()].join("-");                                // some other variable's value
-const HEADERS_OK = `/*\n  Content-Security-Policy: default-src 'self'; connect-src 'self' https://api.open-meteo.com ${URL_OK}; form-action 'self'\n`;
+const HEADERS_OK = `/*\n  Content-Security-Policy: default-src 'self'; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com ${URL_OK}; form-action 'self'\n`;
 const run = (env, extra = []) => {
   const out = mkdtempSync(join(tmpdir(), "bd-cfg-"));
   const r = spawnSync(process.execPath, [script, "--out", out, "--no-headers-check", ...extra], { env: { PATH: process.env.PATH, ...env }, encoding: "utf8" });
@@ -96,4 +96,14 @@ test("the REAL public/_headers passes the CSP host check for a matching origin a
   const filled = real.replace("https://<project-ref>.supabase.co", URL_OK);
   assert.doesNotThrow(() => checkCspHost(filled, URL_OK));
   assert.throws(() => checkCspHost(real, URL_OK), /does not list/, "the committed placeholder fails the build until a human fills it in");
+});
+
+test("CSP connect-src is an exact set: wildcards, schemes and extra hosts fail (R2-3 probe rows)", () => {
+  const withExtra = (tok) => HEADERS_OK.replace(`${URL_OK};`, `${URL_OK} ${tok};`);
+  for (const tok of ["*.supabase.co", "wss://*.supabase.co", "https:", "*", "wss:", "https://*.supabase.co", "https://evil.example", "wss://abcdefghijklmnop.supabase.co", "data:"]) {
+    assert.throws(() => checkCspHost(withExtra(tok), URL_OK), /other than|does not list/, tok);
+  }
+  assert.throws(() => checkCspHost(HEADERS_OK.replace(" https://marine-api.open-meteo.com", ""), URL_OK), /does not list/, "a required source missing");
+  assert.throws(() => checkCspHost(HEADERS_OK.replace(" 'self' https", " https"), URL_OK), /does not list/, "'self' missing");
+  assert.doesNotThrow(() => checkCspHost(HEADERS_OK, URL_OK));
 });

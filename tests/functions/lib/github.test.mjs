@@ -27,10 +27,24 @@ describe("github-read (read-only, pinned)", () => {
     expect(GITHUB_API).toBe("https://api.github.com");
     const src = readFileSync(new URL("../../../netlify/functions/lib/github-read.mts", import.meta.url), "utf8");
     expect(src).not.toMatch(/"(POST|PATCH|PUT|DELETE)"/);
+    expect(src).not.toMatch(/allowWrite|makeRequester/);
     expect(src).not.toMatch(/GITHUB_TOKEN|GITHUB_READ_TOKEN/); // token name comes only from SETTINGS (D2)
     const wsrc = readFileSync(new URL("../../../netlify/functions/lib/github-write.mts", import.meta.url), "utf8");
     expect(wsrc).not.toMatch(/GITHUB_READ_TOKEN|githubReadTokenEnv/);
     expect(wsrc).not.toMatch(/sha:\s*null/);
+  });
+  it("runtime: no github-read export can send a non-GET request", async () => {
+    const mod = await import("../../../netlify/functions/lib/github-read.mts");
+    expect(Object.keys(mod).sort()).toEqual(["API_VERSION", "GITHUB_API", "GitHubError", "OWNER", "REPO", "REQUEST_TIMEOUT_MS", "ReadRefused", "USER_AGENT", "createGitHubRead", "ghHeaders", "githubReadFromEnv"]);
+    const methods = [];
+    const spy = (url, init) => { methods.push(init?.method); return fetch(url, init); };
+    const r = mod.createGitHubRead({ token: TOKEN, fetchImpl: spy });
+    const sha = await r.getMainSha();
+    await r.getBlobSha("docs/a.md", sha); await r.readFile("docs/a.md", sha); await r.listDir("", sha);
+    await r.listMainCommitsSince("2026-01-01T00:00:00Z"); await r.findProposalCommit(proposal([{ path: "docs/a.md", content: "A\n", readBlobSha: null }]));
+    expect(new Set(methods)).toEqual(new Set(["GET"]));
+    for (const fn of Object.values(r)) expect(fn.length).toBeLessThanOrEqual(2); // no method/body parameter anywhere
+    expect(gh.state.calls.every((c) => c.startsWith("GET "))).toBe(true);
   });
   it("reads text + blob sha at a pinned commit; 404 -> null; refuses secrets files, binaries, non-UTF-8, >200 KB", async () => {
     const r = createGitHubRead({ token: TOKEN });
@@ -141,6 +155,13 @@ describe("github-write: one atomic commit (docs/04 §7)", () => {
     expect(out).toMatchObject({ status: "failed", httpStatus: 403 });
     expect(out.error).not.toContain("nope");
     expect(gh.state.calls.some((c) => c.startsWith("PATCH"))).toBe(false);
+  });
+  it("re-validates the record itself before any write (R2-S1)", async () => {
+    const files = [{ path: "netlify/functions/approve.mts", content: "x\n", readBlobSha: null }];
+    gh.state.calls.length = 0;
+    const out = await createGitHubWrite({ token: TOKEN }).commitProposal(proposal(files));
+    expect(out).toMatchObject({ status: "failed" });
+    expect(gh.state.calls).toEqual([]);
   });
   it("refuses a record that is not committing; treeEntries never emits sha", async () => {
     await expect(createGitHubWrite({ token: TOKEN }).commitProposal(proposal([], { status: "pending" }))).rejects.toThrow();

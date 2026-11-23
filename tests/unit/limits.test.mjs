@@ -256,3 +256,13 @@ test("per-user counter: an unreadable record throws (fail closed); heavy content
   const r = await hit(racing, "k", 5, { maxAttempts: 3 });
   assert.deepEqual([r.allowed, r.contended], [false, true]);
 });
+
+test("compute budget: retryAt is a New York midnight, the day after (bucket day + 31 days) ends", async () => {
+  const store = createFakeStore();
+  await recordCompute(store, 180 * MIN, new Date("2026-11-01T16:00:00Z")); // NY day 2026-11-01
+  const r = await checkComputeBudget(store, MIN, new Date("2026-11-20T16:00:00Z"));
+  assert.equal(r.allowed, false);
+  assert.equal(r.retryAt, "2026-12-03T05:00:00.000Z"); // Dec 2 NY day ends (EST, UTC-5)
+  assert.equal((await checkComputeBudget(store, MIN, new Date(r.retryAt))).allowed, true, "at retryAt the bucket has expired");
+  assert.equal((await checkComputeBudget(store, MIN, new Date(Date.parse(r.retryAt) - 1000))).allowed, false, "a second earlier it has not");
+});

@@ -51,30 +51,22 @@ export function ghHeaders(token: string, withBody: boolean): Record<string, stri
   };
 }
 
-/** Low-level request used by both modules. `allowWrite` is false in this module, always. */
-export function makeRequester({ token, fetchImpl, signal, timeoutMs = REQUEST_TIMEOUT_MS }: GhOptions, allowWrite: boolean) {
+/** GET-only requester. There is no flag and no other method: this module can't write (R2-5). */
+function makeReadRequester({ token, fetchImpl, signal, timeoutMs = REQUEST_TIMEOUT_MS }: GhOptions) {
   if (!token) throw new Error("GitHub token missing");
   const doFetch: FetchLike = fetchImpl ?? ((u, i) => fetch(u, i));
-  return async function gh(method: string, path: string, body?: unknown): Promise<any> {
-    if (method !== "GET" && !allowWrite) throw new Error("read-only GitHub module");
+  return async function ghGet(method: "GET", path: string): Promise<any> {
+    if (method !== "GET") throw new Error("read-only GitHub module");
     const signals = [AbortSignal.timeout(timeoutMs)];
     if (signal) signals.push(signal);
     let res: Response;
     try {
-      res = await doFetch(`${GITHUB_API}/repos/${OWNER}/${REPO}${path}`, {
-        method,
-        headers: ghHeaders(token, body !== undefined),
-        body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.any(signals),
-      });
+      res = await doFetch(`${GITHUB_API}/repos/${OWNER}/${REPO}${path}`, { method: "GET", headers: ghHeaders(token, false), signal: AbortSignal.any(signals) });
     } catch {
-      throw new GitHubError(`GitHub ${method} unreachable`, null);
+      throw new GitHubError("GitHub GET unreachable", null);
     }
-    const data = res.status === 204 ? null : await res.json().catch(() => null);
-    if (!res.ok) {
-      // Never keep GitHub's body text in the message: it goes to logs; callers map status to user copy.
-      throw new GitHubError(`GitHub ${method} ${path.split("?")[0]} -> ${res.status}`, res.status, res.headers.get("retry-after"));
-    }
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new GitHubError(`GitHub GET ${path.split("?")[0]} -> ${res.status}`, res.status, res.headers.get("retry-after"));
     return data;
   };
 }
@@ -86,7 +78,7 @@ export interface RepoFile { path: string; sha: string; text: string; size: numbe
 export interface DirEntry { name: string; path: string; type: "file" | "dir" }
 
 export function createGitHubRead(opts: GhOptions) {
-  const gh = makeRequester(opts, false);
+  const gh = makeReadRequester(opts);
 
   async function getMainSha(): Promise<string> {
     const ref = await gh("GET", "/git/ref/heads/main");
@@ -176,7 +168,7 @@ export function createGitHubRead(opts: GhOptions) {
       const blobs: Record<string, string | null> = {};
       for (const f of proposal.files) blobs[f.path] = await getBlobSha(f.path, c.sha);
       if (isProposalCommit({ ...c, blobs }, proposal)) return { verdict: "found", commitSha: c.sha };
-      console.warn("reconcile_candidate_ignored", { proposalId: proposal.id, sha: c.sha });
+      console.warn(JSON.stringify({ msg: "reconcile_candidate_ignored", proposalId: proposal.id, sha: c.sha }));
     }
     return commits.length >= perPage ? { verdict: "unknown" } : { verdict: "not_found" };
   }
