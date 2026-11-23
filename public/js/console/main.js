@@ -102,6 +102,7 @@ async function boot() {
     // Wrap signOut so the SIGNED_OUT event from a deliberate sign-out doesn't flash S7.
     const deliberate = { ...auth, signOut: (o) => { signingOut = true; return auth.signOut(o); } };
     return mod.createSignOutControls({ auth: deliberate, copy, prominent, onSignedOut: ({ notice }) => {
+      clear(appHost); // the hidden app host must not keep the last chat or proposal in the DOM
       chats.clear(); access = "unknown"; accountId = null;
       showAuth(notice);
     } });
