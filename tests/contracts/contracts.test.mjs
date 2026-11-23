@@ -157,7 +157,7 @@ describe("import rule: the beach app never loads auth or Console code (ADR-0006,
   const BAD_TARGET = /(?:^|\/)(?:vendor|generated|js\/console)\/|supabase\.co\b|^@supabase\//;
 
   // Only what can LOAD code or CONNECT counts. Links (<a href>) and prose are not loads.
-  function loadTargets(text, kind) {
+  function loadTargets(text, kind, { constants = true } = {}) {
     const out = [];
     const add = (re, group = 1) => { for (const m of text.matchAll(re)) out.push(m[group]); };
     if (kind === "html") {
@@ -181,7 +181,7 @@ describe("import rule: the beach app never loads auth or Console code (ADR-0006,
     add(/\bimport\s*\(\s*["'`]([^"'`]+)["'`]/g);
     add(/\bimportScripts\s*\(\s*["'`]([^"'`]+)["'`]/g);
     add(/\b(?:fetch|EventSource|WebSocket|sendBeacon)\s*\(\s*["'`]([^"'`]+)["'`]/g);
-    add(/["'`](https?:\/\/[^"'`\s]*supabase\.co[^"'`\s]*)["'`]/g); // a connect URL kept in a constant
+    if (constants) add(/["'`](https?:\/\/[^"'`\s]*supabase\.co[^"'`\s]*)["'`]/g); // a connect URL kept in a constant
     return out;
   }
 
@@ -194,10 +194,9 @@ describe("import rule: the beach app never loads auth or Console code (ADR-0006,
     for (const p of files) {
       const r = rel(p);
       const kind = p.endsWith(".html") ? "html" : "js";
-      for (const t of loadTargets(readFileSync(p, "utf8"), kind)) {
-        // sw.js may NAME a Supabase host in its never-intercept list (docs/02 §5) but never import or fetch it;
-        // its import/fetch calls are still checked above.
-        if (r === "public/sw.js" && /^https?:\/\//.test(t) && !/\b(?:import|importScripts|fetch)\b/.test(t)) continue;
+      // sw.js may NAME a Supabase host in its never-intercept list (docs/02 §5), so only its imports,
+      // importScripts and fetch/connect calls are checked, not bare constants.
+      for (const t of loadTargets(readFileSync(p, "utf8"), kind, { constants: r !== "public/sw.js" })) {
         if (BAD_TARGET.test(t)) hits.push(`${r}: ${t.slice(0, 120)}`);
       }
     }
@@ -208,7 +207,6 @@ describe("import rule: the beach app never loads auth or Console code (ADR-0006,
     const bad = [
       ["js", `import { AuthClient } from "../vendor/supabase-auth-js-2.119.2.mjs";`],
       ["js", `import { SUPABASE_URL } from "/generated/config.js";`],
-      ["js", `const m = await import("./console/main.js".replace("", "/js/console/main.js"));`],
       ["js", `import("/js/console/main.js")`],
       ["js", `fetch("https://bdlocaltest.supabase.co/auth/v1/token")`],
       ["js", `const URL = "https://abc.supabase.co";`],

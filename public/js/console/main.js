@@ -45,6 +45,7 @@ async function boot() {
   let screens = null;               // mounted auth screens
   let reopenStepUp = null;          // proposal id to reopen confirmed after a Google step-up
   let redirectResult = { kind: "none" };
+  let pendingNotice = null;         // e.g. auth.reset.done after S5; shown once on the next page bar
 
   const api = createApi({ auth, onSessionEnded: () => showAuth("sessionExpired"), onNoAccess: () => showNoAccess() });
 
@@ -56,7 +57,8 @@ async function boot() {
   /** notice: sessionExpired (S7) | signedOut | signedOutAll | emailConfirmed | undefined */
   async function showAuth(notice) {
     for (const d of document.querySelectorAll("dialog[open]")) d.close();
-    const keepRoute = notice === "sessionExpired" ? (location.hash || null) : null;
+    const hash = location.hash || "#/console";
+    const keepRoute = parseRoute(hash).name !== "list" ? hash : null; // a content route is where sign-in returns to
     appHost.hidden = true;
     screens?.unmount?.();
     screens = null;
@@ -66,15 +68,16 @@ async function boot() {
       clear(authHost, stateCard("error", say("auth.signin.title"), say("console.error.screens")));
       return focusHeading(authHost);
     }
-    const route = mod.isAuthRoute?.(location.hash) ? location.hash : "#/console";
+    const route = hash; // auth-screens renders S1 for a content route and keeps it as the return route
     screens = mod.mountAuthScreens(authHost, {
       auth, copy, route, notice, redirectResult, returnRoute: keepRoute, draftKept: hasAnyDraft(),
-      onSignedIn: (r) => onSignedIn(r?.returnRoute),
+      onSignedIn: (r) => onSignedIn(r?.returnRoute, r?.noticeId),
     });
     redirectResult = { kind: "none" }; // a Google error is shown once
   }
 
-  async function onSignedIn(returnRoute) {
+  async function onSignedIn(returnRoute, noticeId) {
+    pendingNotice = typeof noticeId === "string" ? noticeId : null;
     screens?.unmount?.();
     screens = null;
     clear(authHost);
@@ -131,8 +134,11 @@ async function boot() {
 
   // ---- views ----
   function pageBar(title, sub) {
+    let notice = "";
+    if (pendingNotice) { try { notice = say(pendingNotice); } catch { notice = ""; } pendingNotice = null; }
     return h("div", { class: "panel console-bar" },
-      h("div", {}, h("h1", { tabindex: "-1" }, title), sub ? h("p", { class: "console-sub" }, sub) : null),
+      h("div", {}, h("h1", { tabindex: "-1" }, title), sub ? h("p", { class: "console-sub" }, sub) : null,
+        h("p", { class: "status-line", role: "status", dataset: { testid: "console-notice" } }, notice)),
       accountMenu());
   }
 

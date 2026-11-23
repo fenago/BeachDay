@@ -164,7 +164,11 @@ Never stored: tokens, `Authorization`, request bodies (other than the job's own 
 
 ## 7. Import rule: no auth code in the beach app (testable)
 
-**Rule.** No file under `public/` outside `public/console.html`, `public/js/console/**`, `public/vendor/**` and `public/generated/**` may reference `vendor/`, `generated/`, `js/console/`, a `supabase.co` host or `@supabase/` in a quoted path or URL. `sw.js` may *name* these paths in its never-intercept list, but may not `import` or `importScripts` them.
+**Rule.** No file under `public/` outside `public/console.html`, `public/js/console/**`, `public/vendor/**` and `public/generated/**` may **load or connect to** `vendor/`, `generated/`, `js/console/`, a `supabase.co` host or `@supabase/*`. "Load or connect" means:
+- in HTML: `<script src>`, `<link rel=modulepreload|stylesheet|preload href>`, and a CSP `<meta>`;
+- in JS (comments ignored): `import`/`export … from` specifiers, `import()`, `importScripts()`, `fetch`/`EventSource`/`WebSocket`/`sendBeacon` URLs, and any quoted `https://…supabase.co` constant.
+
+Links (`<a href>`) and prose don't count, so the guide and resources pages may link to Supabase docs. `sw.js` may name a Supabase host in its never-intercept list, but its imports and fetches are still checked.
 
 - Test: `tests/contracts/contracts.test.mjs` → "import rule", with a self-test of the pattern. It runs against whatever is in `public/` now, and Tess's static suite can reuse it as-is.
 - The beach app also never fetches `/api/*`. Tess's e2e host guard catches that at runtime.

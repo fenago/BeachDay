@@ -351,3 +351,29 @@ describe("minting odd tokens, failure modes, counters", () => {
     expect(fake.callCount()).toBe(0);
   });
 });
+
+describe("W2 additions: /resend, PUT /user, raw SVG QR", () => {
+  it("resend: 200 for anyone, a new single-use link only for an unconfirmed user", async () => {
+    const f = await createFakeSupabase({ origin: "https://bdlocaltest.supabase.co", publishableKey: "sb_publishable_bdlocaltest_0000000000000000" });
+    f.addUser({ email: "new@example.test", confirmed: false });
+    const call = (path, init) => f.handle(new Request(`${f.origin}${path}`, { ...init, headers: { "content-type": "application/json", apikey: f.publishableKey, ...(init?.headers ?? {}) } }));
+    for (const email of ["new@example.test", "nobody@example.test"]) expect((await call("/auth/v1/resend", { method: "POST", body: JSON.stringify({ type: "signup", email }) })).status).toBe(200);
+    expect(f.outbox.filter((m) => m.to === "new@example.test" && m.type === "signup")).toHaveLength(1);
+    expect(f.outbox.filter((m) => m.to === "nobody@example.test")).toHaveLength(0);
+  });
+  it("PUT /user changes the password (min length, not the same one); 401 without a token; the QR is raw <svg> with a size", async () => {
+    const f = await createFakeSupabase({ origin: "https://bdlocaltest.supabase.co", publishableKey: "sb_publishable_bdlocaltest_0000000000000000" });
+    const u = f.addUser({ email: "a@example.test" });
+    const tok = await f.mint("a@example.test");
+    const call = (path, init) => f.handle(new Request(`${f.origin}${path}`, { ...init, headers: { "content-type": "application/json", apikey: f.publishableKey, ...(init?.headers ?? {}) } }));
+    const put = (password, auth = `Bearer ${tok}`) => call("/auth/v1/user", { method: "PUT", headers: auth ? { authorization: auth } : {}, body: JSON.stringify({ password }) });
+    expect((await put("x".repeat(12), null)).status).toBe(401);
+    expect((await put("short")).status).toBe(422);
+    expect((await put(u.password)).status).toBe(422);
+    expect((await put("a brand new long password")).status).toBe(200);
+    expect((await f.signIn("a@example.test", "a brand new long password")).access_token).toBeTruthy();
+    const enrol = await (await call("/auth/v1/factors", { method: "POST", headers: { authorization: `Bearer ${tok}` }, body: JSON.stringify({ factor_type: "totp" }) })).json();
+    expect(enrol.totp.qr_code.startsWith("<svg")).toBe(true);
+    expect(enrol.totp.qr_code).toMatch(/width="\d+"/);
+  });
+});

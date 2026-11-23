@@ -287,6 +287,36 @@ export async function createFakeSupabase(opts = {}) {
       return j(200, {});
     }
 
+    // POST /resend {type:"signup", email}: always 200 {} (never reveals the address); an unconfirmed user gets a NEW single-use link
+    if (method === "POST" && ep === "/resend") {
+      const f = takeFailure("resend"); if (f) return applyFailure(f, request);
+      const b = await body();
+      if (!["signup", "email_change"].includes(b.type)) return authErr(400, "validation_failed", "Invalid type");
+      const u = userByEmail(b.email);
+      if (u && !u.confirmed) {
+        const tokenHash = randomBytes(16).toString("hex");
+        s.emailTokens.set(tokenHash, { userId: u.id, type: "signup", used: false });
+        s.outbox.push({ to: u.email, type: "signup", tokenHash, at: iso() });
+      }
+      return j(200, {});
+    }
+
+    // PUT /user {password} (set a new password after a reset link; needs a live session)
+    if (method === "PUT" && ep === "/user") {
+      const f = takeFailure("user"); if (f) return applyFailure(f, request);
+      if (!bearer) return authErr(401, "no_authorization", "This endpoint requires a Bearer token");
+      const v = await verifyJwt(key, bearer, nowMs());
+      if (!v.ok) return authErr(403, "bad_jwt", `invalid JWT: ${v.why}`);
+      const sess = s.sessions.get(v.claims.session_id);
+      const u = s.users.get(v.claims.sub);
+      if (!sess || sess.revoked || !u) return authErr(403, "session_not_found", "Session from session_id claim in JWT does not exist");
+      const b = await body();
+      if (typeof b.password !== "string" || b.password.length < MIN_PASSWORD_LENGTH) return authErr(422, "weak_password", `Password should be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      if (b.password === u.password) return authErr(422, "same_password", "New password should be different from the old password.");
+      u.password = b.password;
+      return j(200, userJson(u));
+    }
+
     // POST /verify  {type, token_hash}  (acted on only after the person taps; single use)
     if (method === "POST" && ep === "/verify") {
       const f = takeFailure("verify"); if (f) return applyFailure(f, request);
@@ -341,7 +371,7 @@ export async function createFakeSupabase(opts = {}) {
         const secret = b32encode(randomBytes(20));
         const fid = randomUUID();
         u.factors.push({ id: fid, status: "unverified", secret, friendlyName: b.friendly_name ?? "Authenticator" });
-        return j(200, { id: fid, type: "totp", friendly_name: b.friendly_name ?? "Authenticator", totp: { qr_code: "data:image/svg+xml;utf-8,<svg xmlns='http://www.w3.org/2000/svg'/>", secret, uri: `otpauth://totp/Beach%20Day:${encodeURIComponent(u.email)}?secret=${secret}&issuer=Beach%20Day` } });
+        return j(200, { id: fid, type: "totp", friendly_name: b.friendly_name ?? "Authenticator", totp: { qr_code: "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"200\" height=\"200\" viewBox=\"0 0 200 200\"><rect width=\"200\" height=\"200\" fill=\"#fff\"/><rect x=\"20\" y=\"20\" width=\"60\" height=\"60\" fill=\"#000\"/></svg>", secret, uri: `otpauth://totp/Beach%20Day:${encodeURIComponent(u.email)}?secret=${secret}&issuer=Beach%20Day` } });
       }
       const m = /^\/factors\/([^/]+)(?:\/(challenge|verify))?$/.exec(ep);
       const fac = m && u.factors.find((x) => x.id === m[1]);
