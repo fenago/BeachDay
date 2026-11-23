@@ -149,6 +149,22 @@ describe("github-write: one atomic commit (docs/04 §7)", () => {
     expect(c.commitSha).toMatch(/^[0-9a-f]{40}$/);
     expect(reads).toBe(4); // step 1 + 3 serial re-reads
   });
+  it("6c ancestry: main moved past our commit -> compare ahead => committed; not landed => behind => failed; compare error => unknown", async () => {
+    gh.state.patchUnknown = "landed_then_push";
+    const a = await createGitHubWrite({ token: TOKEN }).commitProposal(proposal([{ path: "docs/a.md", content: "C1\n", readBlobSha: blobSha("A\n") }]));
+    expect(a.status).toBe("committed");
+    expect(gh.state.main).not.toBe(a.commitSha);
+    expect(gh.state.calls.some((c) => c.startsWith(`GET /compare/${a.commitSha}...`))).toBe(true);
+
+    gh.state.patchUnknown = "not_landed";
+    const b = await createGitHubWrite({ token: TOKEN }).commitProposal(proposal([{ path: "docs/a.md", content: "C2\n", readBlobSha: blobSha("C1\n") }]));
+    expect(b).toMatchObject({ status: "failed", error: "The commit did not reach main." });
+
+    gh.state.patchUnknown = "landed_then_push";
+    gh.state.failCompare = 500;
+    const c = await createGitHubWrite({ token: TOKEN }).commitProposal(proposal([{ path: "docs/a.md", content: "C3\n", readBlobSha: blobSha("C1\n") }]));
+    expect(c.status).toBe("unknown");
+  });
   it("definite failures in steps 1–5 -> failed with user-safe text (no GitHub body)", async () => {
     gh.state.failPostTrees = 403;
     const out = await createGitHubWrite({ token: TOKEN }).commitProposal(proposal([{ path: "docs/a.md", content: "B\n", readBlobSha: blobSha("A\n") }]));

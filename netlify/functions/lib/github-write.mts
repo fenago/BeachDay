@@ -68,6 +68,21 @@ export function createGitHubWrite(opts: CommitDeps) {
     return reader.getMainSha();
   }
 
+  /**
+   * GET /compare/{commitSha}...{mainSha}: "ahead"/"identical" -> main contains our commit;
+   * "behind"/"diverged" -> it doesn't; anything else or an error -> unclear.
+   */
+  async function ancestry(commitSha: string, mainSha: string): Promise<"contains" | "absent" | "unclear"> {
+    try {
+      const c = await gh("GET", `/compare/${commitSha}...${mainSha}`);
+      if (c?.status === "ahead" || c?.status === "identical") return "contains";
+      if (c?.status === "behind" || c?.status === "diverged") return "absent";
+    } catch {
+      /* unclear */
+    }
+    return "unclear";
+  }
+
   /** Steps 1–5 then 6. `attempt` 2 is the single 6b retry. */
   async function commitOnce(p: ProposalRecord, attempt: number): Promise<CommitOutcome> {
     let head: string;
@@ -118,16 +133,21 @@ export function createGitHubWrite(opts: CommitDeps) {
         return { status: "failed", error: githubFailureMessage(ge.status), httpStatus: ge.status, retryAfter: ge.retryAfter };
       }
       // 6c: unknown outcome (timeout, network, 5xx). Never assume failure: re-read main.
-      for (let i = 0; i < reReadTries; i++) {
+      let now: string | null = null;
+      for (let i = 0; i < reReadTries && now === null; i++) {
         try {
-          const now = await headSha();
-          if (now === commitSha) return { status: "committed", commitSha, headSha: head };
-          return { status: "failed", error: "The commit did not reach main.", httpStatus: ge.status, retryAfter: null };
+          now = await headSha();
         } catch {
           /* try again, serially */
         }
       }
-      return { status: "unknown", commitSha };
+      if (now === null) return { status: "unknown", commitSha };
+      if (now === commitSha) return { status: "committed", commitSha, headSha: head };
+      // main moved on: did someone push on top of OUR commit? (docs/04 §7 6c, Rowan closing R2-S2)
+      const anc = await ancestry(commitSha, now);
+      if (anc === "contains") return { status: "committed", commitSha, headSha: head }; // step 7: it counts
+      if (anc === "absent") return { status: "failed", error: "The commit did not reach main.", httpStatus: ge.status, retryAfter: null };
+      return { status: "unknown", commitSha }; // unclear: stay committing, reconciler decides
     }
   }
 

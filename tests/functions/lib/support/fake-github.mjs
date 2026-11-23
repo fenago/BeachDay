@@ -33,6 +33,7 @@ export function createFakeGitHub({ token, files }) {
     patchUnknown: null,          // "landed" | "not_landed": PATCH answers 502 after (maybe) moving main
     failRefReads: 0,             // next N GET ref calls answer 503
     failPostTrees: null,         // status for POST /git/trees (e.g. 403)
+    failCompare: null,           // status for GET /compare (e.g. 500)
     push(path, text, { message = "human", author = "Dr. Lee" } = {}) {
       const t = new Map(trees.get(commits.get(main).tree)); t.set(path, putBlob(text));
       main = putCommit({ tree: putTree([...t]), parents: [main], message, author: { name: author } });
@@ -99,6 +100,15 @@ export function createFakeGitHub({ token, files }) {
       }
       return HttpResponse.json(out);
     }),
+    http.get(`${BASE}/compare/:basehead`, ({ request, params }) => {
+      rec(request); const bad = check(request); if (bad) return bad;
+      if (state.failCompare) return HttpResponse.json({ message: "down" }, { status: state.failCompare });
+      const [base, head] = String(params.basehead).split("...");
+      if (!commits.has(base) || !commits.has(head)) return HttpResponse.json({ message: "Not Found" }, { status: 404 });
+      const ancestors = (s) => { const seen = new Set(); const stack = [s]; while (stack.length) { const x = stack.pop(); if (seen.has(x)) continue; seen.add(x); stack.push(...commits.get(x).parents); } return seen; };
+      const status = base === head ? "identical" : ancestors(head).has(base) ? "ahead" : ancestors(base).has(head) ? "behind" : "diverged";
+      return HttpResponse.json({ status, base_commit: { sha: base } });
+    }),
     http.post(`${BASE}/git/trees`, async ({ request }) => {
       rec(request); const bad = check(request); if (bad) return bad;
       const body = await request.json(); bodies.push(["POST /git/trees", body]);
@@ -126,7 +136,7 @@ export function createFakeGitHub({ token, files }) {
       if (state.failNextPatch) { state.failNextPatch = false; state.push("docs/other.md", "someone else\n"); }
       const c = commits.get(body.sha);
       if (!c || c.parents[0] !== main) return HttpResponse.json({ message: "Update is not a fast forward" }, { status: 422 });
-      if (state.patchUnknown) { const mode = state.patchUnknown; state.patchUnknown = null; if (mode === "landed") main = body.sha; return HttpResponse.json({ message: "upstream" }, { status: 502 }); }
+      if (state.patchUnknown) { const mode = state.patchUnknown; state.patchUnknown = null; if (mode === "landed" || mode === "landed_then_push") main = body.sha; if (mode === "landed_then_push") state.push("docs/human.md", "pushed on top\n"); return HttpResponse.json({ message: "upstream" }, { status: 502 }); }
       main = body.sha;
       return HttpResponse.json({ ref: "refs/heads/main", object: { sha: main } });
     }),
