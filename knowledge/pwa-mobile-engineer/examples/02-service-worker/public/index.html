@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e7490">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <title>Beach Day (SW example)</title>
+</head>
+<body>
+  <main>
+    <h1>Beach Day</h1>
+    <p id="sunrise">Loading…</p>
+    <p id="status" role="status" aria-live="polite"></p>
+    <p><a href="https://open-meteo.com/">Weather data by Open-Meteo.com</a></p>
+  </main>
+  <div id="update-toast" role="status" hidden>
+    New version available. <button id="update-refresh" type="button">Refresh</button>
+  </div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

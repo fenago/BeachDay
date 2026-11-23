@@ -1,0 +1,11 @@
+{
+  "id": "/",
+  "name": "Beach Day (SW example)",
+  "short_name": "Beach Day",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#0e7490",
+  "background_color": "#0e7490",
+  "icons": []
+}
