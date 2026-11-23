@@ -20,7 +20,7 @@ description: Security controls specific to the Beach Day Agent Console — passw
 
 ## Path allow-list
 Lives in `netlify/functions/lib/allowlist.mts`. Enforce it when the proposal is created **and** again at approve.
-- **Allow:** `public/**/*.{html,css,js,json,webmanifest,svg,png,txt}`, `public/_headers`, `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`.
+- **Allow:** `public/**/*.{html,css,js,json,webmanifest,svg,txt}`, `public/_headers`, `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`.
 - **Deny (deny wins):** `netlify/**`, `netlify.toml`, `.github/**`, `package.json`, `package-lock.json`, `scripts/**`, `**/.env*`, `**/*.pem`, `**/*.key`.
 - **Normalize paths first.** Reject `..`, leading `/`, `\`, `//`, NUL and control characters. Reject case variants of denied paths (`Netlify.toml`).
 - **Limits:** at most 20 files, 200 KB per file, UTF-8 text only. Mode is always `100644`.

@@ -68,6 +68,13 @@ ok 4 - scanProposal blocks on any file and reports path + line
 # fail 0
 ```
 
+Self-scan of the whole `knowledge/` tree, run on 2026-11-23 with a throwaway script that calls `scanText` on every file:
+- The first run flagged two of **our own** lines, both false positives, and both were fixed:
+  - a doc table cell written as `CONSOLE_PASSWORD_HASH = scrypt$…`, caught by `netlify-env-assignment`;
+  - a 41-character test secret next to the word "secret", caught by the entropy rule.
+- After the fixes, `knowledge/security-engineer` and `knowledge/agent-console-engineer` scan clean: 17 and 22 files, 0 findings.
+- It also flagged an env-var assignment in another agent's test fixture and long base64 data in two SVGs. Those belong to other agents and were left untouched. They show the realistic false-positive load: the scanner must report findings, with the path, for a human to judge. It must not silently drop files.
+
 The sample review is prose, so there was nothing to execute. Its referenced helpers (`checkProposal`, `scanProposal`, `verifyCsrf`, `recentlyAuthenticated`, the mock GitHub) all exist in the examples and were run above.
 
 ## Limits

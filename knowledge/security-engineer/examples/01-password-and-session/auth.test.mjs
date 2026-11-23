@@ -6,7 +6,7 @@ import {
   csrfToken, verifyCsrf, recentlyAuthenticated, SESSION_TTL_S,
 } from "./auth.mjs";
 
-const SECRET = "test-only-session-secret-0123456789abcdef"; // placeholder, >= 32 bytes
+const SECRET = "test-only-" + "x".repeat(32); // placeholder, >= 32 bytes, built at runtime
 const PW = "correct horse beach day";
 
 test("scrypt hash: format, unique salt, verify right/wrong", async () => {

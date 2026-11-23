@@ -16,10 +16,12 @@ description: Claude API facts for the Agent Console Netlify Functions — model 
   - Thinking display defaults to `"omitted"`. Use `display: "summarized"` to show reasoning.
 - **Effort:** set `output_config: {effort: ...}` explicitly.
   - Use `low` for chat and `high` for code-change jobs.
+  - Default effort when unset: `medium` on Opus 5.5 and Haiku 5.5, `high` on Sonnet 5.5 and Fable 5.2.
+- **Strict schemas** don't support `maxLength` or `maxItems`, so enforce size limits in code.
   - Opus 5.5 defaults to `medium`.
 - **Streaming:** use `client.messages.stream({...})`, iterate the events, then `await stream.finalMessage()`.
   - Use `max_tokens` around 64000 when streaming and around 16000 when not.
-- **No assistant prefill**, which returns 400. No `temperature`, `top_p` or `top_k` either. Shape output with the system prompt or `output_config.format`.
+- **No assistant prefill**, which returns 400. No `temperature`, `top_p` or `top_k` either: API version `2026-10-21`, which current SDKs send, rejects them on every model. Shape output with the system prompt or `output_config.format`.
 
 ## Tool use
 - **Tool definitions:** `{name, description, strict: true, input_schema: {type: "object", properties, required, additionalProperties: false}}`.

@@ -73,7 +73,7 @@ Single source of truth in `netlify/functions/lib/allowlist.mts`, enforced at pro
 
 ```ts
 export const ALLOW = [
-  "public/**/*.{html,css,js,json,webmanifest,svg,png}",
+  "public/**/*.{html,css,js,json,webmanifest,svg}",
   "public/_headers",       // review carefully: CSP lives here
   "tests/**",
   "docs/**",

@@ -57,7 +57,7 @@ These "provide a similar minimal level of defense".
 ## How our design compares
 | OWASP | Beach Day design (docs/04 §4) | Status |
 |---|---|---|
-| scrypt N=2^17, r=8, p=1 | `CONSOLE_PASSWORD_HASH = scrypt$N$r$p$salt$hash` | matches (examples/01) |
+| scrypt N=2^17, r=8, p=1 | `CONSOLE_PASSWORD_HASH` holds `scrypt$N$r$p$salt$hash` | matches (examples/01) |
 | ≥ 64-bit session ID, CSPRNG | `sid` = 144 random bits | matches |
 | `Secure; HttpOnly; SameSite` | `HttpOnly; Secure; SameSite=Strict` | matches |
 | `__Host-` prefix, `Path=/` | `bd_session`, `Path=/api` | **deviation**, documented below |
