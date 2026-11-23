@@ -1,0 +1,305 @@
+{
+  "$comment": "Beach Day copy deck (example). {placeholders} are filled at runtime. Verdict/reason wording changes need open-meteo-integrator review. Checked by check-copy.mjs.",
+  "rules": {
+    "limits": {
+      "verdict": 24,
+      "verdictShort": 10,
+      "reason": 36,
+      "advice": 60,
+      "status": 60,
+      "error": 90,
+      "button": 22,
+      "console": 90,
+      "safety": 100
+    },
+    "minFlesch": 60,
+    "minWordsForFlesch": 5,
+    "bannedWords": [
+      "we",
+      "we're",
+      "our",
+      "oops",
+      "uh-oh",
+      "click",
+      "sorry",
+      "invalid",
+      "error",
+      "loading"
+    ],
+    "buttonCase": "title",
+    "textCase": "sentence"
+  },
+  "safety": {
+    "id": "safety.line",
+    "text": "Beach Day is not a safety service — check NWS rip-current risk and posted beach flags.",
+    "linkText": "NWS rip-current risk"
+  },
+  "verdicts": [
+    {
+      "id": "verdict.great",
+      "label": "Great beach day",
+      "short": "Great",
+      "icon": "sun",
+      "band": "80–100"
+    },
+    {
+      "id": "verdict.good",
+      "label": "Good",
+      "short": "Good",
+      "icon": "sun-cloud",
+      "band": "65–79"
+    },
+    {
+      "id": "verdict.fair",
+      "label": "Fair — pick your hours",
+      "short": "Fair",
+      "icon": "cloud",
+      "band": "45–64"
+    },
+    {
+      "id": "verdict.skip",
+      "label": "Skip it",
+      "short": "Skip it",
+      "icon": "storm",
+      "band": "0–44"
+    }
+  ],
+  "reasons": [
+    {
+      "id": "reason.thunder",
+      "text": "Thunderstorms"
+    },
+    {
+      "id": "reason.wind.stop",
+      "text": "Too windy"
+    },
+    {
+      "id": "reason.heat.stop",
+      "text": "Dangerous heat"
+    },
+    {
+      "id": "reason.storms.possible",
+      "text": "Storms possible after {time}"
+    },
+    {
+      "id": "reason.rain",
+      "text": "Rain likely, {pct}% chance"
+    },
+    {
+      "id": "reason.showers",
+      "text": "Showers around"
+    },
+    {
+      "id": "reason.cloudy",
+      "text": "Mostly cloudy"
+    },
+    {
+      "id": "reason.sunny",
+      "text": "Sunny, feels like {temp} °F"
+    },
+    {
+      "id": "reason.hot",
+      "text": "Hot, feels like {temp} °F"
+    },
+    {
+      "id": "reason.cool",
+      "text": "Cool, feels like {temp} °F"
+    },
+    {
+      "id": "reason.wind.light",
+      "text": "Light wind, {mph} mph"
+    },
+    {
+      "id": "reason.wind.breezy",
+      "text": "Breezy, {mph} mph"
+    },
+    {
+      "id": "reason.waves.calm",
+      "text": "Offshore waves under 2 ft"
+    },
+    {
+      "id": "reason.waves.choppy",
+      "text": "Choppy, waves {ft} ft offshore"
+    },
+    {
+      "id": "reason.waves.rough",
+      "text": "Rough, waves over 5 ft offshore"
+    },
+    {
+      "id": "reason.water.warm",
+      "text": "Warm water, {temp} °F"
+    },
+    {
+      "id": "reason.water.cool",
+      "text": "Cool water, {temp} °F"
+    }
+  ],
+  "advice": [
+    {
+      "id": "advice.uv.high",
+      "text": "UV high. Wear sunscreen."
+    },
+    {
+      "id": "advice.uv.veryhigh",
+      "text": "UV very high. Use sunscreen. Seek shade 10 am to 4 pm."
+    },
+    {
+      "id": "advice.lightning",
+      "text": "Thunder means go indoors. Wait 30 minutes after it stops."
+    },
+    {
+      "id": "advice.outlook",
+      "text": "Outlook. Less certain this far out."
+    }
+  ],
+  "status": [
+    {
+      "id": "status.loading",
+      "text": "Getting the forecast…"
+    },
+    {
+      "id": "status.slow",
+      "text": "Still getting the forecast…"
+    },
+    {
+      "id": "status.updated",
+      "text": "Updated {time}"
+    },
+    {
+      "id": "status.partial",
+      "text": "Couldn't load waves. Verdict uses weather only."
+    },
+    {
+      "id": "status.offline.cache",
+      "text": "Offline — showing {time} forecast"
+    },
+    {
+      "id": "status.stale",
+      "text": "Forecast is {hours} hours old. Getting a new one…"
+    },
+    {
+      "id": "status.too.old",
+      "text": "Forecast is out of date. Connect to update."
+    },
+    {
+      "id": "status.after.hours",
+      "text": "Beach hours are over for today. Here is tomorrow."
+    },
+    {
+      "id": "status.beach.selected",
+      "text": "{beach} selected"
+    },
+    {
+      "id": "status.location.off",
+      "text": "Location is off. Choose a beach from the list."
+    }
+  ],
+  "errors": [
+    {
+      "id": "error.forecast",
+      "text": "Couldn't get the forecast. Check your connection and try again."
+    },
+    {
+      "id": "error.offline.nocache",
+      "text": "You're offline. Connect to get the forecast."
+    }
+  ],
+  "empty": [
+    {
+      "id": "empty.favorites",
+      "text": "No favorite beaches yet. Tap the star on a beach to keep it here."
+    }
+  ],
+  "buttons": [
+    {
+      "id": "btn.tryAgain",
+      "text": "Try Again"
+    },
+    {
+      "id": "btn.seeHourly",
+      "text": "See Hourly"
+    },
+    {
+      "id": "btn.showHourly",
+      "text": "Show Hourly"
+    },
+    {
+      "id": "btn.chooseBeach",
+      "text": "Choose Beach"
+    },
+    {
+      "id": "btn.nearest",
+      "text": "Use Nearest Beach"
+    },
+    {
+      "id": "btn.refresh",
+      "text": "Refresh"
+    },
+    {
+      "id": "btn.cancel",
+      "text": "Cancel"
+    },
+    {
+      "id": "btn.review",
+      "text": "Review and Approve"
+    },
+    {
+      "id": "btn.approveDeploy",
+      "text": "Approve and Deploy"
+    },
+    {
+      "id": "btn.reject",
+      "text": "Reject"
+    },
+    {
+      "id": "btn.signIn",
+      "text": "Sign In with Password"
+    }
+  ],
+  "console": [
+    {
+      "id": "console.consequence",
+      "text": "This commits to main and deploys to production. It uses 15 of 300 monthly credits."
+    },
+    {
+      "id": "console.reauth",
+      "text": "Type the password again to approve."
+    },
+    {
+      "id": "console.status.ready",
+      "text": "New change ready. Check the diff below."
+    },
+    {
+      "id": "console.status.committing",
+      "text": "Committing to main…"
+    },
+    {
+      "id": "console.status.committed",
+      "text": "Committed {sha}. Deploying…"
+    },
+    {
+      "id": "console.status.live",
+      "text": "Live. The change is on the site."
+    },
+    {
+      "id": "console.status.rejected",
+      "text": "Rejected. Nothing was changed."
+    },
+    {
+      "id": "console.error.password",
+      "text": "That password didn't match. Try again."
+    },
+    {
+      "id": "console.error.stale",
+      "text": "Main changed since this proposal. Ask the agent to redo it."
+    },
+    {
+      "id": "console.error.path",
+      "text": "This proposal edits a file agents can't change. Nothing was committed."
+    },
+    {
+      "id": "console.error.commit",
+      "text": "The commit failed. Nothing was deployed. Try again in a minute."
+    }
+  ]
+}

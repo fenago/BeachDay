@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Today at Hollywood Beach · Beach Day (demo)</title>
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="glass.css">
+</head>
+<body data-condition="sunny">
+  <!-- Blur surface 1 of max 3 -->
+  <header class="top-bar glass">
+    <h1>Hollywood Beach</h1>
+    <button class="btn btn--icon" type="button" aria-label="Change beach">
+      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <!-- Blur surface 2 of max 3: the floating verdict card over the sky -->
+    <section class="hero glass" aria-labelledby="today-h">
+      <p class="muted" style="margin:0">Today · Sun 23 Nov</p>
+      <h2 id="today-h">Great beach day</h2>
+      <span class="verdict verdict--great">
+        <svg aria-hidden="true"><use href="../03-icon-sprite/icons.svg#sun"/></svg>
+        Great
+      </span>
+      <p style="margin:12px 0 0">Best 10 am – 1 pm</p>
+      <ul class="reasons">
+        <li>Sunny, 81 °F feels like 84 °F</li>
+        <li>Light wind, 8 mph</li>
+        <li>Offshore waves under 2 ft</li>
+      </ul>
+      <p style="margin:16px 0 0"><button class="btn btn--primary" type="button">See hourly</button></p>
+    </section>
+
+    <!-- Content layer: solid card, not glass -->
+    <section class="card" aria-labelledby="next-h">
+      <h2 id="next-h" style="font-size:var(--fs-title-3);margin:0 0 12px">Next days</h2>
+      <ul class="days">
+        <li><span class="day">Mon</span><span class="verdict verdict--good"><svg aria-hidden="true"><use href="../03-icon-sprite/icons.svg#sun-cloud"/></svg>Good</span></li>
+        <li><span class="day">Tue</span><span class="verdict verdict--fair"><svg aria-hidden="true"><use href="../03-icon-sprite/icons.svg#cloud"/></svg>Fair</span></li>
+        <li><span class="day">Wed</span><span class="verdict verdict--skip"><svg aria-hidden="true"><use href="../03-icon-sprite/icons.svg#storm"/></svg>Skip it</span></li>
+        <li><span class="day">Thu</span><span class="verdict verdict--great"><svg aria-hidden="true"><use href="../03-icon-sprite/icons.svg#sun"/></svg>Great</span></li>
+      </ul>
+      <p class="safety" style="margin:16px 0 0">Beach Day is not a safety service — check
+        <a href="https://www.weather.gov/beach/mfl">NWS rip-current risk</a> and posted beach flags.</p>
+      <p class="attribution" style="margin:12px 0 0">Weather data by <a href="https://open-meteo.com/" style="color:inherit">Open-Meteo.com</a> (CC BY 4.0)</p>
+    </section>
+  </main>
+</body>
+</html>

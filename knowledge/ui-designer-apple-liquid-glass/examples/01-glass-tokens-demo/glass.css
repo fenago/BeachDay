@@ -1,0 +1,128 @@
+/* Beach Day glass components (example). Requires tokens.css.
+   Rules: glass only on the control/navigation layer; at most 3 visible blur
+   surfaces; never animate blur; every effect has a fallback. */
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 96px; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font: 400 var(--fs-body) / 1.35 var(--font);
+  color: var(--text);
+  /* Content layer: condition-tinted gradient, no images */
+  background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%) fixed;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+[data-condition="sunny"]    { --bg-top: var(--bg-sunny-top);    --bg-bottom: var(--bg-sunny-bottom); }
+[data-condition="overcast"] { --bg-top: var(--bg-overcast-top); --bg-bottom: var(--bg-overcast-bottom); }
+[data-condition="stormy"]   { --bg-top: var(--bg-stormy-top);   --bg-bottom: var(--bg-stormy-bottom); }
+
+/* ---- Glass material ---------------------------------------------------- */
+.glass {
+  background:
+    linear-gradient(180deg, var(--glass-highlight-top), transparent 40%),
+    var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-l);
+  box-shadow: var(--glass-shadow);
+}
+
+/* Fallback 1: no backdrop-filter at all. Safari < 18 only knows the
+   -webkit- prefixed form, so test both before giving up on blur. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: var(--surface-solid); }
+}
+
+/* Fallback 2: user asked for less transparency (Chromium only today;
+   Safari/iOS do not expose this media feature, see docs/05). */
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background: var(--surface-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Fallback 3: more contrast requested -> opaque surface and visible rim */
+@media (prefers-contrast: more) {
+  .glass { background: var(--surface-solid); border-color: var(--control-border); }
+}
+
+/* ---- Layout ------------------------------------------------------------ */
+.top-bar {
+  position: sticky; top: 0; z-index: 2;
+  margin: 8px 16px 0; padding: 6px 8px 6px 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  border-radius: var(--radius-m);
+}
+.top-bar h1 { font-size: var(--fs-headline); font-weight: 600; margin: 0; }
+main { padding: 16px; display: grid; gap: 16px; max-width: 560px; margin: 0 auto; }
+
+/* Content-layer cards are NOT glass (HIG: no Liquid Glass in the content layer) */
+.card {
+  background: var(--surface-solid);
+  border-radius: var(--radius-l);
+  padding: var(--space-5);
+}
+.hero { /* the one floating glass card over the sky */
+  padding: var(--space-5);
+}
+.hero h2 { font-size: var(--fs-large-title); line-height: 1.2; margin: 8px 0 4px; font-weight: 700; }
+.muted { color: var(--text-2); }
+.reasons { margin: 8px 0 0; padding-left: 1.1em; }
+.reasons li { margin: 2px 0; }
+
+/* ---- Verdict chip: color + icon + text, never color alone ------------- */
+.verdict {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 32px; padding: 4px 12px 4px 8px;
+  border-radius: 999px;
+  font-size: var(--fs-headline); font-weight: 600;
+}
+.verdict svg { width: 22px; height: 22px; flex: none; }
+.verdict--great { background: var(--verdict-great); color: var(--on-verdict-great); }
+.verdict--good  { background: var(--verdict-good);  color: var(--on-verdict-good); }
+.verdict--fair  { background: var(--verdict-fair);  color: var(--on-verdict-fair); }
+.verdict--skip  { background: var(--verdict-skip);  color: var(--on-verdict-skip); }
+
+.days { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; list-style: none; margin: 0; padding: 0; }
+.days li { display: flex; flex-direction: column; gap: 6px; }
+.days .day { font-size: var(--fs-subhead); font-weight: 600; }
+
+/* ---- Controls ---------------------------------------------------------- */
+.btn {
+  min-width: var(--target-min); min-height: var(--target-min);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 0 18px; border-radius: 999px; border: 0;
+  font: 600 var(--fs-callout) / 1 var(--font);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-spring), opacity var(--dur-fast) var(--ease-out);
+}
+.btn--primary { background: var(--accent); color: var(--on-accent); }
+.btn--icon {
+  padding: 0; background: transparent; color: var(--text);
+  border: 1.5px solid var(--control-border); /* icon-only: boundary needs 3:1 */
+}
+.btn--icon svg { width: 22px; height: 22px; }
+.btn:active { transform: scale(0.96); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.safety a { color: var(--link); font-weight: 600; }
+.attribution { font-size: var(--fs-footnote); color: var(--text-2); }
+
+/* ---- Sheet entrance (transform/opacity only; never animate blur) ------- */
+@keyframes sheet-in { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.hero { animation: sheet-in var(--dur-slow) var(--ease-spring) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero { animation: none; }
+  .btn { transition: opacity var(--dur-fast) linear; }
+  .btn:active { transform: none; opacity: 0.7; }
+}
+
+.visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}

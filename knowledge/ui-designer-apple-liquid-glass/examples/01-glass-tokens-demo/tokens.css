@@ -1,0 +1,108 @@
+/* Beach Day design tokens (example). Light values first, dark values in the
+   prefers-color-scheme block. Colors that the contrast checker reads
+   (../02-contrast-check/contrast.mjs) MUST be written as #rrggbb or
+   rgb(r g b / a) so the script can parse them. */
+:root {
+  color-scheme: light dark;
+
+  /* Condition backgrounds (content layer). Each gradient's two stops are
+     listed separately so the checker can composite glass over each one. */
+  --bg-sunny-top: #6cc4f2;
+  --bg-sunny-bottom: #0b6aa2;
+  --bg-overcast-top: #c7d2dc;
+  --bg-overcast-bottom: #6f7d8a;
+  --bg-stormy-top: #5b6675;
+  --bg-stormy-bottom: #1f2833;
+  /* Worst case for content that scrolls under the bars (white cards, dark photos). */
+  --bg-scroll-worst-light: #ffffff;
+  --bg-scroll-worst-dark: #000000;
+
+  /* Glass material (control/navigation layer only). */
+  --glass-bg: rgb(255 255 255 / 0.74);
+  --glass-highlight-top: rgb(255 255 255 / 0.35);
+  --glass-bg-strong: rgb(255 255 255 / 0.92);
+  --surface-solid: #f4f7fa;          /* reduced transparency + no backdrop-filter */
+  --glass-border: rgb(255 255 255 / 0.70); /* decorative rim, not a control boundary */
+  --glass-blur: 20px;
+  --glass-saturate: 1.6;
+  --glass-shadow: 0 8px 32px rgb(0 30 60 / 0.18);
+
+  /* Text */
+  --text: #0b1b2b;
+  --text-2: #33414f;
+  --link: #0a4677;
+
+  /* Controls */
+  --accent: #0b5c94;
+  --on-accent: #ffffff;
+  --control-border: #4f5d6b;   /* boundary of controls with no text label */
+  --focus: #0b3a66;
+
+  /* Verdicts: solid chip + on-color text and icon */
+  --verdict-great: #1d7f46;
+  --on-verdict-great: #ffffff;
+  --verdict-good: #0f6b7b;
+  --on-verdict-good: #ffffff;
+  --verdict-fair: #f2a93b;
+  --on-verdict-fair: #1f1400;
+  --verdict-skip: #b3261e;
+  --on-verdict-skip: #ffffff;
+
+  /* Shape, space, type, motion */
+  --radius-l: 28px; --radius-m: 20px; --radius-s: 14px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px;
+  --target-min: 44px;
+  --font: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
+  /* HIG iOS "Large (default)" text styles, in rem so browser text size scales them */
+  --fs-large-title: 2.125rem; /* 34 */
+  --fs-title-1: 1.75rem;      /* 28 */
+  --fs-title-2: 1.375rem;     /* 22 */
+  --fs-title-3: 1.25rem;      /* 20 */
+  --fs-headline: 1.0625rem;   /* 17 semibold */
+  --fs-body: 1.0625rem;       /* 17 */
+  --fs-callout: 1rem;         /* 16 */
+  --fs-subhead: 0.9375rem;    /* 15 */
+  --fs-footnote: 0.8125rem;   /* 13 */
+  --fs-caption: 0.75rem;      /* 12 */
+  --dur-fast: 200ms; --dur-base: 280ms; --dur-slow: 350ms;
+  --ease-spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-sunny-top: #0f3a5c;
+    --bg-sunny-bottom: #04192c;
+    --bg-overcast-top: #3a4652;
+    --bg-overcast-bottom: #161d24;
+    --bg-stormy-top: #2a2f3a;
+    --bg-stormy-bottom: #0b0e13;
+    --bg-scroll-worst-light: #ffffff;
+    --bg-scroll-worst-dark: #000000;
+
+    --glass-bg: rgb(13 27 42 / 0.80);
+    --glass-highlight-top: rgb(255 255 255 / 0.08);
+    --glass-bg-strong: rgb(13 27 42 / 0.94);
+    --surface-solid: #101c28;
+    --glass-border: rgb(255 255 255 / 0.18);
+    --glass-shadow: 0 8px 32px rgb(0 0 0 / 0.45);
+
+    --text: #f2f6fa;
+    --text-2: #c3cfdb;
+    --link: #a8dcff;
+
+    --accent: #6cc0f5;
+    --on-accent: #04192c;
+    --control-border: #a7b4c2;
+    --focus: #ffd166;
+
+    --verdict-great: #1d7f46;
+    --on-verdict-great: #ffffff;
+    --verdict-good: #0f6b7b;
+    --on-verdict-good: #ffffff;
+    --verdict-fair: #f2a93b;
+    --on-verdict-fair: #1f1400;
+    --verdict-skip: #b3261e;
+    --on-verdict-skip: #ffffff;
+  }
+}

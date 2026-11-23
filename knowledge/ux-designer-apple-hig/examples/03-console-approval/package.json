@@ -1,0 +1,12 @@
+{
+  "name": "beach-day-example-console-approval",
+  "private": true,
+  "type": "module",
+  "description": "Axe + Playwright check for the Agent Console approval prototype (example only).",
+  "scripts": {
+    "check": "node axe-check.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0"
+  }
+}

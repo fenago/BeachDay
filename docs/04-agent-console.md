@@ -160,7 +160,7 @@ Patterns:
 
 ## 11. Agent list & personality
 
-`scripts/build-agents.mjs` parses `.claude/agents/*.md` (YAML frontmatter + body) into `agents.json` at build time. `/api/agents` returns `name`, `description`, `personality` (custom field — Claude Code ignores unknown fields), `model` (alias → resolved ID), `color`. System prompts stay server-side. Because approved commits redeploy, edits to agent files appear in the Console after the next deploy. Details: doc 05 §3.
+`scripts/build-agents.mjs` parses `.claude/agents/*.md` (YAML frontmatter + body) into `agents.json` at build time. `/api/agents` returns `name`, `persona` (first name), `description`, `personality` (custom field — Claude Code ignores unknown fields), `model` (alias → resolved ID), `color`. System prompts stay server-side. Because approved commits redeploy, edits to agent files appear in the Console after the next deploy. Details: doc 05 §3.
 
 ## 12. Build checklist for `agent-console-engineer` + `security-engineer`
 

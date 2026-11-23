@@ -20,17 +20,17 @@ The 11 project subagents are in `.claude/agents/`. Their 22 shared skills are in
 
 | Agent | Role |
 |---|---|
-| `orchestrator` | Runs the team: plans, delegates, routes handoffs, enforces review gates, reports to Dr. Lee |
-| `agent-builder` | Meta agent: creates and improves the agents and skills |
-| `software-architect` | System design, interfaces, ADRs |
-| `open-meteo-integrator` | Open-Meteo data layer and the beach-day score |
-| `pwa-mobile-engineer` | Manifest, service worker, offline, install on iOS and Android |
-| `security-engineer` | Threat model and security reviews (can block) |
-| `agent-console-engineer` | Agent Console: Claude via Functions, proposals, Approve → GitHub commit |
+| `orchestrator` (**Kai**) | Runs the team: plans, delegates, routes handoffs, enforces review gates, reports to Dr. Lee |
+| `agent-builder` (**Juno**) | Meta agent: creates and improves the agents and skills |
+| `software-architect` (**Rowan**) | System design, interfaces, ADRs |
+| `open-meteo-integrator` (**Dewey**) | Open-Meteo data layer and the beach-day score |
+| `pwa-mobile-engineer` (**Pip**) | Manifest, service worker, offline, install on iOS and Android |
+| `security-engineer` (**Vera**) | Threat model and security reviews (can block) |
+| `agent-console-engineer` (**Remy**) | Agent Console: Claude via Functions, proposals, Approve → GitHub commit |
 | `ui-designer-apple-liquid-glass` (**Sable**) | Apple-inspired Liquid Glass visual design system |
 | `ux-designer-apple-hig` (**Wren**) | Flows, interaction and copy per Apple's Human Interface Guidelines |
-| `qa-engineer` | Tests and the release gate |
-| `netlify-engineer` | Netlify config, functions platform, env vars, deploys, credits |
+| `qa-engineer` (**Tess**) | Tests and the release gate |
+| `netlify-engineer` (**Nell**) | Netlify config, functions platform, env vars, deploys, credits |
 
 ### Agent knowledge (`knowledge/<agent-name>/`)
 
@@ -55,7 +55,7 @@ Every agent file has a **Before you answer** section. It tells the agent to read
   claude --agent orchestrator
   ```
 - In an ordinary session, hand any multi-step Beach Day request to the `orchestrator` subagent. Don't call experts yourself, so routing stays in one place. Answering a quick question yourself is fine.
-- The agent files carry a custom `personality:` field. The Agent Console shows it, and Claude Code ignores it.
+- Each agent file has a model (its "brain"), a first name in the custom `persona:` field, and a one-line `personality:` field. Claude Code ignores the two custom fields; the Agent Console shows them. They are all listed in `docs/agent-brains.md`.
 
 ## Working rules for every session
 

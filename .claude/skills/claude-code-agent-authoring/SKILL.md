@@ -19,6 +19,7 @@ model: sonnet               # sonnet | opus | haiku | fable | full ID | inherit
 color: cyan                 # red blue green yellow purple orange pink cyan
 skills:                     # full SKILL.md content injected at startup (first 32)
   - beach-day-context
+persona: Kai                # custom: first name (Claude Code ignores it)
 personality: One line the Agent Console shows.   # custom field (Claude Code ignores it)
 ---
 System prompt in Markdown (the body). The agent sees only this prompt, the preloaded skills and basic environment details. It does NOT see the main Claude Code system prompt or the parent conversation.
@@ -55,6 +56,8 @@ Instructions / reference. Keep under 500 lines; put detail in sibling files and 
   - `sonnet` → `claude-sonnet-5-5`
   - `haiku` → `claude-haiku-5-5`
   - `fable` → `claude-fable-5-2`
+- **`persona`** is the agent's first name. Each agent also gets a `## Who you are` section in its body. Keep `docs/agent-brains.md` in sync.
+- **Model choice:** `opus` for hard reasoning or costly mistakes; `sonnet` for everyday engineering and design; `haiku` for small, well-defined jobs.
 - **`personality`** is one line in plain language, using they/them for personas. The Console falls back to `description` if it is missing.
 - **System prompt structure:** role → responsibilities → how you work → boundaries → handoff. Keep it short, because the skills carry the how-to.
 - **When you change an agent or skill,** keep the roster doc, the agent file and `CLAUDE.md` consistent in the same change.

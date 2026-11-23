@@ -6,19 +6,21 @@
 
 ## 1. The team at a glance
 
-| # | Agent (file name) | Persona | Suggested model | One-line job |
+Names, models and personalities are described in [agent-brains.md](agent-brains.md). The agent files themselves are the source of truth.
+
+| # | Agent (file name) | Name | Model | One-line job |
 |---|---|---|---|---|
-| 1 | `orchestrator` | — | `opus` | Runs the team. Turns Dr. Lee's goals into tasks, assigns them to the right expert, orders the handoffs, and decides when work is ready to ship. |
-| 2 | `agent-builder` (meta agent) | — | `opus` | Builds, tunes and retires the other agents and skills. Writes their `.claude/agents/*.md` files, prompts and skill files, and improves them from what went wrong. |
-| 3 | `software-architect` | — | `opus` | Owns the overall design: front-end module layout, the Functions/Blobs boundary, data flow, ADRs, and keeping the app "static + functions, nothing else". |
-| 4 | `open-meteo-integrator` | — | `sonnet` | Owns the Forecast and Marine API calls, response parsing, caching and the beach-day scoring model, including its sources and thresholds. |
-| 5 | `pwa-mobile-engineer` | — | `sonnet` | Makes Beach Day installable and fast on iPhone and Android: manifest, icons, service worker, offline mode, update flow, install prompts. |
-| 6 | `security-engineer` | — | `opus` | Threat-models and reviews everything that touches secrets or GitHub: password gate, token scope, path allow-list, rate limits, headers/CSP, prompt-injection defenses. |
-| 7 | `agent-console-engineer` | — | `opus` | Builds the Agent Console: the agent list, streaming chat via a Netlify Function calling Claude, proposals in Netlify Blobs, and Approve → GitHub commit → redeploy. |
+| 1 | `orchestrator` | **Kai** | `opus` | Runs the team. Turns Dr. Lee's goals into tasks, assigns them to the right expert, orders the handoffs, and decides when work is ready to ship. |
+| 2 | `agent-builder` (meta agent) | **Juno** | `sonnet` | Builds, tunes and retires the other agents and skills. Writes their `.claude/agents/*.md` files, prompts and skill files, and improves them from what went wrong. |
+| 3 | `software-architect` | **Rowan** | `opus` | Owns the overall design: front-end module layout, the Functions/Blobs boundary, data flow, ADRs, and keeping the app "static + functions, nothing else". |
+| 4 | `open-meteo-integrator` | **Dewey** | `sonnet` | Owns the Forecast and Marine API calls, response parsing, caching and the beach-day scoring model, including its sources and thresholds. |
+| 5 | `pwa-mobile-engineer` | **Pip** | `sonnet` | Makes Beach Day installable and fast on iPhone and Android: manifest, icons, service worker, offline mode, update flow, install prompts. |
+| 6 | `security-engineer` | **Vera** | `opus` | Threat-models and reviews everything that touches secrets or GitHub: password gate, token scope, path allow-list, rate limits, headers/CSP, prompt-injection defenses. |
+| 7 | `agent-console-engineer` | **Remy** | `opus` | Builds the Agent Console: the agent list, streaming chat via a Netlify Function calling Claude, proposals in Netlify Blobs, and Approve → GitHub commit → redeploy. |
 | 8 | `ui-designer-apple-liquid-glass` | **Sable** | `sonnet` | Designs the visual layer in an Apple-inspired Liquid Glass style: translucent materials, depth, color, type and motion, while keeping it legible and accessible on the web. |
 | 9 | `ux-designer-apple-hig` | **Wren** | `sonnet` | Designs flows, information architecture and interaction patterns following Apple's Human Interface Guidelines: beach picker, day verdicts, explanations, Console approval UX. |
-| 10 | `qa-engineer` | — | `sonnet` | Owns test strategy and the quality gate: unit tests for scoring, Playwright end-to-end on mobile profiles, offline/SW tests, axe accessibility, Function tests. |
-| 11 | `netlify-engineer` | — | `sonnet` | Owns the Netlify side: `netlify.toml`, headers and redirects, Functions config and limits, background functions, Blobs, env vars and deploy contexts, deploy previews and rollbacks. |
+| 10 | `qa-engineer` | **Tess** | `sonnet` | Owns test strategy and the quality gate: unit tests for scoring, Playwright end-to-end on mobile profiles, offline/SW tests, axe accessibility, Function tests. |
+| 11 | `netlify-engineer` | **Nell** | `sonnet` | Owns the Netlify side: `netlify.toml`, headers and redirects, Functions config and limits, background functions, Blobs, env vars and deploy contexts, deploy previews and rollbacks. |
 
 ### Additional roles considered
 

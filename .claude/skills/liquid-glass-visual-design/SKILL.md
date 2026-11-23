@@ -17,7 +17,7 @@ Liquid Glass is Apple's 2025 design language: translucent, refractive material t
   --glass-shadow: 0 8px 32px rgb(0 30 60 / .18);
   --radius-l: 28px; --radius-m: 20px; --radius-s: 14px;
   --text: #0b1b2b; --text-2: #3a4b5c;
-  --verdict-great: #1f8a4c; --verdict-good: #11788a; --verdict-fair: #b26a00; --verdict-skip: #b3261e;
+  --verdict-great: #1f8a4c; --verdict-good: #11788a; --verdict-fair: #f2a93b; /* use with dark text #1f1400 (9.08:1) */ --verdict-skip: #b3261e;
 }
 @media (prefers-color-scheme: dark) {
   :root { --glass-bg: color-mix(in oklab, #0d1b2a 55%, transparent); --glass-bg-strong: color-mix(in oklab, #0d1b2a 80%, transparent);
@@ -29,12 +29,13 @@ Liquid Glass is Apple's 2025 design language: translucent, refractive material t
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border); border-radius: var(--radius-l); box-shadow: var(--glass-shadow);
 }
-@supports not (backdrop-filter: blur(1px)) { .glass { background: var(--glass-bg-strong); } }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .glass { background: var(--glass-bg-strong); } }
 @media (prefers-reduced-transparency: reduce) { .glass { background: var(--glass-bg-strong); backdrop-filter: none; -webkit-backdrop-filter: none; } }
 ```
 
 ## Layering rules
 - **Content layer:** sky and sea gradients, or a photo. It can be tinted by the conditions: sunny, overcast, stormy.
+- **`prefers-reduced-transparency` is not supported in Safari or iOS Safari** (MDN compat data), so the *default* glass must already pass 4.5:1 over the worst background. The media query is a bonus, not the safety net.
 - **Glass belongs to the control and navigation layer:** top bar, tab bar, sheets, floating cards. **Never** put glass on glass more than 2 levels deep.
 - **Text on glass:**
   - Meet **4.5:1 against the worst-case background** under the blur. Use a stronger tint or a scrim if needed.
