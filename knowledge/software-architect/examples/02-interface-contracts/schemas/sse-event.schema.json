@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/sse-event.schema.json",
+  "title": "ConsoleSseEvent",
+  "description": "JSON carried in the single `data:` line of each SSE message from POST /api/chat. The SSE `event:` field equals `type`. Types fixed by docs/04 §8: text, tool, proposal, handoff, error, done. Every stream ends with exactly one `done` or `error`.",
+  "oneOf": [
+    { "$ref": "#/$defs/text" },
+    { "$ref": "#/$defs/tool" },
+    { "$ref": "#/$defs/proposal" },
+    { "$ref": "#/$defs/handoff" },
+    { "$ref": "#/$defs/error" },
+    { "$ref": "#/$defs/done" }
+  ],
+  "$defs": {
+    "text": {
+      "type": "object", "additionalProperties": false, "required": ["type", "delta"],
+      "properties": {
+        "type": { "const": "text" },
+        "delta": { "type": "string", "maxLength": 8192, "description": "Appended to the visible reply; render as text, never innerHTML" }
+      }
+    },
+    "tool": {
+      "type": "object", "additionalProperties": false, "required": ["type", "name", "phase"],
+      "properties": {
+        "type": { "const": "tool" },
+        "name": { "enum": ["read_file", "list_files", "propose_change"] },
+        "phase": { "enum": ["start", "end"] },
+        "summary": { "type": "string", "maxLength": 200, "description": "Short UI line, e.g. 'Read public/js/score.js'. Never raw tool input." }
+      }
+    },
+    "proposal": {
+      "type": "object", "additionalProperties": false, "required": ["type", "proposalId", "summary", "files"],
+      "properties": {
+        "type": { "const": "proposal" },
+        "proposalId": { "$ref": "#/$defs/proposalId" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "files": {
+          "type": "array", "minItems": 1, "maxItems": 20,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["path", "bytes"],
+            "properties": { "path": { "type": "string" }, "bytes": { "type": "integer", "minimum": 0, "maximum": 204800 } }
+          }
+        }
+      }
+    },
+    "handoff": {
+      "type": "object", "additionalProperties": false, "required": ["type", "jobId"],
+      "properties": {
+        "type": { "const": "handoff" },
+        "jobId": { "type": "string", "pattern": "^job_[A-Za-z0-9_-]{8,64}$", "description": "Client switches to polling GET /api/jobs/:id" }
+      }
+    },
+    "error": {
+      "type": "object", "additionalProperties": false, "required": ["type", "code", "message", "retryable"],
+      "properties": {
+        "type": { "const": "error" },
+        "code": { "enum": ["unauthorized", "rate_limited", "refusal", "upstream", "timeout", "invalid_request", "internal"] },
+        "message": { "type": "string", "maxLength": 500, "description": "User-safe text; no stack traces, no env values" },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "done": {
+      "type": "object", "additionalProperties": false, "required": ["type"],
+      "properties": {
+        "type": { "const": "done" },
+        "stopReason": { "enum": ["end_turn", "max_tokens", "refusal", "handoff", "tool_rounds_exhausted"] }
+      }
+    },
+    "proposalId": { "type": "string", "pattern": "^prop_[A-Za-z0-9_-]{8,64}$" }
+  }
+}
