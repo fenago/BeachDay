@@ -36,8 +36,7 @@ export function buildRequest(h, route, { token, headers = {}, id, sameOrigin = t
 
 /** Fresh state: two users (a super_admin and a plain user), no failures, zeroed counters. */
 export async function setup(h) {
-  await h.reset();
-  h.clearDepsAdapters();
+  await h.reset(); // deps adapters (mutant guards) are NOT cleared here: the caller owns them, or the mutants would never run
   h.supabase.addUser({ email: ADMIN, role: "super_admin" });
   h.supabase.addUser({ email: PLAIN, role: "user" });
   h.supabase.resetCalls(); h.blobs.resetCalls();
@@ -115,8 +114,7 @@ export const CELLS = [
   { id: "no Authorization header", group: "401", run: (h, r) => call(h, r, { token: undefined, wantStatus: 401, profileReadsAtMost: 0 }) },
   u401("Basic credentials", async () => "Basic dXNlcjpwYXNz"),
   u401("Bearer with garbage", async () => "Bearer not-a-token"),
-  // FOUND 2026-11-23 (W2): with the JWT header pre-check off (D12), auth-js throws on a header that is not base64 JSON and the guard answers 503. docs/06 §3.1 wants 401. Owner: Cass (guard.mts).
-  u401("three garbage parts", async () => "Bearer aaaa.bbbb.cccc", { knownBug: "guard.mts answers 503 (not 401) for a token whose header is not JSON, because auth-js throws and the guard maps a throw to 503 (owner: supabase-auth-engineer)" }),
+  u401("three garbage parts", async () => "Bearer aaaa.bbbb.cccc"),
   u401("three base64 parts that are not a JWT", async () => "Bearer not.a-jwt.at-all"),
   u401("expired (exp in the past)", async (h) => `Bearer ${await h.supabase.mintExpired(ADMIN)}`),
   u401("bad signature (payload edited to another sub)", tampered),
@@ -181,6 +179,14 @@ export async function runHangCase(h, routes) {
 export async function runCell(h, cell, route) { await setup(h); return cell.run(h, route); }
 
 // ---- planted-bug mutants: each is a guard dep that a correct matrix must catch ----
+/** The cell groups that MUST catch each mutant (a mutant caught only by an unrelated cell would mean the matrix is hollow). */
+export const MUTANT_CAUGHT_BY = {
+  "skips the guard": ["401"],
+  "skips the signature check": ["401"],
+  "trusts a role claim": ["403"],
+  "maps an outage to 401": ["503"],
+  "ignores the role (any signed-in user)": ["403"],
+};
 export function mutantGuards() {
   const real = () => createGuard({ url: FIXTURE_SUPABASE_URL, publishableKey: FIXTURE_PUBLISHABLE_KEY, fetchImpl: (...a) => globalThis.fetch(...a) });
   const decode = (req) => { const t = (req.headers.get("authorization") ?? "").replace(/^Bearer /, ""); try { return { token: t, payload: JSON.parse(Buffer.from(t.split(".")[1], "base64url").toString()) }; } catch { return null; } };

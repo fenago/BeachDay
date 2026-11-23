@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { API_ROUTES } from "../harness/routes.mjs";
-import { CELLS, applies, runCell, runHangCase, mutantGuards, startMatrixHarness, pendingRoutes } from "../helpers/matrix.mjs";
+import { CELLS, applies, runCell, runHangCase, mutantGuards, MUTANT_CAUGHT_BY, startMatrixHarness, pendingRoutes } from "../helpers/matrix.mjs";
 
 const standin = join(fileURLToPath(new URL(".", import.meta.url)), "..", "fixtures", "site", "standin");
 let h;
@@ -20,15 +20,7 @@ async function failures(routes = API_ROUTES) {
 
 describe("matrix against stand-in handlers (real guard, real origin check)", () => {
   it("all 8 stand-ins exist", () => { expect(pendingRoutes(h)).toEqual([]); });
-  it("every cell passes for every route, except cells carrying a recorded product bug (the bug must still reproduce)", async () => {
-    h.clearDepsAdapters();
-    const bugs = CELLS.filter((c) => c.knownBug);
-    const got = await failures();
-    const unexpected = got.filter((g) => !bugs.some((b) => g.includes(`[${b.id}]`)));
-    expect(unexpected).toEqual([]);
-    // when the owner fixes the bug this fails: delete knownBug from the cell in tests/helpers/matrix.mjs
-    for (const b of bugs) expect(got.some((g) => g.includes(`[${b.id}]`)), `knownBug "${b.id}" no longer reproduces: remove the flag`).toBe(true);
-  }, 120_000);
+  it("every cell passes for every route", async () => { h.clearDepsAdapters(); expect(await failures()).toEqual([]); }, 120_000);
   it("hang: 503 on every route within the 5 s guard timeout", async () => { h.clearDepsAdapters(); expect(await runHangCase(h, API_ROUTES)).toEqual([]); }, 20_000);
   it("cell count: 8 routes x the applicable cells", () => {
     const n = API_ROUTES.reduce((a, r) => a + CELLS.filter((c) => applies(c, r)).length, 0);
@@ -36,13 +28,16 @@ describe("matrix against stand-in handlers (real guard, real origin check)", () 
   });
 });
 
-describe("planted-bug mutants are caught by at least one cell", () => {
+describe("planted-bug mutants are caught by the cells that exist to catch them", () => {
   for (const [name, make] of Object.entries(mutantGuards())) {
     it(`mutant: guard ${name}`, async () => {
+      h.clearDepsAdapters();
       for (const r of API_ROUTES) h.registerDeps(r.module, (bag) => ({ ...bag, guard: make() }));
       try {
-        const f = await failures([API_ROUTES[0], API_ROUTES[7]]); // one GET and one POST route are enough to prove sensitivity
-        expect(f.length, `no cell caught "${name}"`).toBeGreaterThan(0);
+        const caught = [];
+        for (const r of [API_ROUTES[0], API_ROUTES[7]]) for (const c of CELLS) { if (!applies(c, r) || c.group === "control") continue; if ((await runCell(h, c, r)).length) caught.push(c.group); }
+        expect(caught.length, `no cell caught "${name}"`).toBeGreaterThan(0);
+        expect(MUTANT_CAUGHT_BY[name].some((g) => caught.includes(g)), `"${name}" was caught only by ${[...new Set(caught)]}, expected group ${MUTANT_CAUGHT_BY[name]}`).toBe(true);
       } finally { h.clearDepsAdapters(); }
     }, 120_000);
   }

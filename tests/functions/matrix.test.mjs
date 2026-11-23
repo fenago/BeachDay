@@ -1,13 +1,14 @@
 // The function auth matrix against the REAL handlers in netlify/functions/ (docs/06 §3.1-§3.2, docs/04 §12).
 // Cells live in tests/helpers/matrix.mjs. A route whose handler file does not exist yet is PENDING: its cells are skipped
 // (visible in the summary) and the "no pending handlers" test fails the moment you run with MATRIX_STRICT=1 (the W3 gate does).
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { API_ROUTES } from "../harness/routes.mjs";
-import { CELLS, applies, runCell, runHangCase, pendingRoutes, startMatrixHarness, setup, mutantGuards } from "../helpers/matrix.mjs";
+import { CELLS, applies, runCell, runHangCase, pendingRoutes, startMatrixHarness, setup, mutantGuards, MUTANT_CAUGHT_BY } from "../helpers/matrix.mjs";
 
 let h;
 beforeAll(async () => { h = await startMatrixHarness(); });
+beforeEach(() => { h.clearDepsAdapters(); });
 afterAll(async () => { h?.clearDepsAdapters?.(); await h?.close(); });
 
 describe("registry: the route table, the harness and the handler files agree", () => {
@@ -72,9 +73,10 @@ describe("mutants against the REAL handlers: a guard that is wrong must make the
       if (routes.some((r) => !h.hasHandler(r.key))) return ctx.skip("PENDING: handler file missing");
       for (const r of routes) h.registerDeps(r.module, (bag) => ({ ...bag, guard: make() }));
       try {
-        let caught = 0;
-        for (const r of routes) for (const c of CELLS) if (applies(c, r) && c.group !== "control" && (await runCell(h, c, r)).length) caught++;
-        expect(caught, `no cell caught the mutant "${name}"`).toBeGreaterThan(0);
+        const caught = [];
+        for (const r of routes) for (const c of CELLS) if (applies(c, r) && c.group !== "control" && (await runCell(h, c, r)).length) caught.push(c.group);
+        expect(caught.length, `no cell caught the mutant "${name}"`).toBeGreaterThan(0);
+        expect(MUTANT_CAUGHT_BY[name].some((g) => caught.includes(g)), `"${name}" caught only by ${[...new Set(caught)]}`).toBe(true);
       } finally { h.clearDepsAdapters(); }
     }, 60_000);
   }

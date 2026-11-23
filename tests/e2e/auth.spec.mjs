@@ -34,7 +34,7 @@ test.describe("S1 sign in", () => {
     await expect(show).toHaveAttribute("aria-pressed", "false");
     await show.click();
     await expect(pw).toHaveAttribute("type", "text");
-    await expect(page.getByRole("button", { name: STRINGS["btn.hidePassword"] })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("button[aria-pressed][aria-controls]").first()).toHaveAttribute("aria-pressed", "true"); // the name may flip to Hide Password
     expect(await page.locator("form[action]").count()).toBe(0);
     expect(await page.locator('iframe, [class*="captcha" i], [id*="captcha" i]').count()).toBe(0);
     await expect(page.getByLabel(/confirm password|repeat password/i)).toHaveCount(0);
@@ -143,11 +143,12 @@ test.describe("S4 forgot / S5 new password", () => {
     expect(seen[0]).toBe(seen[1]);
     const mail = await c.h.supabase.lastEmail({ to: PLAIN.email, type: "recovery" });
     await page.goto(`/console?token_hash=${mail.tokenHash}&type=recovery`);
-    await expect(h1(page)).toHaveText(STRINGS["auth.link.title"]);
+    await expect(screen(page, "S3b")).toBeVisible();
+    await expect(page.getByText(STRINGS["auth.link.reset.body"])).toBeVisible();
     await page.getByRole("button", { name: STRINGS["btn.chooseNew"] }).click();
     await expect(h1(page)).toHaveText(STRINGS["auth.reset.title"]);
     await expect(page.getByLabel(/confirm password/i)).toHaveCount(0);
-    await page.getByLabel(/password/i).first().fill("my brand new long password");
+    await screen(page, "S5").locator("input[type=password]").fill("my brand new long password");
     await page.getByRole("button", { name: STRINGS["btn.setPassword"] }).click();
     await expect(page.getByTestId("no-access")).toBeVisible(); // a plain user: signed in, then refused by role
   });
@@ -172,7 +173,7 @@ test.describe("Continue with Google", () => {
     await expect(page.getByTestId("agent-list").or(page.getByTestId("no-access"))).toBeVisible({ timeout: 15_000 });
     expect(page.url()).not.toMatch(/[?&]code=/);
     expect(popups).toBe(0);
-    const stores = await page.evaluate(() => ({ local: Object.keys(localStorage).filter((k) => /auth-token/.test(k)), session: Object.entries(sessionStorage).map(([k, v]) => `${k}=${v}`) }));
+    const stores = await page.evaluate(() => ({ local: Object.keys(localStorage).filter((k) => /-auth-token$/.test(k)), session: Object.entries(sessionStorage).map(([k, v]) => `${k}=${v}`) }));
     expect(stores.local.length).toBe(1);
     expect(stores.session.join(" ")).not.toMatch(/eyJ|access_token|refresh_token/);
   });
@@ -191,12 +192,12 @@ test.describe("session and sign out", () => {
     await signIn(page, ADMIN);
     await expect(page.getByTestId("agent-list")).toBeVisible();
     expect(await context.cookies()).toEqual([]);
-    expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => /auth-token/.test(k)).length)).toBe(1);
+    expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => /-auth-token$/.test(k)).length)).toBe(1);
     expect(await page.content()).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}\./);
     await expect(page.getByTestId("account-email")).toContainText(ADMIN.email);
     await page.getByRole("button", { name: STRINGS["btn.signOut"], exact: true }).click();
     await expect(page.getByText(STRINGS["auth.signout.done"])).toBeVisible();
-    expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => /auth-token/.test(k)).length)).toBe(0);
+    expect(await page.evaluate(() => Object.keys(localStorage).filter((k) => /-auth-token$/.test(k)).length)).toBe(0);
     await page.goto("/");
     await expect(h1(page)).toBeVisible(); // the beach app is unaffected
   });

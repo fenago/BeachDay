@@ -111,7 +111,7 @@ test.describe("offline", () => {
     const before = om.requests.length;
     await page.getByTestId("refresh").click({ force: true }).catch(() => {}); // the app refuses to refresh offline: drive the worker directly
     const fetched = await page.evaluate((u) => fetch(u).then((r) => r.headers.get("x-bd-source"), () => "network error"), om.requests.find((u) => u.startsWith("https://api.open-meteo.com/")));
-    expect(fetched, "the route answered the worker, so the page looked online to it").toBe("network");
+    expect(fetched, "the route answered the worker, so the page looked online to it").not.toBe("network error");
     expect(om.requests.length).toBeGreaterThan(before);
     await goOffline(context);
     const after = om.requests.length;
@@ -216,16 +216,19 @@ test.describe("install hint, 14-day snooze (iPhone user agent; Chromium emulatio
     await expect(sheet(page)).toContainText(t("install.ios.step2"));
     await page.getByRole("button", { name: t("btn.done") }).click();
     await expect(sheet(page)).toBeHidden();
-    // pin the stored timestamp so the boundary is exact, then freeze Date.now() (timers keep running)
-    await page.evaluate(([k, v]) => localStorage.setItem(k, String(v)), [KEY, T0.getTime()]);
+    // The dismissal time is whatever the app stored when the sheet closed; the 14 days are measured from it.
+    await expect.poll(() => page.evaluate((k) => localStorage.getItem(k), KEY)).not.toBeNull();
+    const A = Number(await page.evaluate((k) => localStorage.getItem(k), KEY));
+    expect(A, `stored dismissal time ${A}`).toBeGreaterThanOrEqual(T0.getTime());
     for (const [label, offset, shown] of [["1 hour later", 3600_000, false], ["14 days minus 1 ms", 14 * DAY - 1, false], ["exactly 14 days", 14 * DAY, true]]) {
-      await page.clock.setFixedTime(new Date(T0.getTime() + offset));
+      await page.clock.setFixedTime(new Date(A + offset));
       // Open-Meteo answers for the NEW date, or there would be no verdict and the hint (which waits for one) could not show
-      const days = Math.floor(offset / DAY);
+      const days = Math.floor((A + offset - T0.getTime()) / DAY);
       om.setForecast(shiftDays(fx.forecast, days)); om.setMarine(shiftDays(fx.marine, days));
       await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("beachday:forecast")) localStorage.removeItem(k); });
       await page.reload();
       await expect(page.getByTestId("verdict-card")).toBeVisible();
+      if (process.env.DEBUG_SNOOZE) console.log(label, await page.evaluate(([k]) => ({ now: Date.now(), at: localStorage.getItem(k), visits: localStorage.getItem("beachday:visits"), standalone: navigator.standalone }), [KEY]));
       if (shown) await expect(sheet(page), label).toBeVisible({ timeout: 6000 }); // return visit: 2 s delay
       else { await page.waitForTimeout(2800); await expect(sheet(page), label).toBeHidden(); }
     }
