@@ -9,6 +9,8 @@ function setup() {
     const u = new URL(typeof input === 'string' ? input : input.url);
     const body = init.body ? JSON.parse(init.body) : undefined;
     log.push({ method: init.method ?? 'GET', path: u.pathname, query: Object.fromEntries(u.searchParams), body, apikey: new Headers(init.headers).get('apikey') });
+    if (u.pathname === '/auth/v1/token' && u.searchParams.get('grant_type') === 'refresh_token') return Response.json(sessionBody());
+    if (u.pathname === '/auth/v1/verify') return Response.json(sessionBody());
     return Response.json({}, { status: 200 });
   };
   const mem = new Map();
@@ -48,7 +50,7 @@ test('forgot password: /recover with our reset redirect', async () => {
 });
 test('log out: our button revokes only this session (scope=local)', async () => {
   const { auth, log } = setup();
-  await auth.sb.auth.setSession({ access_token: fakeJwt(), refresh_token: 'r' });
+  await auth.client.setSession({ access_token: fakeJwt(), refresh_token: 'r' });
   log.length = 0;
   await auth.logOut();
   assert.equal(log.find((c) => c.path === '/auth/v1/logout')?.query.scope, 'local');
@@ -56,13 +58,64 @@ test('log out: our button revokes only this session (scope=local)', async () => 
 test('log out: the library default is GLOBAL scope (every device); we override it on purpose', async () => {
   const { auth, log } = setup();
   // Give the client a session so signOut() reaches the server.
-  await auth.sb.auth.setSession({ access_token: fakeJwt(), refresh_token: 'r' });
+  await auth.client.setSession({ access_token: fakeJwt(), refresh_token: 'r' });
   log.length = 0;
-  await auth.sb.auth.signOut();
+  await auth.client.signOut();
   const logout = log.find((c) => c.path === '/auth/v1/logout');
   assert.equal(logout?.query.scope, 'global');
 });
-function fakeJwt() {
+function fakeJwt(ttl = 3600) {
   const b = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-  return `${b({ alg: 'ES256', typ: 'JWT' })}.${b({ sub: 'u', exp: Math.floor(Date.now() / 1000) + 3600, aud: 'authenticated' })}.sig`;
+  return `${b({ alg: 'ES256', typ: 'JWT' })}.${b({ sub: 'u', exp: Math.floor(Date.now() / 1000) + ttl, aud: 'authenticated' })}.sig`;
 }
+const sessionBody = (ttl = 600) => ({ access_token: fakeJwt(ttl), refresh_token: 'r2', expires_in: ttl, expires_at: Math.floor(Date.now() / 1000) + ttl, token_type: 'bearer', user: { id: 'u', aud: 'authenticated' } });
+const tick = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test('Console client: autoRefreshToken is on, so a token near expiry is refreshed without a request from the page', async () => {
+  const { auth, log } = setup();
+  await auth.client.setSession({ access_token: fakeJwt(60), refresh_token: 'r' });   // 60 s left: inside the library's 90 s margin
+  await tick(50);                                                                         // first ticker run is on the next loop turn
+  auth.client.stopAutoRefresh();
+  assert.ok(log.some((c) => c.path === '/auth/v1/token' && c.query.grant_type === 'refresh_token'), 'the ticker refreshed the session');
+});
+test('ensureFresh(120): refreshes when less than 120 s are left (docs/04 4.1), and not otherwise', async () => {
+  const { auth, log } = setup();
+  auth.client.stopAutoRefresh();
+  await auth.client.setSession({ access_token: fakeJwt(3600), refresh_token: 'r' });
+  auth.client.stopAutoRefresh();
+  log.length = 0;
+  await auth.ensureFresh(120);
+  assert.equal(log.filter((c) => c.query.grant_type === 'refresh_token').length, 0, 'an hour left: no refresh');
+  await auth.client.setSession({ access_token: fakeJwt(100), refresh_token: 'r' });
+  auth.client.stopAutoRefresh();
+  log.length = 0;
+  const token = await auth.ensureFresh(120);
+  assert.equal(log.filter((c) => c.query.grant_type === 'refresh_token').length, 1, '100 s left: one refresh');
+  assert.ok(token.startsWith('ey'));
+});
+test('email link with token_hash: verifyOtp POSTs /verify and needs no code verifier (works in any browser)', async () => {
+  const { auth, log } = setup();
+  const { error } = await auth.confirmFromEmail('pkce_abc123', 'email');
+  auth.client.stopAutoRefresh();
+  assert.equal(error, null);
+  assert.deepEqual([log[0].method, log[0].path, log[0].body.token_hash, log[0].body.type], ['POST', '/auth/v1/verify', 'pkce_abc123', 'email']);
+});
+test('email link: an unknown type is refused before any network call', async () => {
+  const { auth, log } = setup();
+  const { error } = await auth.confirmFromEmail('x', 'magiclink');
+  assert.ok(error);
+  assert.equal(log.length, 0);
+});
+test('resend confirmation: POST /resend with type signup and our redirect', async () => {
+  const { auth, log } = setup();
+  await auth.resendConfirmation('a@example.com');
+  assert.deepEqual([log[0].path, log[0].body.type, log[0].body.email], ['/auth/v1/resend', 'signup', 'a@example.com']);
+  assert.equal(log[0].query.redirect_to, 'https://beachday.example/console');
+});
+test('OBSERVED: a PKCE ?code= opened in another browser (no stored verifier) fails locally with pkce_code_verifier_not_found', async () => {
+  const { auth, log } = setup();                                   // fresh storage = a different browser or an iOS home-screen app
+  const { data, error } = await auth.client.exchangeCodeForSession('some-code');
+  assert.equal(data.session, null);
+  assert.equal(error?.code, 'pkce_code_verifier_not_found');
+  assert.equal(log.length, 0, 'no network call was made');
+});

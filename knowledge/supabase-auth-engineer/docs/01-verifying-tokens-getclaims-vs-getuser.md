@@ -16,14 +16,24 @@ Retrieved: 2026-11-23. **supabase.com is blocked in this sandbox (proxy 403).** 
 - JWKS caching: Supabase Edge caches the endpoint 10 minutes and the client library may cache another 10; "multi-level cache is cleared every 20 minutes". Revocation of a signing key can lag that long in your function (signing-keys.mdx). Supabase's own products do not use that cache.
 - Sign-out does **not** revoke an access token: "the access token JWT will be valid until it's expired" (`signOut` JSDoc). `getClaims` verifies locally, so it cannot see a sign-out. Sessions live in `auth.sessions`; the docs say a missing `session_id` row means the user signed out (sessions.mdx). Access tokens last "between 5 minutes and 1 hour".
 
-## Observed (examples/01, supabase-js 2.119.2)
-- auth-js keeps the JWKS in a **module-wide cache keyed by project URL**. A warm function instance keeps verifying after the network drops; a cold one fails closed.
-- `getClaims` checks signature and `exp`. It does **not** compare `iss` or `aud` to your project for you, so the example checks both itself.
+## Observed (examples/01, @supabase/auth-js 2.119.2)
+- **Failures come back as `{ error }`, not as a throw.** A network failure or a 5xx from the JWKS or `/user` endpoint returns an `AuthRetryableFetchError` (`isAuthRetryableFetchError(error)`; status 0 for a network error). Map it to **503**, and any other auth error to **401**. A `catch` alone never sees an outage.
+- **JWKS cache:** module-wide, keyed by the client's **`storageKey`**. With auth-js directly, set `storageKey: 'sb-<ref>-auth-token'`. A warm function instance keeps verifying after the network drops; a cold one gets 503.
+- **Unknown `kid`, an `HS*` algorithm or no WebCrypto: `getClaims` falls back to `GET /auth/v1/user`.** A forged token with a random `kid` therefore costs one Auth round trip.
+- `getClaims` checks signature and `exp`. It does **not** compare `iss` or `aud` to your project, so the example checks both itself.
 
-## Decision for Beach Day (agent-builder, for Vera to review)
-1. **Default: `getClaims(token)`** on every `/api/*` function. No Auth round trip, works with only `SUPABASE_URL` and the publishable key, and is the method the docs point to.
-2. **Then check `iss`, `aud === 'authenticated'`, `is_anonymous !== true`, `sub`** yourself.
-3. **The role comes from `public.profiles.role`, read with the user's own token** through PostgREST (RLS returns only their row). Never from a JWT claim or `user_metadata`. The read also makes PostgREST validate the token server-side, and a role change by Dr. Lee takes effect on the next request.
-4. **Approve (and any step-up path) additionally calls `getUser(token)`** so a revoked or deleted user fails even before `exp`. Whether `getUser` rejects an access token whose session was signed out is **UNVERIFIED** in the pages read; test it against the real project before relying on it.
-5. Keep the access-token lifetime short (Dashboard setting; the docs say 5 minutes to 1 hour) because a signed-out token stays valid until `exp`. The exact value is Vera's call.
-6. If the project turns out to use the legacy HS256 secret, `getClaims` falls back to a `getUser`-style call. Prefer asymmetric signing keys (new projects get them; confirm in Dashboard, **UNVERIFIED** for this project).
+## Read in the Auth server source (supabase/auth `master`, 2026-11-23; not the docs; hosted may differ, so test it)
+- `GET /user` (`getUser`) loads the session named by the token's `session_id`. If that row is gone (signed out), it answers **403 `session_not_found`**. A deleted user gets 403 `user_not_found`, and a banned user gets 403 `user_banned` (`internal/api/auth.go`). So `getUser` *should* reject a signed-out token before `exp`; docs/04 §4.2 pre-launch test (d) confirms it on the real project.
+
+## Decision for Beach Day (accepted by security-engineer; canonical text: docs/04 §4.1 and §4.2)
+1. **`getClaims(token)`** on every `/api/*` function, through **`@supabase/auth-js`** pinned to an exact version (ADR-0006). No Auth round trip; it needs only `SUPABASE_URL` and the publishable key.
+2. **Check `iss`, `aud === 'authenticated'`, `is_anonymous !== true` and `sub`** yourself.
+3. **Read the role from `public.profiles.role` with the user's own token** through PostgREST, so RLS returns only their row. Never read it from a JWT claim or `user_metadata`. The role is not cached.
+4. **Status codes:**
+   - **401** for a bad token or a PostgREST 401;
+   - **403** for a role that is not `super_admin`, or no row;
+   - **503** for any network error, timeout, 5xx, retryable auth error, other unexpected status or bad JSON.
+   Never allow, and never echo the error. Reference: examples/01.
+5. **Approve also calls `getUser(token)`** (docs/04 §4.2). Map its `{ error }` the same way: retryable gives 503, anything else gives 401.
+6. **Access-token lifetime is 600 s** (docs/04 §4.3), because a signed-out token stays valid for `getClaims` until `exp`.
+7. If the project turns out to use the legacy HS256 secret, `getClaims` calls `/user` on every request. Prefer asymmetric signing keys; new projects get them. Confirm in the Dashboard (**UNVERIFIED** for this project).

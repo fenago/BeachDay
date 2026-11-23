@@ -7,7 +7,12 @@ description: The Beach Day profiles table and Row Level Security rules — the r
 ## Standing rules
 - **Every table in `public` has RLS on, and policies name `to authenticated`.** Write `(select auth.uid())`, not bare `auth.uid()`.
 - **A policy cannot protect one column.** The `role` column is safe because `anon` and `authenticated` hold **no INSERT, UPDATE or DELETE privilege** on `profiles`, not because of a policy. Never run `grant update on public.profiles` at table level. If users need an editable field, put it in a separate table.
-- **No `service_role` or secret key in any code, test or doc example.** Promotion to `super_admin` is one `update` run by Dr. Lee in the SQL editor.
+- **No `service_role` or secret key in any code, test or doc example.**
+- **Promotion to `super_admin` is done by Dr. Lee in the SQL editor, with `promote-super-admin.sql` (example 02):**
+  - Step 1 looks first: one user id, `email_confirmed_at` set, his own recent `last_sign_in_at`, and only identities he set up himself.
+  - Step 2 is an `update` that also requires `email_confirmed_at is not null`, so an unconfirmed account changes 0 rows.
+  - If an `email` identity he never set a password for shows up, run "Forgot password" first. Someone may have signed up with his address.
+  - Demotion is one `update` back to `'user'`. It applies on the next request, because the role is not cached.
 - **Never read `user_metadata`/`raw_user_meta_data` for authorisation.** The user writes it at sign-up.
 
 ## profiles
@@ -25,4 +30,4 @@ description: The Beach Day profiles table and Row Level Security rules — the r
 5. Run the Supabase Security Advisor after applying.
 
 ## Not verified
-The SQL ran in pglite with stubbed Supabase roles, not on a real project. Dry-run it on a throwaway project first.
+The SQL ran in pglite with stubbed Supabase roles, `auth.users` and `auth.identities`, not on a real project. Dry-run it on a throwaway project first.

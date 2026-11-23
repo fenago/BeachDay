@@ -40,5 +40,5 @@ create trigger on_auth_user_created
 -- The trigger function must not be callable through the API.
 revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
--- BY HAND, ONCE, by Dr. Lee in the SQL editor (never from the app):
---   update public.profiles set role = 'super_admin' where id = '<Dr. Lee''s auth user id>';
+-- Promotion to super_admin: BY HAND, ONCE, by Dr. Lee in the SQL editor, never from the app.
+-- Use promote-super-admin.sql (it checks the account first and refuses an unconfirmed email).

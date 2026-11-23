@@ -27,6 +27,6 @@ self.addEventListener("fetch", (e) => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== "GET" || NETWORK_ONLY(url)) return;                     // not intercepted: the browser's own network error offline
   if (url.hostname.endsWith("open-meteo.com")) return e.respondWith(networkFirst(req));
-  if (req.mode === "navigate") return e.respondWith(fetch(req).catch(async () => (await caches.match("/", { ignoreSearch: true })) ?? caches.match("/offline.html")));
+  if (req.mode === "navigate") return e.respondWith(fetch(req).catch(async () => (await caches.match(req, { ignoreSearch: true })) ?? caches.match("/offline.html")));
   e.respondWith(caches.match(req, { ignoreSearch: true }).then((r) => r ?? fetch(req)));
 });

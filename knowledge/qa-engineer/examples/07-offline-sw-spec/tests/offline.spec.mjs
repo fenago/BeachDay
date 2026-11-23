@@ -14,6 +14,14 @@ test.beforeEach(async ({ context }) => {
   await context.route(OPEN_METEO, (route) => route.fulfill({ json: forecast })); // the SW's own fetch is routed here
 });
 
+// Offline for real. A context.route that FULFILLS still answers the service worker's own request while setOffline(true)
+// (observed, test below), so swap it for one that aborts, exactly like a dead network.
+async function goOffline(context) {
+  await context.unroute(OPEN_METEO);
+  await context.route(OPEN_METEO, (route) => route.abort("internetdisconnected"));
+  await context.setOffline(true);
+}
+
 // Register, wait for activation, reload so the page is controlled (the SW does not claim clients on first install).
 async function installed(page) {
   await page.goto("/?source=pwa");
@@ -40,7 +48,7 @@ test("installs: shell precached under a versioned name, forecast cached; network
 
 test("offline: /?source=pwa (the installed start_url) gets the cached shell and the last forecast with an offline banner", async ({ page, context }) => {
   await installed(page);
-  await context.setOffline(true);
+  await goOffline(context);
   const res = await page.goto("/?source=pwa");
   expect(res.fromServiceWorker()).toBe(true);
   await expect(page.getByRole("heading", { name: "Beach Day" })).toBeVisible();
@@ -50,7 +58,7 @@ test("offline: /?source=pwa (the installed start_url) gets the cached shell and 
 
 test("offline: /console, /vendor/*, /sw.js, /version.json and /api/* fail with a network error and never return the beach shell", async ({ page, context }) => {
   await installed(page);
-  await context.setOffline(true);
+  await goOffline(context);
   for (const p of ["/vendor/auth.mjs", "/sw.js", "/version.json", "/api/agents", "/generated/config.js"]) {
     expect(await page.evaluate((u) => fetch(u).then((r) => `status ${r.status}`, () => "network error"), p), p).toBe("network error");
   }
@@ -58,15 +66,20 @@ test("offline: /console, /vendor/*, /sw.js, /version.json and /api/* fail with a
   await expect(page.goto("/console.html")).rejects.toThrow(/ERR_INTERNET_DISCONNECTED/);
 });
 
-test("offline: the SW's own Open-Meteo fetch fails when the context is offline, even though page.route would answer (observed behaviour)", async ({ page, context }) => {
+test("observed: setOffline(true) does NOT stop a fulfilling context.route from answering the SW's own fetch; an aborting route (or none) does", async ({ page, context }) => {
   await installed(page);
   let routed = 0;
-  await context.route(OPEN_METEO, (route) => { routed++; return route.fulfill({ json: forecast }); });
+  await context.unroute(OPEN_METEO);
+  await context.route(OPEN_METEO, (route) => { routed++; return route.fulfill({ json: { ...forecast, hourly: { ...forecast.hourly, apparent_temperature: [99.9, ...forecast.hourly.apparent_temperature.slice(1)] } } }); });
   await context.setOffline(true);
   await page.goto("/?source=pwa");
-  await expect(page.locator("#banner")).toContainText("Offline — showing data from"); // came from Cache Storage
-  console.log(`  routed Open-Meteo requests while offline: ${routed}`);
-  expect(routed).toBe(0);
+  await expect(page.locator("#out")).toHaveText("Feels like 99.9 °F");         // fresh from the route, not from the cache
+  await expect(page.locator("#banner")).toBeHidden();                           // so no offline banner: a spec built this way would pass for the wrong reason
+  expect(routed).toBe(1);
+  await context.unroute(OPEN_METEO);
+  await context.route(OPEN_METEO, (route) => route.abort("internetdisconnected"));
+  await page.goto("/?source=pwa");
+  await expect(page.locator("#banner")).toContainText("Offline — showing data from"); // Cache Storage answered
 });
 
 test("update flow: a new deploy changes sw.js bytes; the new worker waits; SKIP_WAITING swaps it; the old shell cache is deleted", async ({ page }) => {
@@ -91,7 +104,7 @@ test("update flow: a new deploy changes sw.js bytes; the new worker waits; SKIP_
 test("mutant: a SW that forgets ignoreSearch serves offline.html for /?source=pwa, and the shell assertion would fail", async ({ page, context }) => {
   await post("/__mutant?kind=no-ignore-search");
   await installed(page);
-  await context.setOffline(true);
+  await goOffline(context);
   await page.goto("/?source=pwa");
   await expect(page.getByRole("heading", { name: "You're offline" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Beach Day" })).toHaveCount(0);
@@ -113,6 +126,7 @@ test.describe("install hint snooze", () => {
 
   test("hidden until exactly 14 days have passed, then shown again", async ({ page }) => {
     await page.clock.install({ time: T0 });
+    await page.clock.setFixedTime(T0); // freeze, or the click lands a few ms after T0 and "exactly 14 days" is 14 days minus those ms
     await page.goto("/");
     const hint = page.getByRole("dialog", { name: "Add to Home Screen" });
     await expect(hint).toBeVisible();
@@ -125,7 +139,6 @@ test.describe("install hint snooze", () => {
     }
   });
   test("not shown when launched standalone (installed app)", async ({ page }) => {
-    await page.emulateMedia({ media: null }).catch(() => {});
     await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
     await page.goto("/");
     await expect(page.getByRole("dialog", { name: "Add to Home Screen" })).toBeHidden();

@@ -3,11 +3,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 
+// promote-super-admin.sql is what Dr. Lee pastes; the test fills in the placeholder the way he would.
+const PROMOTE = readFileSync(new URL('./promote-super-admin.sql', import.meta.url), 'utf8');
+const step = (n) => PROMOTE.split(`-- STEP ${n}`)[1].split('-- STEP ')[0].replace(/^[^\n]*\n/, '');  // drop the heading line
+const promote = (id) => db.query(step(2).replaceAll('<USER_ID>', id));
+
 // Minimal stand-ins for what Supabase provides: roles, auth.users, auth.uid().
 const STUBS = `
   create role anon nologin; create role authenticated nologin;
   create schema auth;
-  create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
+  create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz,
+    last_sign_in_at timestamptz, raw_user_meta_data jsonb default '{}');
+  create table auth.identities (id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users (id) on delete cascade, provider text not null);
   create function auth.uid() returns uuid language sql stable
     as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   grant usage on schema auth, public to anon, authenticated;
@@ -61,10 +69,28 @@ test('the trigger function is not executable by API roles', async () => {
     await assert.rejects(db.query('select public.handle_new_user()'), /permission denied/);
   });
 });
-test('Dr. Lee by hand: the owner can promote one user; the user then sees super_admin', async () => {
-  await db.exec(`update public.profiles set role = 'super_admin' where id = '${A}'`);
+test('promotion refuses a user whose email is not confirmed (0 rows changed)', async () => {
+  const r = await promote(A);                       // A has email_confirmed_at = null
+  assert.equal(r.affectedRows, 0);
+  assert.equal((await db.query(`select role from public.profiles where id='${A}'`)).rows[0].role, 'user');
+});
+test('step 1 of the promotion file lists confirmation, last sign-in and every identity', async () => {
+  await db.exec(`insert into auth.identities (user_id, provider) values ('${A}', 'email'), ('${A}', 'google');`);
+  const step1 = step(1).replaceAll('<EMAIL>', 'a@example.com');
+  const { rows } = await db.query(step1);
+  assert.equal(rows.length, 1);
+  assert.deepEqual([rows[0].id, rows[0].email_confirmed_at, [...rows[0].providers].sort()], [A, null, ['email', 'google']]);
+});
+test('Dr. Lee by hand: a confirmed user is promoted (1 row); the user then sees super_admin', async () => {
+  await db.exec(`update auth.users set email_confirmed_at = now() where id = '${A}'`);
+  assert.equal((await promote(A)).affectedRows, 1);
   const rows = await asUser(A, async () => (await db.query('select role from public.profiles')).rows);
   assert.deepEqual(rows, [{ role: 'super_admin' }]);
+});
+test('promotion cannot be run by an API user (privilege denied)', async () => {
+  await asUser(B, async () => {
+    await assert.rejects(promote(B), /permission denied/);
+  });
 });
 test('deleting the auth user cascades to the profile', async () => {
   await db.exec(`delete from auth.users where id = '${B}'`);

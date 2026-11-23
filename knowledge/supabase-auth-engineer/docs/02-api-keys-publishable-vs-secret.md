@@ -10,6 +10,6 @@ Retrieved: 2026-11-23
 - The Data API root `GET /rest/v1/` accepts only secret keys; test a publishable key against a table route or `/auth/v1/health`.
 
 ## Beach Day rules
-- Only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` exist, both non-secret, both safe in `public/` JS. **No secret key and no `service_role` key anywhere** (Dr. Lee's decision 9). If a grep finds `sb_secret_`, `service_role` or `eyJ` in the repo, stop and tell Vera.
+- Only `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` exist, both non-secret, both safe in `public/` JS. **No secret key and no `service_role` key anywhere** (Dr. Lee's decision 9). If a full `sb_secret_…` key or a full three-part JWT (`eyJ….eyJ….…`) turns up anywhere in the repo, stop, rotate it and tell Vera. The bare word `service_role` in prose is fine; the secret scan ignores it (agent-console-security).
 - Functions send `apikey: <publishable>` plus `Authorization: Bearer <user token>`. They never see a privileged key, so a bug in a function cannot bypass RLS.
 - Consequence: anything that would need `service_role` (for example promoting a user) is done by hand by Dr. Lee in the SQL editor.

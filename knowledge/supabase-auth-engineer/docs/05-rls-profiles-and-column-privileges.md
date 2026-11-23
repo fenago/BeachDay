@@ -15,6 +15,6 @@ Retrieved: 2026-11-23. supabase.com blocked here; read from the `supabase/supaba
 - `public.profiles(id, role, created_at)`; `role` is `text not null default 'user'` with `check (role in ('user','super_admin'))`.
 - Our `profiles` holds **only** `id`, `role`, `created_at`, nothing a user needs to edit, so the simplest safe rule is **no UPDATE/INSERT/DELETE grant at all** for `anon` and `authenticated`, and a single select policy for the own row. If a user-editable column is added later, put it in a different table, or use a column-level grant; never grant table-level UPDATE on `profiles`.
 - The trigger inserts `id` only. `raw_user_meta_data` (which the user controls at sign-up) is never read.
-- `super_admin` is set only by Dr. Lee, in the SQL editor as the table owner.
+- `super_admin` is set only by Dr. Lee, in the SQL editor as the table owner, with `examples/02-profiles-rls-sql/promote-super-admin.sql`: look at the account and its identities first, then an update that changes nothing unless `email_confirmed_at is not null`.
 - `revoke execute` on the trigger function from API roles.
 - **Not verified:** the SQL ran against pglite with stubbed `auth` schema and roles, not against a real Supabase project. Run `profiles.sql` on a throwaway project first, and run the Security Advisor.

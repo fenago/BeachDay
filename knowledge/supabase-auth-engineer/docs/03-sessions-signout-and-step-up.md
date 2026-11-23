@@ -3,9 +3,9 @@ Sources: https://supabase.com/docs/guides/auth/sessions · https://supabase.com/
 Retrieved: 2026-11-23. supabase.com blocked here; read from `supabase/supabase` docs source (sessions.mdx, auth-mfa.mdx, passwords.mdx, password-security.mdx) and `@supabase/auth-js` 2.119.2 JSDoc.
 
 ## Sessions
-- Session = access token (JWT, "usually between 5 minutes and 1 hour") + refresh token (single use; reuse detection revokes the session). supabase-js auto-refreshes (`autoRefreshToken` defaults to true).
-- Project settings: **time-box** (fixed session lifetime) and **inactivity timeout**. Expired sessions are only cleaned up about 24 hours later. A missing `auth.sessions` row for the token's `session_id` means signed out.
-- Browser storage: supabase-js persists the session in **localStorage** by default, readable by any script on the page. HTTP-only cookies need server-side rendering, which "is not feasible" for a client-side app (sessions.mdx). So XSS on the Console page can read the tokens; the CSP is the defence (Vera).
+- Session = access token (JWT, "usually between 5 minutes and 1 hour") + refresh token (single use; reuse detection revokes the session). auth-js auto-refreshes (`autoRefreshToken` defaults to true). Observed in auth-js 2.119.2: the ticker runs every 30 s and refreshes when about 90 s are left. Beach Day: **600 s access tokens**; the Console keeps `autoRefreshToken: true` and also refreshes before `/api/chat` and `/api/jobs` when less than 120 s are left (docs/04 §4.1 and §4.3; example 03).
+- Project settings: **time-box** (fixed session lifetime) and **inactivity timeout**, both Pro plan and above (docs/04 §4.3). Expired sessions are only cleaned up about 24 hours later. A missing `auth.sessions` row for the token's `session_id` means signed out.
+- Browser storage: auth-js (and supabase-js) persists the session in **localStorage** by default, readable by any script on the page. HTTP-only cookies need server-side rendering, which "is not feasible" for a client-side app (sessions.mdx). So XSS on the Console page can read the tokens; the CSP is the defence (Vera).
 - Default `flowType` is `'implicit'` (auth-js 2.119.2, observed). Set `flowType: 'pkce'` explicitly (example 03).
 
 ## signOut
@@ -16,10 +16,23 @@ Retrieved: 2026-11-23. supabase.com blocked here; read from `supabase/supabase` 
 - `reauthenticate()` "sends a reauthentication OTP" (a nonce, by email, or phone if no email) and "is used together with `updateUser()` when a user's password needs to be updated", and only when **Secure password change** is on and the user has not signed in within 24 hours. It does not return a fresh token and nothing checks it at Approve.
 - A Google-only user has no password to re-enter.
 
-## What can serve as step-up (facts; the decision is Vera's)
-| Mechanism | Facts from the docs | Gap |
+## Step-up before Approve: decided in docs/04 §4.2 (security-engineer)
+Do not restate the rule here; docs/04 §4.2 is canonical. In short:
+- Approve calls `getUser(token)`.
+- It requires a `password` or `oauth` `amr` entry no more than 600 s old, and `last_sign_in_at` no more than 600 s old.
+- It requires `aal2` if the user has a verified factor.
+- Otherwise it answers 401 `step_up_required`.
+- `reauthenticate()` is not used.
+
+Supabase facts behind it, for whoever reviews or tests that rule:
+| Fact | Source | Status |
 |---|---|---|
-| Recent sign-in time in the token | `getClaims` returns `amr: [{ method, timestamp }]` and `iat`. `amr` lists how the session authenticated (example response in auth-js JSDoc) | `iat` changes on every token refresh, so it is **not** "last password entry". `amr[].timestamp` is the sign-in method time; whether a refresh keeps the original timestamp is **UNVERIFIED**. Test it |
-| Fresh sign-in at Approve | The client calls `signInWithPassword` (or OAuth) again, gets a new session with a new `amr` timestamp; the function requires it to be recent (for example 10 minutes) | Google users need a full redirect round trip. `prompt=login` through `queryParams` is **UNVERIFIED** here (docs show `access_type`/`prompt: 'consent'` for refresh tokens only) |
-| MFA, `aal2` | `aal` claim is `aal1` or `aal2`; RLS or code can require `aal2`. Enrol TOTP, then verify per session (auth-mfa.mdx) | A TOTP prompt is not a password prompt, but it is the one mechanism with an official, checkable claim. Free-plan availability **UNVERIFIED** |
-Recommendation to Vera: require `aal2` for Approve if Dr. Lee accepts TOTP; otherwise require a sign-in `amr` timestamp within 10 minutes plus a server-side `getUser`. Do not use `reauthenticate()`.
+| `amr` is an array of `{ method, timestamp }`, "ordered most recent method first". Methods include `password`, `oauth`, `otp`, `totp`, `recovery`, `magiclink`, `email/signup`, `invite`, `sso/saml`, `anonymous` | jwt-fields.mdx, auth-mfa.mdx | Docs |
+| The docs suggest `amr` to require that users "recently signed in with a password" | auth-mfa.mdx | Docs |
+| Each `amr` timestamp is the `updated_at` of a per-session, per-method row (`mfa_amr_claims`). A sign-in creates a **new session** and writes the row. The refresh-token grant writes no `amr` row, so a refresh keeps the original sign-in timestamp | supabase/auth `master`: `internal/models/sessions.go` (`CalculateAALAndAMR`), `internal/models/amr.go`, `internal/tokens/service.go` | Server source; hosted **UNVERIFIED**; pre-launch test (a) |
+| `last_sign_in_at` is written when a new session is issued (`IssueRefreshToken`), not in the refresh-token grant | `internal/tokens/service.go` | Server source; pre-launch test (c) |
+| After sign-out, `GET /user` answers 403 `session_not_found` | `internal/api/auth.go` | Server source; pre-launch test (d) |
+| auth-js `getUser` returns network and 5xx failures as `{ error: AuthRetryableFetchError }`; it does not throw | examples/01, test 21 | Observed |
+| `signInWithOAuth` passes `options.queryParams` to the provider. The Google guide shows only `access_type: 'offline'` and `prompt: 'consent'` | auth-google.mdx, auth-js JSDoc | Docs |
+| Whether Google honours `prompt=login` or `max_age` and forces a fresh Google login | developers.google.com blocked here | **UNVERIFIED** |
+| A PKCE redirect can be completed only in the browser that started it (the code verifier is in its storage). The code is valid for 5 minutes and is single use | sessions/pkce-flow.mdx | Docs |
