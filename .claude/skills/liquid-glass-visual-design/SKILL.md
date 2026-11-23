@@ -56,6 +56,16 @@ Every verdict combines color, an icon (sun, sun-cloud, cloud, storm) and a text 
 - Don't animate the blur radius.
 - Test scrolling at 60 fps on a mid-range phone. If it janks, fall back to `--glass-bg-strong`.
 
+## Brand color for the PWA (manifest, decided 2026-11-23)
+- `theme_color` and `background_color` are both **`#0b3b5c`** (deep ocean). Do not use `#0e7490`.
+- Why (WCAG ratios, computed with the 02-contrast-check formulas):
+  - White on `#0b3b5c` is 11.70:1. Chrome and Android pick light status-bar and title-bar text on a dark theme color. White on `#0e7490` is only 5.36:1.
+  - The amber sun in the app icon (`#f2a93b`) on `#0b3b5c` is 5.86:1, above the 3:1 non-text rule. On `#0e7490` it is 2.68:1 and fails.
+  - It is within a hair of the dark-mode sunny background (`#0f3a5c`), so the splash blends into the app in dark mode. In light mode it is a deliberate dark splash that fades to the sky gradient.
+- The app icon's background layer must be a full-bleed `#0b3b5c` (the same value), so the Android splash (icon centered on `background_color`) shows no box edge. iOS ignores `background_color` and uses the icon alone.
+- The manifest cannot follow dark mode, so both values stay one color. `<meta name="theme-color">` in the HTML may use `media="(prefers-color-scheme: ...)"` variants later; not needed now.
+- If this value changes, re-run the contrast check and update the icon background.
+
 ## Icons & imagery
 - Simple line or filled SVG icons drawn for Beach Day. Do not copy SF Symbols.
 - App icon: an original mark, sun over waves, kept inside the maskable safe zone.

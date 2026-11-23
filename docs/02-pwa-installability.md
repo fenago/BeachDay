@@ -28,20 +28,23 @@ Sources: [Making PWAs installable](https://developer.mozilla.org/en-US/docs/Web/
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "screenshots": [
-    { "src": "/screens/today.png", "sizes": "1080x1920", "type": "image/png", "form_factor": "narrow", "label": "Today's beach verdict" }
-  ],
-  "shortcuts": [
-    { "name": "Agent Console", "url": "/console", "icons": [{ "src": "/icons/console-96.png", "sizes": "96x96" }] }
+    { "src": "/screenshots/today-narrow-1080x2340.png", "sizes": "1080x2340", "type": "image/png", "form_factor": "narrow", "label": "Today's beach verdict" }
   ]
 }
 ```
 
+* **No `shortcuts` member.** Dr. Lee decided there is no `/console` shortcut in the public manifest, so the Console is not advertised from the home-screen long-press menu. (iOS ignores `shortcuts` anyway.)
+* **Colours:** `background_color` and `theme_color` above are placeholders. The UI designer (Sable) decides the final value; it is applied in a follow-up edit.
+* **File names** match the validated example in `knowledge/pwa-mobile-engineer/examples/01-manifest-validator/`: `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon-180.png` (all in `/icons/`) and `/screenshots/today-narrow-1080x2340.png`.
+* **What is whose rule:** Chrome itself needs only a 192 px and a 512 px icon. The separate `maskable` 512 file, `id`, `scope`, `description` and the labelled screenshot are **Beach Day rules**, not install requirements.
+* **`start_url` has a query string** (`/?source=pwa`) so installed launches are distinguishable. The precache holds `/`, so `sw.js` must match shell requests with `{ ignoreSearch: true }`; otherwise the installed app misses the cache offline. QA covers this in the offline spec.
+
 * Every page links it: `<link rel="manifest" href="/manifest.webmanifest">`. Serve as `application/manifest+json` (set explicitly in `_headers`; Netlify's default type is **[UNVERIFIED]**).
 * **Maskable icons:** key content inside the central circle of radius 40 % of the width; outer 10 % may be cropped. Ship separate `any` and `maskable` files (a padded maskable icon looks small unmasked — common practice, **[UNVERIFIED]** in the sources). Test at maskable.app / DevTools.
-* `description` and `screenshots` show in the richer install sheet **on Android only**. Exact screenshot size rules **[UNVERIFIED]**.
+* `description` and `screenshots` show in the richer install sheet **on Android only**. Exact screenshot size rules **[UNVERIFIED]**; we use 1080 x 2340 (narrow).
 * iOS ignores `background_color`, `description`, `orientation`, `shortcuts` and `display_override`; it honors `name`, `short_name`, `start_url`, `scope`, `display: standalone` (11.3+), `theme_color` (15+), `icons` (15.4+), `id` (16.4+).
 * Splash screen is generated from `name`, `background_color` and icons (Android).
 
@@ -52,13 +55,13 @@ Sources: [Making PWAs installable](https://developer.mozilla.org/en-US/docs/Web/
 | Install | Share → Add to Home Screen. From iOS 16.4 also from Chrome, Edge, Firefox, Orion. No `beforeinstallprompt`. | [MDN installable](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable) |
 | iOS 26 | "By default, every website added to the Home Screen opens as a web app"; user can turn off "Open as Web App". | [WebKit WWDC25](https://webkit.org/blog/16993/news-from-wwdc25-web-technology-coming-this-fall-in-safari-26-beta/) |
 | Web Push | iOS 16.4+, **only for Home Screen web apps**, permission only after a user tap; uses APNs; also Badging API and manifest `id`. | [WebKit Web Push](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/) |
-| Icon | Add `<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">` (manifest icons only since 15.4). | [Apple archive](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html) |
+| Icon | Add `<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png">` (manifest icons only since 15.4). | [Apple archive](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html) |
 | Status bar | `apple-mobile-web-app-status-bar-style` = `default` / `black` / `black-translucent` (optional polish; deprecation of `black-translucent` **[UNVERIFIED]**). | Apple archive |
 | Storage | Non-installed sites: all script-writable storage (incl. SW caches) deleted after 7 days of Safari use without interaction. Home Screen apps have their own counter and are not expected to be cleared. Quotas up to 60 % of disk per origin (Safari 17+); `navigator.storage.persist()` supported. | [WebKit ITP 2020](https://webkit.org/blog/10218/full-third-party-cookie-blocking-and-more/), [WebKit storage 2023](https://webkit.org/blog/14403/updates-to-storage-policy/) |
 | EU (DMA) | Apple removed Home Screen web apps in iOS 17.4 betas, then reversed on 1 Mar 2024 — they still work in the EU. | Press: [TechCrunch](https://techcrunch.com/2024/03/01/apple-reverses-decision-about-blocking-web-apps-on-iphones-in-the-eu/) (not a webkit.org source) |
 | Mac | Safari 17+ File → Add to Dock for any site. | MDN |
 
-**Implications:** saved beaches (localStorage) and cached forecasts may vanish for users who never install — treat them as a convenience, not durable data. Show the iOS install hint when `matchMedia('(display-mode: standalone)').matches` is false (and `navigator.standalone` is falsy on older iOS).
+**Implications:** saved beaches (localStorage) and cached forecasts may vanish for users who never install — treat them as a convenience, not durable data. Show the iOS install hint when `matchMedia('(display-mode: standalone)').matches` is false (and `navigator.standalone` is falsy on older iOS). Dismissing the hint snoozes it for **14 days** (product decision, same everywhere).
 
 ## 4. Android specifics
 
