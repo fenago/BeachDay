@@ -55,8 +55,8 @@ export const SCORE_CONFIG = Object.freeze({
   outlookFromDayIndex: 3, // 0-based: day 4 and later
   reasons: Object.freeze({
     maxShown: 4,
-    // D3 (Dr. Lee, pending): when true, good days also list what is going well (codes sunny_comfortable,
-    // light_wind, calm_waves, warm_water; strings exist in Wren's deck). Default off = current spec.
+    // D3 (Dr. Lee, pending): when true, good days also list what is going well (codes dry, sunny_sky,
+    // comfortable, light_wind, calm_waves, warm_water; copy ids reason.pos.* in Wren's deck). Default off = current spec.
     positiveOnGoodDays: false,
   }),
 });

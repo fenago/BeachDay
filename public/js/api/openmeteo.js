@@ -79,7 +79,23 @@ export class OpenMeteoError extends Error {
  * GET JSON with a hard timeout. Open-Meteo errors arrive as HTTP 400 {"error": true, "reason": "..."}.
  * Match on `error === true`, never on the reason text, and never show the reason to people (log it).
  */
-export async function fetchJson(url, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl } = {}) {
+export async function fetchJson(url, opts = {}) {
+  return (await fetchJsonStamped(url, opts)).body;
+}
+
+/** Epoch ms the service worker saved this response (x-bd-source: cache + x-bd-fetched-at), else null (fresh). */
+export function swStamp(res) {
+  try {
+    if (res.headers?.get?.('x-bd-source') !== 'cache') return null;
+    const t = Number(res.headers.get('x-bd-fetched-at'));
+    return Number.isFinite(t) && t > 0 ? t : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Like fetchJson, but also returns the service-worker cache stamp: { body, cachedAt:number|null }. */
+export async function fetchJsonStamped(url, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl } = {}) {
   const doFetch = fetchImpl ?? ((u, o) => globalThis.fetch(u, o));
   const ctl = new AbortController();
   let timedOut = false;
@@ -109,7 +125,7 @@ export async function fetchJson(url, { timeoutMs = DEFAULT_TIMEOUT_MS, fetchImpl
   }
   if (!res.ok) throw new OpenMeteoError('http', `HTTP ${res.status}`, { status: res.status });
   if (body === null) throw new OpenMeteoError('shape', 'Response was not JSON');
-  return body;
+  return { body, cachedAt: swStamp(res) };
 }
 
 const fail = (m) => { throw new OpenMeteoError('shape', m); };
@@ -267,13 +283,20 @@ export function normalize(forecast, marine, { marinePoint, maxSnapKm = MAX_MARIN
   };
 }
 
-/** Fetch both APIs in parallel; marine failure never breaks the forecast. */
+/**
+ * Fetch both APIs in parallel; marine failure never breaks the forecast.
+ * model.fetchedAt is the OLDEST service-worker cache stamp of the two responses, or null when both are fresh
+ * from the network. A cached copy must not be shown as "Updated just now".
+ */
 export async function loadBeach(beach, opts = {}) {
   const { fetchImpl, timeoutMs, forecastEndpoint, marineEndpoint, days } = opts;
   const [f, m] = await Promise.allSettled([
-    fetchJson(buildForecastUrl(beach.land, { days, endpoint: forecastEndpoint }), { fetchImpl, timeoutMs }),
-    fetchJson(buildMarineUrl(beach.marine, { days, endpoint: marineEndpoint }), { fetchImpl, timeoutMs }),
+    fetchJsonStamped(buildForecastUrl(beach.land, { days, endpoint: forecastEndpoint }), { fetchImpl, timeoutMs }),
+    fetchJsonStamped(buildMarineUrl(beach.marine, { days, endpoint: marineEndpoint }), { fetchImpl, timeoutMs }),
   ]);
   if (f.status === 'rejected') throw f.reason;
-  return normalize(f.value, m.status === 'fulfilled' ? m.value : null, { marinePoint: beach.marine });
+  const model = normalize(f.value.body, m.status === 'fulfilled' ? m.value.body : null, { marinePoint: beach.marine });
+  const stamps = [f.value.cachedAt, m.status === 'fulfilled' ? m.value.cachedAt : null].filter((t) => t !== null);
+  model.fetchedAt = stamps.length ? Math.min(...stamps) : null;
+  return model;
 }

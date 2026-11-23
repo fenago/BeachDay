@@ -133,9 +133,12 @@ export async function loadForecast(beachId, opts = {}) {
       inflight.set(beachId, p);
     }
     const model = await p;
-    const fresh = { v: 1, beachId, fetchedAt: now, model };
+    // A service-worker copy carries its own stamp: never present it as fresh. Keep a newer saved entry.
+    const stamped = Number.isFinite(model.fetchedAt);
+    const fresh = { v: 1, beachId, fetchedAt: model.fetchedAt ?? now, model };
+    if (stamped && entry && entry.fetchedAt >= fresh.fetchedAt) return toForecast(beach, entry, 'cache', now);
     writeEntry(fresh, storage);
-    return toForecast(beach, fresh, 'network', now);
+    return toForecast(beach, fresh, stamped ? 'cache' : 'network', now);
   } catch (err) {
     if (entry) return toForecast(beach, entry, 'cache', now, { error: err?.kind ?? 'network' });
     throw err;

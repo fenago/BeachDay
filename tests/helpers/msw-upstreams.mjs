@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { FIXTURE_REPO } from "./secrets.mjs";
+import { violations as remyViolations } from "../functions/lib/support/fake-anthropic.mjs"; // Remy-A's request-shape rules (kept stable by contract)
 
 const sha1 = (s) => createHash("sha1").update(s).digest("hex");
 const blobSha = (text) => { const b = Buffer.from(text); return sha1(Buffer.concat([Buffer.from(`blob ${b.length}\0`), b])); }; // the real git blob hash
@@ -28,27 +29,18 @@ export const turns = {
   refusal: (partial = "I can") => ({ blocks: [{ type: "text", chunks: [partial] }], stop: "refusal" }),
   maxTokens: (text = "cut off") => ({ blocks: [{ type: "text", chunks: [text] }], stop: "max_tokens" }),
   overloaded: (partial = "Part") => ({ blocks: [{ type: "text", chunks: [partial] }], streamError: { type: "overloaded_error", message: "Overloaded" } }),
-  httpError: (status, type = "api_error") => ({ httpError: { status, type } }),
+  // The SDK retries 429/5xx (chat: 1 retry, job: 2), so one failure is not visible. times = how many attempts fail (default 3).
+  httpError: (status, type = "api_error", { times = 3, retryAfter = "0" } = {}) => ({ httpError: { status, type, times, retryAfter } }),
   slow: (text, delayMs = 2000) => ({ blocks: [{ type: "text", chunks: [text] }], stop: "end_turn", eventDelayMs: delayMs }),
 };
 
 function validateMessagesRequest(body, headers) {
-  if (!headers.get("x-api-key")) return "missing x-api-key";
+  // The SDK sends `Authorization: Bearer <key>`; raw HTTP clients send x-api-key. Both are valid on the real API.
+  if (!headers.get("x-api-key") && !/^Bearer \S+/.test(headers.get("authorization") ?? "")) return "missing x-api-key";
   if (!headers.get("anthropic-version")) return "missing anthropic-version";
   if (!ALLOWED_MODELS.includes(body.model)) return `model ${body.model} is not in the allow-list`;
-  if ("temperature" in body || "top_p" in body || "top_k" in body) return "sampling parameters are not accepted on these models";
-  if (body.thinking?.type === "disabled" || body.thinking?.budget_tokens) return "thinking config rejected";
-  if (!Array.isArray(body.messages) || !body.messages.length) return "messages required";
   if (!(body.max_tokens > 0)) return "max_tokens required";
-  for (let i = 0; i < body.messages.length; i += 1) { // tool_use ids need tool_result blocks first in the next user turn
-    const m = body.messages[i];
-    const ids = Array.isArray(m.content) && m.role === "assistant" ? m.content.filter((b) => b.type === "tool_use").map((b) => b.id) : [];
-    if (!ids.length) continue;
-    const next = body.messages[i + 1];
-    const results = Array.isArray(next?.content) ? next.content.filter((b) => b.type === "tool_result") : [];
-    if (ids.some((id) => !results.some((r) => r.tool_use_id === id))) return "tool_use ids without tool_result blocks immediately after";
-  }
-  return null;
+  return remyViolations(body); // sampling params, thinking.type, forced tool_choice, strict schemas, prefill, tool_result order
 }
 
 export function createFakeAnthropic() {
@@ -59,7 +51,8 @@ export function createFakeAnthropic() {
     requests,
     script(...ts) { queue.push(...ts); return api; },
     get pending() { return queue.length; },
-    reset() { queue = []; requests.length = 0; n = 0; },
+    unscripted: 0,
+    reset() { queue = []; requests.length = 0; n = 0; api.unscripted = 0; },
     get lastBody() { return requests.at(-1)?.body; },
     /** MSW resolver for POST /v1/messages */
     async handle(request) {
@@ -68,10 +61,17 @@ export function createFakeAnthropic() {
       const problem = validateMessagesRequest(body, request.headers);
       requests.push({ body, headers: Object.fromEntries(request.headers), error: problem });
       if (problem) return HttpResponse.json({ type: "error", error: { type: "invalid_request_error", message: problem }, request_id: "req_fake_400" }, { status: 400 });
-      const turn = queue.shift() ?? turns.text("Hollywood Beach looks great today.");
-      if (turn.httpError) return HttpResponse.json({ type: "error", error: { type: turn.httpError.type, message: "fake upstream error" }, request_id: "req_fake_err" }, { status: turn.httpError.status });
+      if (queue.length === 0) api.unscripted += 1; // an empty queue is visible: assert unscripted === 0 when the test scripted everything
+      const turn = queue[0] ?? turns.text("Hollywood Beach looks great today.");
+      if (turn.httpError) {
+        turn.httpError.left = (turn.httpError.left ?? turn.httpError.times) - 1;
+        if (turn.httpError.left <= 0) queue.shift();
+        return HttpResponse.json({ type: "error", error: { type: turn.httpError.type, message: "fake upstream error" }, request_id: "req_fake_err" }, { status: turn.httpError.status, headers: { "retry-after": String(turn.httpError.retryAfter) } });
+      }
+      queue.shift();
       const id = `msg_fake_${++n}`;
-      const content = turn.blocks.map((b, i) => (b.type === "text" ? { type: "text", text: b.chunks.join("") } : { type: "tool_use", id: b.id ?? `toolu_fake_${n}_${i}`, name: b.name, input: b.input }));
+      const thinking = { type: "thinking", thinking: "", signature: `sig_fake_${n}` }; // adaptive thinking, display omitted: always first
+      const content = [thinking, ...turn.blocks].map((b, i0) => { if (b.type === "thinking") return b; const i = i0 - 1; return b;}).map((b, i) => (b.type === "text" ? { type: "text", text: b.chunks.join("") } : { type: "tool_use", id: b.id ?? `toolu_fake_${n}_${i}`, name: b.name, input: b.input }));
       const stopReason = turn.stop ?? "end_turn";
       const usage = { input_tokens: 100, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
       if (body.stream !== true) {

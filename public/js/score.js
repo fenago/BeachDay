@@ -149,7 +149,7 @@ export function scoreDay({ hours, priorHour = null, dayIndex = 0, formatTime = d
     }
     const outside = stormHours.filter((t) => !win.some((h) => h.time === t));
     if (outside.length) reasons.push({ code: 'storm_outside_window', copyId: 'reason.storm.outside', params: { time: formatTime(outside[0]) } });
-    if (short) reasons.push({ code: 'short_window', copyId: 'reason.short', params: { hours: k } });
+    if (short) reasons.push({ code: 'short_window', copyId: k === 1 ? 'reason.short.one' : 'reason.short', params: { hours: k } });
     reasons.push(...penaltyReasons(win, winRes, formatTime));
     if (C.reasons.positiveOnGoodDays && (verdict === 'great' || verdict === 'good')) reasons.push(...positiveReasons(win, winRes));
   } else {
@@ -260,10 +260,9 @@ function describeFactor(factor, win, winRes, formatTime) {
     case 'clouds':
       return { copyId: meanOf('cloudPct') >= 71 ? 'reason.cloudy' : 'reason.cloudy.part', params: {} };
     case 'feels_like': {
-      const temp = round(meanOf('feelsF'));
-      // 'reason.feels' is NOT in Wren's deck yet (neutral [72,78) case); flagged in the HANDOFF.
-      const copyId = temp >= 91 ? 'reason.hot' : temp < 72 ? 'reason.cool' : 'reason.feels';
-      return { copyId, params: { temp } };
+      const m = meanOf('feelsF'); // pick the text from the UNROUNDED mean, display the rounded one
+      const copyId = m >= 91 ? 'reason.hot' : m < 72 ? 'reason.cool' : 'reason.feels';
+      return { copyId, params: { temp: round(m) } };
     }
     case 'wind':
       return { copyId: 'reason.wind.breezy', params: { mph: round(meanOf('windMph')) } };
@@ -272,28 +271,30 @@ function describeFactor(factor, win, winRes, formatTime) {
       return { copyId: ft >= 5 ? 'reason.waves.rough' : 'reason.waves.choppy', params: { ft } };
     }
     case 'water_temp': {
-      const temp = round(meanOf('seaTempF'));
-      // 'reason.water' (neutral [74,78)) is NOT in Wren's deck yet; flagged in the HANDOFF.
-      return { copyId: temp >= 78 ? 'reason.water.warm' : temp < 74 ? 'reason.water.cool' : 'reason.water', params: { temp } };
+      const m = meanOf('seaTempF'); // unrounded: a 77.6 mean must not read as "Warm water, 78"
+      return { copyId: m >= 78 ? 'reason.water.warm' : m < 74 ? 'reason.water.cool' : 'reason.water', params: { temp: round(m) } };
     }
     default:
       return { copyId: `reason.${factor}`, params: {} };
   }
 }
 
-/** D3 (off by default): what is going well. Only factors with data and no penalty anywhere in the window. */
+/**
+ * D3 (off by default): what is going well. Deck codes dry, sunny_sky, comfortable, light_wind, calm_waves,
+ * warm_water (copy ids reason.pos.*). Only factors with data and no penalty anywhere in the window.
+ */
 function positiveReasons(win, winRes) {
   const out = [];
-  const clean = (factor) => winRes.every((r) => !r.penalties.some((p) => p.factor === factor));
+  const clean = (...fs) => fs.every((f) => winRes.every((r) => !r.penalties.some((p) => p.factor === f)));
   const all = (key) => win.every((h) => has(h[key]));
   const mean1 = (key) => mean(win.map((h) => h[key]));
-  if (clean('feels_like') && clean('clouds') && clean('rain_chance') && clean('rain_code') && clean('rain_amount')) {
-    out.push({ code: 'sunny_comfortable', copyId: 'reason.sunny', params: { temp: round(mean1('feelsF')) } });
-  }
-  if (clean('wind')) out.push({ code: 'light_wind', copyId: 'reason.wind.light', params: { mph: round(mean1('windMph')) } });
-  if (all('waveFt') && clean('waves')) out.push({ code: 'calm_waves', copyId: 'reason.waves.calm', params: {} });
+  if (clean('rain_chance', 'rain_code', 'rain_amount', 'storm_risk', 'unusual_weather')) out.push({ code: 'dry', copyId: 'reason.pos.dry', params: {} });
+  if (clean('clouds')) out.push({ code: 'sunny_sky', copyId: 'reason.pos.sunny', params: {} });
+  if (clean('feels_like')) out.push({ code: 'comfortable', copyId: 'reason.pos.comfortable', params: { temp: round(mean1('feelsF')) } });
+  if (clean('wind')) out.push({ code: 'light_wind', copyId: 'reason.pos.wind', params: { mph: round(mean1('windMph')) } });
+  if (all('waveFt') && clean('waves')) out.push({ code: 'calm_waves', copyId: 'reason.pos.waves', params: {} });
   if (all('seaTempF') && clean('water_temp') && mean1('seaTempF') >= 78) {
-    out.push({ code: 'warm_water', copyId: 'reason.water.warm', params: { temp: round(mean1('seaTempF')) } });
+    out.push({ code: 'warm_water', copyId: 'reason.pos.water', params: { temp: round(mean1('seaTempF')) } });
   }
   return out;
 }

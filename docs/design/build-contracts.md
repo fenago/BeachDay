@@ -103,6 +103,7 @@ Handlers (W2, Remy-A). Each file exports `create<Name>Handler(deps)`, `export de
 
 - **`settings`** (default `SETTINGS` from `lib/settings.mts`): `chat`, `jobs`, `job-run`, `proposal` and `approve` read every decision through `deps.settings.*` (`approveEnabled`, `approveCap`, `perUserDaily`, `perTurn`, `githubReadTokenEnv`, `denyConsoleUi`, and so on), **never through the import**. That lets tests and the harness switch D10 `approveEnabled` on without editing the file. Production keeps the frozen default.
 - `getClient()`, `getReader({signal})` and `getWriter()` are **lazy factories**, called only after the production check (§5), so no secret is read before it. `getReader` takes the turn's deadline `signal` (`createDeadline(...).signal`) so GitHub reads can't outlive the turn.
+- **`now` is `() => number`** (epoch ms, default `Date.now`). Handlers adapt where a lib wants a `Date`: `new Date(deps.now())` for `limits.mts`, and `deps.now()` for the `nowMs` arguments in `proposals.mts`.
 - **Approve step-up time:** `stepUp(g.token, g.claims, guard.getUser, Math.floor(deps.now() / 1000))`. Pass the injected clock in seconds, so tests that move the clock move the step-up check too.
 
 **Order inside every handler** (docs/04 §4.1, §4.6, §9). Nothing reads the body, Blobs, GitHub or Claude before step 2 passes:
@@ -123,6 +124,7 @@ Handlers (W2, Remy-A). Each file exports `create<Name>Handler(deps)`, `export de
 - **Reasons and advice are `{code, copyId, params}`.** The data layer picks the word variant (Partly vs Mostly cloudy, Breezy, Choppy and so on) from the `score-config.js` bands. **The UI renders `t(item.copyId, item.params)` and nothing else.** It never re-derives a variant, so band edges live in one place (ruling R7).
 - No verdict (`verdict: null`): `score` and `bestWindow` are `null`, and there is exactly one reason, `no_beach_window` (`status.after.hours`) or `data_unavailable` (`status.no.verdict`).
 - The short-window cap, the score bands and "outlook from dayIndex 3" are enforced in the schema.
+- **Service-worker headers (Pip → Dewey).** Open-Meteo responses that pass through `sw.js` carry `x-bd-fetched-at: <epoch ms when the data left the network>` and `x-bd-source: network|cache`. The data layer must honour them. When `x-bd-source` is `cache` and the stamp is finite, `fetchJson` returns the stamp, `loadBeach` sets `model.fetchedAt` to the oldest stamp of the two calls (`null` = fresh), and `forecast.js` uses `model.fetchedAt ?? now` with `source: "cache"`. If the saved localStorage entry is newer, return that instead. A 25-hour-old SW copy must give `tooOld: true` and `days: []`, never "Updated just now". Pip keeps the two header names stable.
 - The verdict chip uses `VERDICTS[verdict]` (text, plus an `aria-hidden` icon, plus colour). The NWS line (`SAFETY`) and the Open-Meteo attribution are on every verdict view, outside the reasons list.
 
 ## 4. Console seams
@@ -172,7 +174,7 @@ Never stored: tokens, `Authorization`, request bodies (other than the job's own 
 | # | Ruling | Why |
 |---|---|---|
 | R1 | `site:compute` is day buckets `{days: {"<NY YYYY-MM-DD>": ms}}`, not `{at, seconds}` entries | docs/03 §7, netlify example 03; docs/04 §1 now says so |
-| R2 | The cap and counter module is `lib/limits.mts`, not `ratelimit.mts`; GitHub is `lib/github-read.mts` + `lib/github-write.mts`, not `github.mts` | ADR-0008 names `limits.mts`; ADR-0007/0009 split read and write. docs/04 §2 and docs/03 §2 still say the old names (see open question 1) |
+| R2 | The cap and counter module is `lib/limits.mts`, not `ratelimit.mts`; GitHub is `lib/github-read.mts` + `lib/github-write.mts`, not `github.mts` | ADR-0008 names `limits.mts`; ADR-0007/0009 split read and write. docs/04 now matches; docs/03 §2 is open question 1 |
 | R3 | The background worker file is `netlify/functions/job-run.mts`, with `config.path = "/api/jobs-run"` and `background: true` | One name per thing; the path stays as the docs say |
 | R4 | Handler files: `agents`, `chat`, `jobs`, `job-run`, `job-status`, `proposal`, `approve`, `reject` (`.mts`) | docs/03 §2 |
 | R5 | No scheduled cleanup function in v1; retention is a follow-up | Saves a function and its credits; `site:*` records prune themselves |
@@ -184,6 +186,7 @@ Never stored: tokens, `Authorization`, request bodies (other than the job's own 
 | R11 | Approvals usage is `{used31, usedToday, per31Days, perDay, retryAt}`, mapped from `checkApproveCap()` with `per31Days`/`perDay` from `APPROVE_CAP`, and `retryAt: null` when `allowed`. The schema doesn't hard-code 14 and 5 | D7 lives in `settings.mts` only |
 | R12 | `GET /api/agents` returns `{agents: [...]}`, not a bare array | Room to add fields without breaking the client |
 | R13 | Continue on a paused job is `POST /api/jobs {continueFrom: "j_…"}`. The server checks `owner === sub` (else 404) and creates a **new** job | docs/04 §8 says Continue is a new job; the browser never holds tool state |
+| R14 | `contentHash` is `sha256:<64 lowercase hex>` everywhere. Approve validates `^sha256:[0-9a-f]{64}$` (bad shape → 400 `invalid_request`, mismatch → 409 `conflict`). The UI shows `contentHash.slice(7, 15)`, the first 8 hex digits after `sha256:` | One format across the record, the request and the card (R6 review) |
 
 **D9 (bundle each agent's knowledge into its cached system prompt): Rowan agrees.** The largest prompt measured is about 126 KB (agent-console-engineer: body + 13 skills + knowledge), so the 350 KB cap leaves about 2.7× headroom. A cached read on Opus is about 32k tokens × $0.40/MTok, roughly $0.013 per turn. The knowledge folder isn't agent-writable, so the extra deploy trigger fires only on human pushes and on approved `.claude/skills` edits, which already cost an Approve slot. Option (b) would add a tool round to every turn, which costs more time and compute minutes than the cache does.
 
@@ -209,7 +212,7 @@ The contract test checks that the `settings.mts` keys exist and that D10 and D12
 
 ## 10. Open questions
 
-1. docs/04 §2 (line "Shared modules") and docs/03 §2 still name `ratelimit.mts` and `github.mts`. Rulings R2 and R3 override them. The docs/03 fix is Nell's; the docs/04 §2 sentence is outside Rowan's W1 scope, so the orchestrator should route it.
+1. docs/03 §2 still names `ratelimit.mts` and `github.mts` (Nell's file). docs/04 §1 and §2 were fixed in W1F.
 2. Chat transcripts are capped at 64 KB per request, and the client drops the oldest pairs. If Dr. Lee wants long chats, the boring fix is a higher cap (functions allow 6 MB) reviewed by Vera, not server-side chat state.
 3. `diff@9.0.0` is a new runtime dependency in `package.json` (for `lib/diff.mts`). `secure-by-design` lists only four runtime packages, and no ADR covers it. Either accept it in the W1 review with Vera, or write the ~80-line diff in-house.
 4. The knowledge example 02 schemas (`forecast-hour`, `day-verdict`, `approvals` const) are stale against docs/01 §5 and this contract. `tests/contracts/` is the source of truth now. Juno should refresh the knowledge copy.
