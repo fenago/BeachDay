@@ -129,7 +129,8 @@ Every transition is a Blobs compare-and-swap (`onlyIfMatch`). `committing` is th
 
 ```json
 {
-  "proposal": { "...": "the stored record (proposal.schema.json) plus a unified diff per file" },
+  "proposal": { "...": "the stored record, exactly as proposal.schema.json" },
+  "diffs": [ { "path": "public/js/score.js", "diff": "unified diff text, rendered with textContent" } ],
   "deploys": true,
   "approveEnabled": true,
   "approvals": { "used31": 3, "usedToday": 1, "per31Days": 14, "perDay": 5, "retryAt": null }
@@ -373,7 +374,7 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
    CHECK the cap, read-only: checkApproveCap() (ADR-0008). Over → 429 approve_cap {retryAt, approvals};
    status stays "pending"; release the lock. Nothing is written to site:approvals here.
    Re-run the allow-list, size, text-only and secret-scan checks (§6).
-   CAS status "pending" → "committing" {committingAt}.
+   CAS status "pending" → "committing" {decidedAt: now, decidedBy: sub}.
 1. GET  /repos/fenago/BeachDay/git/ref/heads/main             → headSha
 2. If headSha ≠ proposal.baseSha: for each file, compare the current blob SHA on main with
    readBlobSha (null = the file must still not exist). Any difference → CAS "stale"; 409 stale.
@@ -394,7 +395,7 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
                                          The reconciler decides later.
 7. RECORD, then mark (the "committed ⇒ counted" invariant, §2.1):
    a. recordApproval(now) — CAS append to site:approvals, pruned to 31 days (ADR-0008).
-   b. CAS "committing" → "committed" {commitSha, decidedAt}.
+   b. CAS "committing" → "committed" {commitSha} (decidedAt is kept from step 0).
    c. Audit record (actor = Supabase user id, proposalId, commitSha). Release the lock.
    d. Answer 200 {proposal, deploys, approvals}.
    If 7a or 7b still fails after retries, main HAS moved: answer 200 committed with commitSha anyway
@@ -404,8 +405,8 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
    answer 502 upstream. Nothing is recorded, so no slot is used.
 ```
 
-**Reconciler** (runs from `GET /api/proposals/:id` and from approve, for a record in `committing` whose `committingAt` is more than 120 s old; it takes the approve lock and skips if the lock is held):
-1. Look for the proposal's commit on `main`: `GET /repos/.../commits?sha=main&since=<committingAt − 5 min>&per_page=50`, and match the exact trailer line `Beach-Day-Proposal: p_…` in each message.
+**Reconciler** (runs from `GET /api/proposals/:id` and from approve, for a record in `committing` whose `decidedAt` is more than 120 s old; it takes the approve lock and skips if the lock is held):
+1. Look for the proposal's commit on `main`: `GET /repos/.../commits?sha=main&since=<decidedAt − 5 min>&per_page=50`, and match the exact trailer line `Beach-Day-Proposal: p_…` in each message.
 2. **Found** → record, then mark, exactly as step 7a–7b (the reconciled commit **counts**, ADR-0008). If an earlier 7a had already succeeded, this records it a second time: an overcount of one, which is the safe direction.
 3. **Re-read succeeded and not found** → CAS `failed` {error: "commit did not reach main"}. No slot is used.
 4. **GitHub unreachable** → leave it `committing` and try again on the next GET.

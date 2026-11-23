@@ -1,0 +1,110 @@
+# TEMPLATE for .github/workflows/tests.yml. Agents cannot add it (.github/** is deny-listed and the PAT has no
+# Workflows permission): a human copies it, replaces every <PIN-SHA> with the full 40-character commit SHA of the
+# release named in the comment, and sets one repository VARIABLE (not a secret): SITE_URL.
+# Rules it must keep (docs/04 §4.7, checked by workflow-lint.mjs): read-only token, no secrets, no
+# pull_request_target / workflow_run, actions pinned by SHA, no ${{ }} inside a run script.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@<PIN-SHA> # v4.x.y
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@<PIN-SHA> # v4.x.y
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test            # Vitest: tests/unit + tests/functions (MSW, fake Blobs, fake Supabase)
+
+  e2e:
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@<PIN-SHA> # v4.x.y
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@<PIN-SHA> # v4.x.y
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run e2e -- --trace off   # local static server on public/; Open-Meteo, /api/* and Supabase mocked
+      - run: npm run a11y -- --trace off  # axe on every screen in docs/06 §5
+
+  post-deploy:
+    # Runs only for a push to main, after the Netlify deploy. It signs in nowhere and holds no credentials.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [unit, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@<PIN-SHA> # v4.x.y
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@<PIN-SHA> # v4.x.y
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Did this push change anything Netlify builds? (same path list as the ignore rule in docs/03 §3.1)
+        id: deploys
+        env:
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if git diff --quiet "$BEFORE" "$AFTER" -- public netlify netlify.toml package.json package-lock.json scripts .claude/agents; then
+            echo "deploy=no" >> "$GITHUB_OUTPUT"
+            echo "No deploy expected: nothing the build reads changed."
+          else
+            echo "deploy=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Wait for the deploy (poll /version.json until it names this commit)
+        if: steps.deploys.outputs.deploy == 'yes'
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          AFTER: ${{ github.sha }}
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS "$SITE_URL/version.json" | grep -q "$AFTER"; then echo "live after $i polls"; exit 0; fi
+            sleep 10
+          done
+          echo "Deploy did not appear within 10 minutes. Check Netlify. Rollback: Publish the previous deploy."; exit 1
+      - name: Smoke test (no credentials; every /api route must answer 401 with no-store)
+        if: steps.deploys.outputs.deploy == 'yes'
+        env:
+          BASE_URL: ${{ vars.SITE_URL }}
+          EXPECT_COMMIT: ${{ github.sha }}
+        run: node scripts/smoke.mjs
+      - name: Read-only e2e, offline spec and axe against production (Supabase and /api mocked in the browser)
+        if: steps.deploys.outputs.deploy == 'yes'
+        env:
+          BASE_URL: ${{ vars.SITE_URL }}
+        run: |
+          npx playwright install --with-deps chromium webkit
+          npm run e2e -- --trace off --grep @prod
+          npm run a11y -- --trace off --grep @prod
+      - name: Lighthouse CI (performance >= 0.9, accessibility = 1.0)
+        if: steps.deploys.outputs.deploy == 'yes'
+        env:
+          LHCI_URL: ${{ vars.SITE_URL }}
+        run: npx lhci autorun --collect.url="$LHCI_URL/"
