@@ -67,6 +67,10 @@ Every test also asserts `cache-control: no-store`, the explicit `content-type`, 
 
 ### 3.1 Auth on every function (ADR-0006, docs/04 §4.1 and §12)
 
+**JWT header pre-check.** A token whose header has an unsupported `alg` (`none`, `HS256`, `ES384`), a missing `kid` or a header that is not JSON → **401 with no network call at all** (assert the fake `fetch` call count is 0, before JWKS). The accepted algorithms (ES256, RS256) come from pre-launch check (h).
+
+**Returned retryable errors.** supabase-js often *returns* `{ error: AuthRetryableFetchError }` instead of throwing. For `getClaims`/`getUser` on **every function and on Approve**, a returned `AuthRetryableFetchError` (and a thrown network error) → **503**, never 401 or 403, with nothing touched. Add it as a matrix case once the real guard is in place (Example 05's stand-in uses `fetch` directly, so it does not exercise this).
+
 **Registry rule.** A test lists the function files and the route table in docs/04 §2 and fails if they differ, or if a function has no row in the matrix. A new route cannot ship untested. Example 05 reads the doc's table and asserts 8 routes.
 
 **The matrix** is *every route × every case*; each cell asserts the status, the error body shape, the headers, and that **nothing downstream was touched**: no Blobs read or write, no GitHub call, no Claude call, and no Supabase call beyond JWKS and the one profile read.
@@ -171,6 +175,8 @@ Approve stays **disabled** (`approveEnabled: false`) until these pass. They need
 | e | A TOTP verify yields `aal2` | same |
 | f | Netlify secret scanning does not flag `sb_publishable_…` in `config.js` | `SECRETS_SCAN_OMIT_KEYS` (docs/03 §9.5) |
 | g | The RLS Security Advisor shows no warning on `profiles`; a second throwaway user cannot read or change another row or their own `role` through the REST API with the publishable key | fix the SQL before launch |
+| h | A real access token's header has `alg` `ES256` or `RS256` **and a `kid`** (decode one, record it). The guard's pre-check refuses other `alg` values and a missing `kid` | update the pre-check or switch the project's signing keys |
+| i | **Approve answers 503** when Supabase is unreachable (block the host from the function in a throwaway deploy, or pause the project), not 401 and not a silent pass | fix the `getUser` error mapping |
 
 ## 4. End-to-end (Playwright)
 
@@ -296,21 +302,22 @@ Leave `wcag22aa` out and axe stops checking target size; there is no `wcag22a` t
 * **Tests run in GitHub Actions, never in the Netlify build** (security-engineer, docs/04 §4.7; docs/03 §9.4). On Free the build sees every secret and `tests/**` is agent-writable, so a test that ran in the build would run with `GITHUB_TOKEN` and `ANTHROPIC_API_KEY`.
 * **No Deploy Previews and no branch deploys** (security-engineer requires them off, docs/04 §4.6; ADR-0003 commits straight to `main`). The old "wait for the preview URL" step is gone.
 * **QA is green on the main deploy, with a rollback ready** (ADR-0003, Dr. Lee's decision). QA's result is a **signal after the commit**; the gate before it is the human reviewing the diff on Approve. A red result after a deploy means: roll back first, then fix.
-* **Rollback is ready** when (1) the previous production deploy is known and still within Netlify's retention, (2) "Publish deploy" on it is one click (instant, 0 credits, docs/03 §8.3), and (3) the person on call knows "Lock to stop auto publishing" exists so the next Approve does not overwrite the rollback. Actions cannot roll back (it holds no Netlify credential, on purpose): a human does it. The written runbook `docs/runbooks/rollback.md` does not exist yet (netlify-engineer).
+* **Rollback is ready** when (1) the previous production deploy is known and still within Netlify's retention, (2) "Publish deploy" on it is one click (instant, 0 credits, docs/03 §8.3), and (3) the person on call knows "Lock to stop auto publishing" exists so the next Approve does not overwrite the rollback. Actions cannot roll back (it holds no Netlify credential, on purpose): a human does it. The runbook is `docs/runbooks/rollback.md`.
 
 ### 6.2 The workflow (a human adds it)
 
 Agents cannot create `.github/workflows/*`: the path is deny-listed in the Console and the PAT has no Workflows permission (ADR-0005). The reviewed **template** is `knowledge/qa-engineer/examples/06-github-actions-no-secrets/tests.yml`. A human copies it to `.github/workflows/tests.yml`, replaces every `<PIN-SHA>` with the full 40-character commit SHA of the release named in the comment (the sandbox could not resolve them, and no SHA is invented here), and sets one repository **variable** (not a secret) named `SITE_URL`.
 
-Rules, enforced by `workflow-lint.mjs` (Example 06: 16 tests; it flags 13 planted violations and the unpinned template):
+Rules, enforced by `workflow-lint.mjs` (Example 06: 21 tests; it flags 18 planted violations and the unpinned template):
 
 | Rule | Why |
 |---|---|
 | Top-level `permissions: { contents: read }`, nothing else; jobs may only narrow it | Least privilege (docs/04 §4.7). The token can read the repo and nothing more |
 | **No secrets**: no `secrets.*`, no `secrets: inherit`, no Beach Day secret name anywhere | Nothing in CI can hold `GITHUB_TOKEN`, `ANTHROPIC_API_KEY` or Supabase keys, so an agent-written test has nothing to steal. Repository **variables** (`vars.SITE_URL`) are plain text and allowed |
-| No `pull_request_target`, `workflow_run`, `issue_comment` or `repository_dispatch` | These run with a write token or secrets in the context of untrusted input |
+| **Triggers are an allow-list:** `push` limited to `branches: [main]`, `pull_request`, `workflow_dispatch`. Anything else (`schedule`, `pull_request_target`, `workflow_run`, `issue_comment`, …) fails the lint until security-engineer adds it on purpose | Several triggers run with a write token or secrets in the context of untrusted input; a deny-list forgets the next one |
 | Every `uses:` pinned to a full commit SHA | A moved tag cannot change what runs |
 | `actions/checkout` with `persist-credentials: false` | Keeps the token out of `.git/config`, where a test could read it (QA hardening; the behaviour is from memory, **UNVERIFIED** this session) |
+| No `github.token` anywhere (the job token is not passed on); every `npx` is `npx --no-install` with the package in `devDependencies` (`@lhci/cli`, `@playwright/test`), so nothing unpinned is downloaded and `package-lock.json` pins it | Supply chain (security-engineer L2/L3) |
 | No `${{ … }}` inside a `run:` script; pass values through `env:` and quote `"$VAR"` | Script-injection guard (QA hardening) |
 | `timeout-minutes` on every job | A hung job must not burn minutes |
 | Triggers: `push` to `main`, `pull_request`, `workflow_dispatch` | |
@@ -321,7 +328,7 @@ Jobs in the template: **unit** (`npm ci`, `npm test`), **e2e** (needs unit: Play
 
 ### 6.3 After a production deploy
 
-On a push to `main` the `post-deploy` job: (1) checks whether the push changed anything Netlify builds, using **the same path list as the `ignore` command** (docs/03 §3.1); a docs-only push is skipped and reported as "no deploy expected", not as a failure; (2) polls `${SITE_URL}/version.json` every 10 s, up to 10 minutes, until it names this commit (the same signal as the Console's "Live"); (3) runs `scripts/smoke.mjs` (docs/03 §9.3; **no credentials**): `/sw.js` 200 with no placeholder left and `no-cache`, its version equals `version.json`, the manifest type, the CSP header, and every `/api` route except `/api/jobs-run` answers 401 `no-store`; (4) runs the read-only `@prod` e2e and axe specs on both profiles (Supabase and `/api/*` mocked); (5) runs **Lighthouse CI** against the production URL (`lhci autorun`, performance ≥ 0.9, accessibility = 1.0; Lighthouse has no PWA category since v12, so installability is checked in DevTools → Application, §6.5). A failure at any step is a red check, and the verdict is **FAIL: roll back, then fix**.
+On a push to `main` the `post-deploy` job: (1) checks whether the push changed anything Netlify builds, using **the same path list as the `ignore` command** (docs/03 §3.1); a docs-only push is skipped and reported as "no deploy expected", not as a failure; (2) polls `${SITE_URL}/version.json` every 10 s, up to 10 minutes, until it names this commit (the same signal as the Console's "Live"); (3) runs `scripts/smoke.mjs` (docs/03 §9.3; **no credentials**): `/sw.js` 200 with no placeholder left and `no-cache`, its version equals `version.json`, the manifest type, the CSP header, and every `/api` route except `/api/jobs-run` answers 401 `no-store`; (4) runs the read-only `@prod` e2e and axe specs on both profiles (Supabase and `/api/*` mocked); (5) runs **Lighthouse CI** against the production URL (`npx --no-install lhci autorun`, with `@lhci/cli` in `devDependencies`, performance ≥ 0.9, accessibility = 1.0; Lighthouse has no PWA category since v12, so installability is checked in DevTools → Application, §6.5). A failure at any step is a red check, and the verdict is **FAIL: roll back, then fix**.
 
 The workflow was **not run on GitHub** (no workflow exists in the repo, and the sandbox has no GitHub access): only its YAML and lint were run (Example 06). No Netlify site is linked yet (Dr. Lee, 2026-11-23), so the post-deploy job has nothing to poll until one is.
 

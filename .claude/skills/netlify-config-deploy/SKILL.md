@@ -49,7 +49,7 @@ There is **no `netlify.toml` in the repo yet**. docs/03 §3 is the spec, with a 
 |---|---|---|
 | `ANTHROPIC_API_KEY` | yes | Production (`chat`, `jobs-run`) |
 | `GITHUB_TOKEN` | yes | **Production only** (`approve`; ADR-0007 as it stands also lets the read tools in `chat` and `jobs-run` use it) |
-| `GITHUB_READ_TOKEN` | yes | **Proposed ADR, not decided.** Do not create it until Dr. Lee accepts (docs/04 §4.6) |
+| `GITHUB_READ_TOKEN` | yes | **ADR-0009, Proposed (not decided).** Do not create it until Dr. Lee accepts; until then ADR-0007 stands (docs/04 §4.6) |
 | `GITHUB_REPO=fenago/BeachDay` | no | all |
 | `SUPABASE_URL` | **no** | all |
 | `SUPABASE_PUBLISHABLE_KEY` | **no** | all |

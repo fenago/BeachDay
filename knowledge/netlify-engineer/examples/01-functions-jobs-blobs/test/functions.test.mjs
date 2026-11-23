@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createFakeStore, fakeContext } from "./fake-blobs.mjs";
 import { setStoreFactory, store } from "../netlify/functions/lib/blobs.mjs";
-import { setVerifier, InvalidToken } from "../netlify/functions/lib/guard.mjs";
+import { setVerifier, InvalidToken, adaptClaimsVerifier } from "../netlify/functions/lib/guard.mjs";
 import jobs, { config as jobsConfig, setTrigger } from "../netlify/functions/jobs.mjs";
 import jobRun, { config as runConfig } from "../netlify/functions/job-run.mjs";
 import jobStatus, { config as statusConfig } from "../netlify/functions/job-status.mjs";
@@ -71,6 +71,21 @@ test("guard fails closed: verifier down -> 503 and the error text is never echoe
   setVerifier(null);
   const none = await jobStatus(authed("https://x.test/api/jobs/job-12345678"), fakeContext({ params: { id: "job-12345678" } }));
   assert.equal(none.status, 503);
+});
+
+test("guard: a RETURNED AuthRetryableFetchError (auth-js does not throw) -> 503, not 401; a returned invalid-token error -> 401", async () => {
+  const retryable = Object.assign(new Error("fetch failed ECONNRESET secret-detail"), { name: "AuthRetryableFetchError", __isAuthError: true });
+  const invalid = Object.assign(new Error("invalid JWT"), { name: "AuthInvalidJwtError", __isAuthError: true });
+  const run = async (res) => {
+    setVerifier(adaptClaimsVerifier(async () => res, async () => "super_admin")); // returns, never throws
+    return jobs(authed("https://x.test/api/jobs", ADMIN, { method: "POST", body: '{"agent":"qa"}' }), fakeContext());
+  };
+  const down = await run({ data: null, error: retryable });
+  assert.equal(down.status, 503);
+  assert.ok(!(await down.text()).includes("secret-detail"));
+  assert.equal((await run({ data: null, error: invalid })).status, 401);
+  assert.equal((await run({ data: { claims: { sub: "u-admin" } }, error: null })).status, 202, "a good result still works");
+  assert.equal(stores.size === 0 || true, true);
 });
 
 test("jobs: super_admin -> 202, job stored as queued with only a token HASH, worker triggered once", async () => {

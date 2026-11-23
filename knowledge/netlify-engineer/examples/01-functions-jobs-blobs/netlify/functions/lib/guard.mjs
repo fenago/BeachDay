@@ -13,6 +13,26 @@ let verifier = null;
 export const setVerifier = (fn) => { verifier = fn; };
 export class InvalidToken extends Error {}
 
+// NOTE: this guard's verifier contract is THROW-BASED: resolve with { sub, role },
+// throw InvalidToken for a bad token (401), throw anything else for 503.
+// Supabase auth-js does NOT throw on a network or 5xx failure: it RETURNS
+// { data, error } with error.name === "AuthRetryableFetchError" (real code:
+// isAuthRetryableFetchError(error)). A real verifier must go through an adapter like
+// this one, or an outage would look like an invalid token (401 instead of 503).
+// `getClaims` here is any function returning { data: { claims } | null, error }.
+export function adaptClaimsVerifier(getClaims, roleOf) {
+  return async (token) => {
+    const res = await getClaims(token);
+    if (res?.error) {
+      if (res.error.name === "AuthRetryableFetchError") throw new Error("auth upstream unavailable"); // -> 503
+      throw new InvalidToken(); // any other returned auth error: the token is not valid -> 401
+    }
+    const claims = res?.data?.claims;
+    if (!claims?.sub) throw new InvalidToken();
+    return { sub: claims.sub, role: await roleOf(claims) };
+  };
+}
+
 export async function guard(req) {
   const m = /^Bearer ([A-Za-z0-9._~+/=-]{10,4096})$/.exec(req.headers.get("authorization") ?? "");
   if (!m) return { response: json(401, { error: "unauthenticated" }, { "www-authenticate": "Bearer" }) };

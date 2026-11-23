@@ -25,7 +25,7 @@ Owner: agent-console-engineer. Screens, copy and focus rules: Wren's spec, `know
    - **Approve off before launch** (S10): until the §4.2 pre-launch tests pass, `GET /api/proposals/:id` returns `approveEnabled: false`, the approve function refuses with `503 unavailable` whatever the client does, and the card shows Review and Approve with `aria-disabled="true"` plus the reason. Reject still works. The switch is a server constant reviewed by security-engineer, not a client flag.
    - `429 approve_cap` → S9: the cap message (`role="alert"`), "The proposal is still waiting.", Review and Approve hidden until `retryAt`, Reject kept.
    - `409 conflict` (hash mismatch or a second Approve) → reload the proposal and show its current status.
-   - **`stale` is a card state, not the 409.** Whenever the loaded proposal's status is `stale` (found at Approve or by an earlier one), the card shows "Out of date: main changed after this proposal. No approval was used." with no Approve button; Reject is not needed. The agent proposes again.
+   - **`stale` is a card state, not the 409.** Whenever the loaded proposal's status is `stale` (found at Approve or by an earlier one), the card shows "Out of date: main changed after this proposal. No approval was used." with no Approve or Reject button (`stale` is final). The agent proposes again.
 6. **Outcome** (all `role="status"`):
    - "Committing to main…" while the request runs.
    - **Deploys:** "Committed {sha}. Deploying…" plus the commit link, then **Live**: the Console polls `GET /version.json` with `cache: "no-store"` every 10 s (paused while the tab is hidden) and shows "Live. The change is on the site." when `commit` equals the full `commitSha`. After 10 minutes it shows "Still deploying. Check Netlify." and stops polling (§7). A 404 or bad JSON from `/version.json` counts as "not yet".
@@ -50,7 +50,6 @@ Owner: agent-console-engineer. Screens, copy and focus rules: Wren's spec, `know
 | `503` (`unavailable`) | "Couldn't check your access. Try again in a minute." with Try Again. Keep the draft, the transcript and any open proposal. Never S6 |
 | `429` | `rate_limited`: say when to try again from `retryAt`; `budget_exhausted`: S11, keep the draft, Send `aria-disabled`; `approve_cap`: S9. Never retried automatically |
 | `502` (`upstream`) | Chat and jobs: "The agent is unavailable right now", draft kept. Approve: "Couldn't confirm the commit yet." and re-load the proposal; **no Try Again** and never re-send Approve, because the commit may have landed (§7 reconciler) |
-
 | network error or timeout | Same as `503`, with the offline wording if `navigator.onLine` is false |
 
 **`budget_exhausted` (429, chat and jobs) carries `retryAt`, like every 429 (§2.1).** `checkComputeBudget()` derives it from the oldest New York day buckets in `site:compute` (netlify-engineer's design: docs/03 §7, `netlify-blobs` skill, example 03). If the record can't be read, the limit check fails closed with `503 unavailable`, not a 429. The UI keeps the no-date copy only as a fallback for a missing `retryAt`.
@@ -128,7 +127,7 @@ Every transition is a Blobs compare-and-swap (`onlyIfMatch`). `committing` is th
 | `refusal` | — | SSE and job events only | Claude refused; terminal `error` event (no `done`), discard the partial reply (rule above) |
 | `upstream` | 502 | chat, jobs, approve | Claude or GitHub failed. For approve, the proposal is `failed` (or still `committing`, §7) |
 | `timeout` | 504 | chat, approve | Our own time budget ran out before a result |
-| `unavailable` | 503 | all | Supabase unreachable (§4.1), not the production context (§4.6), or Approve switched off before launch |
+| `unavailable` | 503 | all | Supabase unreachable (§4.1): a throw, or a **returned** `AuthRetryableFetchError` (auth-js returns network/5xx failures instead of throwing; other returned auth errors are `401`). Also: not the production context (§4.6), a limit record that can't be read (fail closed, §1), or Approve switched off before launch |
 | `internal` | 500 | all | Anything else |
 
 **Proposal payload for the Approve sheet.** `GET /api/proposals/:id` returns:
@@ -363,8 +362,10 @@ export const DENY = [        // DENY wins over ALLOW
 **Service worker convention:** `public/sw.js` may load other code only from `public/sw/**` (`importScripts("/sw/…")`). That makes "sw.js and every file it imports" a static deny rule. pwa-mobile-engineer owns the convention, and a unit test fails if `sw.js` references any other path.
 
 Rules:
-- Normalise paths first. Reject `..`, absolute paths, backslashes, a leading `./`, symlink mode `120000` and submodules.
-- Match case-insensitively, so `Netlify.toml` is denied.
+- **Validate the exact string sent to GitHub; never normalise or decode it.** Anything that would need normalising is rejected, not repaired. The path must be 1–200 characters from `[A-Za-z0-9._/-]` only (so no backslash, space, `%`, control or non-ASCII character), with no leading `/`, no empty segment (`//`, trailing `/`), no `.` or `..` segment and no segment ending in `.`. The same string is checked, stored, hashed and sent to GitHub. Details: `agent-console-security` skill, "Path allow-list".
+- Mode is always `100644` (no symlink `120000`, no submodule, no executable bit). No two paths in one proposal may differ only by case.
+- **No deletions.** `propose_change` only creates or replaces whole files; every tree entry carries `content`, and the approve function never sends a tree entry with `sha: null`. Deleting a file is a human change. (If deletions are ever added, they go through this same allow/deny check.)
+- DENY is matched case-insensitively, so `Netlify.toml` and `public/_Headers` are denied; ALLOW is exact-case.
 - DENY wins over ALLOW.
 - At most 20 files, and at most 200 KB per file.
 - **Text only:** contents must decode as UTF-8 with no NUL bytes, whatever the path.
@@ -399,8 +400,13 @@ Use the **Git Database API**, not the Contents API: one commit for N files (one 
 4. POST /repos/.../git/trees  { base_tree: baseTreeSha,
         tree: [{path, mode:"100644", type:"blob", content}, …] }   → treeSha
         (ALWAYS send base_tree — omitting it deletes every other file)
-5. POST /repos/.../git/commits { message (ends with the trailer "Beach-Day-Proposal: p_…"),
-        tree: treeSha, parents:[headSha], author:{name:"Beach Day Agent (<agent>)", email:"…"} } → commitSha
+5. POST /repos/.../git/commits { message, tree: treeSha, parents:[headSha],
+        author:{name:"Beach Day Agent (<agent>)", email:"…"} } → commitSha
+        message = buildCommitMessage(summary, id), built by the server only:
+          "<summary as ONE line>\n\nBeach-Day-Proposal: p_…"
+        The summary line has every control/line-break character (incl. U+2028/2029) replaced by a
+        space, every "Beach-Day-Proposal" (any case) removed, and is cut to 200 chars. The trailer
+        is always the LAST line, and the agent's text can never produce a trailer line.
 6. PATCH /repos/.../git/refs/heads/main { sha: commitSha, force:false }
    a. 200 → main moved; go to 7.
    b. 422 not fast-forward (a definite "no": main moved first) → redo steps 1–6 once, else CAS "stale".

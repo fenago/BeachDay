@@ -15,7 +15,7 @@
 | Effort | Set `output_config.effort` explicitly (`low` for chat, `high` for code-change jobs) | Opus 5.5 and Haiku 5.5 default to `medium`, not `high`. |
 | Streaming | Always stream chat replies (`client.messages.stream`) | Long outputs; avoids HTTP timeouts; lets the UI show text as it arrives. |
 | Tool choice | `tool_choice: {type: "auto"}` + `strict: true` on tools | Forced `any`/`tool` returns **400** on Opus 5.5, Sonnet 5.5 and Fable 5.1/5.2. |
-| Refusals | Check `stop_reason === "refusal"` before reading content; enable server-side `fallbacks` | Safety classifiers can decline with HTTP 200. |
+| Refusals | Check `stop_reason === "refusal"` before reading content. Server-side `fallbacks`: **off by default** (Dr. Lee hasn't decided; §7) | Safety classifiers can decline with HTTP 200. |
 
 ## 2. Current models (cached 2026-11-03 — confirm with `GET /v1/models`)
 
@@ -159,6 +159,7 @@ Loop rules (manual loop or the SDK's beta Tool Runner, `client.beta.messages.too
 * Continue while `stop_reason === "tool_use"`; stop on `end_turn`.
 * Return **all** `tool_result` blocks for one assistant turn in **one** user message, each with the matching `tool_use_id`. On failure send `is_error: true` with a clear message (e.g. "path not on allow-list") instead of dropping it.
 * **Validate tool input server-side anyway** (path allow-list, size caps, no `..`). `strict: true` guarantees schema shape, not safety. Parse with `JSON.parse`, never string matching.
+* **`tool_result` content is untrusted data.** Repo files the agent reads may contain instructions (indirect prompt injection). Keep them inside `tool_result` blocks, never in `system` or user text, and never rely on the model obeying: policy (allow-list, limits, secret scan, human Approve) lives in code (docs/04 §3, §6).
 * If `stop_reason` is `max_tokens` while a `tool_use` block is present, the input may be truncated — do not run it; retry with more `max_tokens`.
 * If streaming with client tools, set `eager_input_streaming: true` on each tool and validate the parsed input before running it.
 * Cap iterations per job (e.g. 15 tool rounds) and total tokens per job. On Opus 5.5 / Sonnet 5.5 you can also set a beta **task budget** (`output_config.task_budget`, header `task-budgets-2026-03-13`, min 20,000 tokens) so the model paces itself.
@@ -168,11 +169,11 @@ Loop rules (manual loop or the SDK's beta Tool Runner, `client.beta.messages.too
 
 SSE event sequence: `message_start` → (`content_block_start` → `content_block_delta`* → `content_block_stop`)* → `message_delta` (carries `stop_reason`, usage) → `message_stop`. Delta types: `text_delta`, `thinking_delta`, `input_json_delta` (tool input). `ping` and `error` events can appear at any time.
 
-The function should re-emit a **simplified** event stream to the browser (e.g. `{type:"text", text}`, `{type:"tool", name, status}`, `{type:"proposal", id}`, `{type:"done"}`) rather than raw API events, so no internal data leaks and the UI stays simple. See doc 04 for how this fits Netlify's time limits.
+The function re-emits only the browser events defined in **docs/04 §2.1** (`text`, `tool`, `proposal`, `handoff`, `error`, `done`; the field names there are the contract) rather than raw API events, so no internal data leaks and the UI stays simple. See docs/04 §8 for how this fits Netlify's time limits.
 
 ## 7. Refusals and errors
 
-* **Refusals:** HTTP 200 with `stop_reason: "refusal"` (optional `stop_details.category`). Check before reading `content`; a mid-stream refusal means discard the partial output. For Opus 5.5 / Sonnet 5.5, opt into server-side fallbacks: `client.beta.messages.create({ ..., betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" })`.
+* **Refusals:** HTTP 200 with `stop_reason: "refusal"` (optional `stop_details.category`). Check before reading `content`; a mid-stream refusal means discard the partial output. Server-side fallbacks (`client.beta.messages.create({ ..., betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" })`) are **off by default**: Dr. Lee hasn't decided. if Dr. Lee ever enables it, the fallback model must stay within the three Console models (Opus 5.5, Sonnet 5.5, Haiku 5.5; Haiku 5.5 has no server-side fallback), and token limits and cost are counted from the response's `model`, not the requested one.
 * **Errors:** catch specific SDK classes, most specific first (`Anthropic.NotFoundError`, `Anthropic.RateLimitError`, `Anthropic.APIError`, `Anthropic.APIConnectionError`). The SDK retries 408/409/429/5xx twice by default (`maxRetries`). TypeScript `timeout` is in **milliseconds** (default 10 min) — set it below the Netlify function limit.
 * 400 errors you will see if you copy old examples: `budget_tokens`, `thinking: {type:"disabled"}`, forced `tool_choice`, assistant prefill, `temperature`/`top_p`/`top_k` (rejected on current models).
 
