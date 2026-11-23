@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/api-error.schema.json",
+  "title": "ApiErrorBody",
+  "description": "JSON error body from every /api/* route, and from /api/chat before its stream opens (docs/04 §2.1). One code list shared with the SSE error event. 429 codes carry retryAt; approve_cap also carries approvals. No stack, env or token fields can appear (additionalProperties false).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "error"
+  ],
+  "properties": {
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/code"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "retryAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "rate_limited",
+                  "budget_exhausted",
+                  "approve_cap"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "retryAt": true
+            },
+            "required": [
+              "retryAt"
+            ]
+          }
+        }
+      ]
+    },
+    "approvals": {
+      "$ref": "https://beachday.example/schemas/approvals.schema.json"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "const": "approve_cap"
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "approvals": true
+        },
+        "required": [
+          "approvals"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "code": {
+      "enum": [
+        "invalid_request",
+        "unauthorized",
+        "step_up_required",
+        "forbidden",
+        "not_found",
+        "conflict",
+        "stale",
+        "rate_limited",
+        "budget_exhausted",
+        "approve_cap",
+        "refusal",
+        "upstream",
+        "timeout",
+        "unavailable",
+        "internal"
+      ]
+    }
+  }
+}

@@ -153,15 +153,23 @@
         },
         "code": {
           "enum": [
+            "invalid_request",
             "unauthorized",
+            "step_up_required",
             "forbidden",
+            "not_found",
+            "conflict",
+            "stale",
             "rate_limited",
+            "budget_exhausted",
+            "approve_cap",
             "refusal",
             "upstream",
             "timeout",
-            "invalid_request",
+            "unavailable",
             "internal"
-          ]
+          ],
+          "description": "Same list as api-error.schema.json (docs/04 §2.1). budget_exhausted / rate_limited can arrive mid-stream when a handoff can't start its job."
         },
         "message": {
           "type": "string",

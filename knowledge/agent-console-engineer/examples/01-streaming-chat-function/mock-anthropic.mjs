@@ -1,6 +1,6 @@
 // Local mock of POST /v1/messages with stream:true. Emits SSE events shaped like the
 // examples on https://platform.claude.com/docs/en/build-with-claude/streaming
-// Scenario is chosen by the last user message text: "refuse" | "overload" | anything else.
+// Scenario is chosen by the last user message text: "refuse" | "overload" | "slow" | anything else.
 import http from "node:http";
 
 const sse = (res, event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -25,6 +25,9 @@ export function startMockAnthropic() {
 
     const last = body.messages.at(-1);
     const userText = typeof last.content === "string" ? last.content : last.content.map((b) => b.text ?? "").join("");
+    // "slow": hold the response for 2 s, longer than the test's turn deadline.
+    if (userText.includes("slow")) await new Promise((r) => setTimeout(r, 2000));
+    if (res.destroyed || req.socket.destroyed) return;
     res.writeHead(200, { "content-type": "text/event-stream", "request-id": "req_mock_1" });
 
     sse(res, "message_start", { type: "message_start", message: { id: "msg_mock_1", type: "message", role: "assistant", content: [], model: body.model, stop_reason: null, stop_sequence: null, usage: { input_tokens: 25, output_tokens: 1 } } });
@@ -52,5 +55,5 @@ export function startMockAnthropic() {
     res.end();
   });
   return new Promise((resolve) =>
-    server.listen(0, "127.0.0.1", () => resolve({ url: `http://127.0.0.1:${server.address().port}`, requests, close: () => server.close() })));
+    server.listen(0, "127.0.0.1", () => resolve({ url: `http://127.0.0.1:${server.address().port}`, requests, close: () => { server.closeAllConnections(); server.close(); } })));
 }

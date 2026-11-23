@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://beachday.example/schemas/proposal-view.schema.json",
+  "title": "ProposalView",
+  "description": "Response of GET /api/proposals/:id (docs/04 §2.1): the stored record, per-file diffs, whether the commit would deploy, the server-side pre-launch switch, and read-only cap usage (null if the Blobs read failed).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "proposal",
+    "diffs",
+    "deploys",
+    "approveEnabled",
+    "approvals"
+  ],
+  "properties": {
+    "proposal": {
+      "$ref": "https://beachday.example/schemas/proposal.schema.json"
+    },
+    "diffs": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "diff"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "diff": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "deploys": {
+      "type": "boolean"
+    },
+    "approveEnabled": {
+      "type": "boolean"
+    },
+    "approvals": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "https://beachday.example/schemas/approvals.schema.json"
+        }
+      ]
+    }
+  }
+}

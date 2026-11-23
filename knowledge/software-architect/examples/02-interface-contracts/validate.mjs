@@ -17,10 +17,13 @@ const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
 const load = (p) => JSON.parse(readFileSync(join(here, p), 'utf8'));
 
+// add every schema first so cross-file $refs (api-error → approvals, proposal-view → proposal) resolve
+const files = readdirSync(join(here, 'schemas')).sort();
+for (const f of files) ajv.addSchema(load(`schemas/${f}`));
 const validators = {};
-for (const f of readdirSync(join(here, 'schemas')).sort()) {
+for (const f of files) {
   const name = f.replace('.schema.json', '');
-  validators[name] = ajv.compile(load(`schemas/${f}`));
+  validators[name] = ajv.getSchema(load(`schemas/${f}`).$id);
   console.log(`compiled  ${f}`);
 }
 

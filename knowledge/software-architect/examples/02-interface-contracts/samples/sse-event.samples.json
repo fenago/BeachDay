@@ -202,5 +202,15 @@
    "type": "handoff",
    "jobId": "job_01HZX9K2QW"
   }
+ },
+ {
+  "expect": "valid",
+  "why": "handoff could not start its job: compute budget used up",
+  "data": {
+   "type": "error",
+   "code": "budget_exhausted",
+   "message": "The Console has used its compute for now.",
+   "retryable": false
+  }
  }
 ]
