@@ -1,8 +1,8 @@
-# Example 03: A Proposed ADR (0006: hash-route SPA, no framework) plus an ADR checker
+# Example 03: A Proposed ADR (0009: hash-route SPA, no framework) plus an ADR checker
 
 ## What it demonstrates
 
-- `0006-hash-route-spa-no-framework.md` is a complete ADR in the exact template from `docs/adr/README.md`: title line, Status, Date, Deciders, then Context / Decision / Consequences / Revisit when. Status is **Proposed**, because only Dr. Lee accepts.
+- `0009-hash-route-spa-no-framework.md` (first drafted as 0006; renumbered after ADR-0006 to 0008 were accepted on 2026-11-23) is a complete ADR in the exact template from `docs/adr/README.md`: title line, Status, Date, Deciders, then Context / Decision / Consequences / Revisit when. Status is **Proposed**, because only Dr. Lee accepts.
 - `check-adr.mjs` is a dependency-free checker for the template.
   - **ERROR** (breaks the template):
     - filename `NNNN-short-title.md` matches the number in the title;
@@ -29,14 +29,32 @@
 ```bash
 cd <repo>
 node knowledge/software-architect/examples/03-proposed-adr/check-adr.mjs \
-  knowledge/software-architect/examples/03-proposed-adr/0006-hash-route-spa-no-framework.md \
+  knowledge/software-architect/examples/03-proposed-adr/0009-hash-route-spa-no-framework.md \
   --index docs/adr/README.md --draft
 for f in docs/adr/000*.md; do node knowledge/software-architect/examples/03-proposed-adr/check-adr.mjs "$f"; done
 ```
 
-To adopt it, the orchestrator brings it to Dr. Lee. If accepted, the file is copied to `docs/adr/0006-hash-route-spa-no-framework.md` with `Status: Accepted`, and a row is added to `docs/adr/README.md` and the `architecture-decision-records` skill's log.
+To adopt it, the orchestrator brings it to Dr. Lee. If accepted, the file is copied to `docs/adr/0009-hash-route-spa-no-framework.md` with `Status: Accepted`, and a row is added to `docs/adr/README.md` and the `architecture-decision-records` skill's log.
 
 ## Verified
+
+**Re-run 2026-11-23 after renumbering** (Node v22.23.5):
+
+```
+$ node check-adr.mjs 0009-hash-route-spa-no-framework.md --index docs/adr/README.md --draft
+.../0009-hash-route-spa-no-framework.md: ok (status Proposed, 0 warning(s))
+exit=0
+$ for f in docs/adr/000*.md; do node check-adr.mjs "$f"; done
+docs/adr/0001-static-site-plus-functions.md: ok (status Superseded by 0006, 1 warning(s))
+docs/adr/0002 … 0005: ok (Accepted; style warnings only, as before)
+docs/adr/0006-supabase-auth-for-console.md: ok (status Accepted, 0 warning(s))
+docs/adr/0007-agent-reads-from-github-main.md: ok (status Accepted, 0 warning(s))
+docs/adr/0008-site-wide-approve-cap.md: ok (status Accepted, 0 warning(s))
+```
+
+0006–0008 were written directly as Accepted because Dr. Lee stated the decisions himself. That's why the `--draft` check doesn't apply to them.
+
+**Original run:**
 
 Run on 2026-11-23, Node v22.23.5:
 

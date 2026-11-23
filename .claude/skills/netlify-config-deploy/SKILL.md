@@ -1,46 +1,70 @@
 ---
 name: netlify-config-deploy
-description: Netlify build and deploy configuration for Beach Day — netlify.toml, _headers, environment variables and secrets on the Free plan, deploy contexts, previews, ignore builds, credits and rollbacks. Use when changing build, headers, env vars or deploy behavior.
+description: Netlify build and deploy configuration for Beach Day — netlify.toml, _headers, environment variables and secrets on the Free plan, deploy contexts, previews, ignore builds, the service-worker version stamp, credits and rollbacks. Use when changing build, headers, env vars or deploy behavior.
 ---
-# Netlify config & deploy (details: docs/03 §3, §6, §8, §9)
+# Netlify config & deploy (details: docs/03 §3, §6, §8, §9, §10)
+
+There is **no `netlify.toml` in the repo yet**. docs/03 §3 is the spec, with a tested copy in `knowledge/netlify-engineer/examples/02-netlify-toml-headers/`. `netlify.toml` and `scripts/**` are denied to agents, so a human adds them.
 
 ## netlify.toml
 ```toml
 [build]
-  command = "node scripts/build-agents.mjs"
+  command = "node scripts/build-agents.mjs && node scripts/stamp-sw.mjs"
   publish = "public"
-  ignore  = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- public netlify scripts .claude netlify.toml package.json"
+  ignore = '[ -n "$CACHED_COMMIT_REF" ] && git diff --quiet "$CACHED_COMMIT_REF" "$COMMIT_REF" -- public netlify netlify.toml package.json package-lock.json scripts .claude/agents || exit 1'
+  [build.environment]
+    NODE_VERSION = "22"
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
   included_files = ["netlify/functions/lib/agents.json"]
 ```
-- **The `ignore` command** exits 0 to skip a build. It runs with Bash or Node 18 and has no npm dependencies available. It saves credits on docs-only commits.
-- **Context overrides:** `[context.production]`, `[context.deploy-preview]`, `[context.branch-deploy]`.
-- **Env vars:** variables set in `netlify.toml` are **not** visible to functions. Set secrets in the UI or CLI.
+- **The `ignore` command** exits 0 to skip a build and 1 to build. It runs under Bash with no npm dependencies. It is a **whitelist of what the build reads or publishes**: docs-only, knowledge-only, tests-only, skills-only and root-Markdown commits skip. A new top-level folder the build reads must be added to the list.
+- **Keep the `-n` guard and `|| exit 1`.** Without them, an empty `CACHED_COMMIT_REF` makes git compare the working tree with `COMMIT_REF`, exit 0 and skip the first build.
+- **A skipped build is expected to cost 0 credits. That is UNVERIFIED**; check the Usage page after the first skip.
+- **No `vitest` in the build command.** On Free, builds see every secret, and `tests/**` is agent-writable. Tests run in QA's gate (docs/03 §9.4).
+- **Env vars:** variables set in `netlify.toml` are **not** visible to functions. Set them in the UI or CLI.
+- **Contexts** (`[context.production]`, `[context.deploy-preview]`, `[context.branch-deploy]`) exist but nothing needs them today.
+
+## Build steps and the service worker
+- **`scripts/stamp-sw.mjs`** replaces every `__BUILD_VERSION__` in `public/sw.js` with the first 12 hex of `COMMIT_REF` (fallback: `git rev-parse HEAD`, then a timestamp) and writes `public/version.json` (`{version, commit, builtAt}`). Without it, sw.js never changes and phones never update.
+- It prints **one line** and never prints env. It exits 1 if the placeholder is missing, and it refuses to run outside Netlify unless `--force`.
+- **"Live"** in the Console = `/version.json.commit` equals the approved commit. A build skipped by `ignore` never goes Live.
+- **After each Approve deploy,** run the smoke test (`scripts/smoke.mjs`): sw.js has no placeholder and is no-cache, version matches, every `/api` route is 401 without a token. The service-worker kill switch is in docs/03 §9.3.
+- Both build scripts read only `COMMIT_REF` and `NETLIFY` from the environment, and `build-agents.mjs` treats agent files as data (parse, never execute).
 
 ## Headers
-- Static headers go in `public/_headers` (or `[[headers]]` in the toml). Set CSP, `nosniff`, Referrer-Policy and Permissions-Policy, plus the `sw.js` no-cache and manifest content-type rules.
+- **One place: `public/_headers`.** No `[[headers]]` in `netlify.toml`. The merge rule for both is UNVERIFIED, so we never let two rules set the same header on one path.
+- Set CSP (with `form-action 'self'`), `nosniff`, Referrer-Policy, Permissions-Policy, plus `/sw.js` no-cache, the manifest content type and `/version.json` no-store.
+- `public/_headers` and `public/sw.js` are denied to agents. Changes need security-engineer review.
 - **Custom headers do not apply to function responses.** Every function sets its own headers.
-- The CSP `connect-src` must list `'self' https://api.open-meteo.com https://marine-api.open-meteo.com`.
+- **CSP:** `connect-src` lists `'self'`, the two Open-Meteo hosts, and (once the project exists) the Supabase project host. The final policy and how supabase-js is loaded are security-engineer's and software-architect's (ADR-0006).
 
-## Env vars & secrets (Free plan — ADR-0004)
-| Var | Notes |
-|---|---|
-| `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `CONSOLE_PASSWORD_HASH`, `SESSION_SECRET` | Mark **Contains secret values**. Set `GITHUB_TOKEN` in the **Production context only**. |
-| `GITHUB_REPO=fenago/BeachDay` | Plain value |
+## Env vars & secrets (Free plan, ADR-0004, ADR-0005)
+| Var | Secret | Context |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | yes | Production |
+| `GITHUB_TOKEN` | yes | **Production only** |
+| `GITHUB_REPO=fenago/BeachDay` | no | all |
+| `SUPABASE_URL` | **no** | all |
+| `SUPABASE_PUBLISHABLE_KEY` | **no** | all |
 
-- **CLI:** `netlify env:set NAME value --context production --secret`, `netlify env:list --context production`.
-- **Free plan:** there are no scopes, so builds can see secret env vars. Build scripts must never print env.
+- **Do not mark the two Supabase values secret.** They are public by design, and secret scanning would fail any build whose output contains them.
+- **The Supabase secret / `service_role` key is used nowhere.** Never set it in Netlify.
+- **CLI:** `netlify env:set NAME value --context production --secret`, `netlify env:list --context production`. Dr. Lee runs these; agents never see values.
+- **Free plan:** there are no scopes (Pro+), so builds can see secret env vars. Build scripts must never print env, and nothing agent-writable runs during the build.
+- **Per-context values on Free are UNVERIFIED.** Test with `env:set --context production`, then `env:list --context deploy-preview`. Fallback: turn off Deploy Previews and branch deploys.
 - **Secret scanning** fails a build if a secret value appears in the repo or build output.
+- **AI Gateway** may inject AI-provider variables. Pass `baseURL` and `apiKey` to the Anthropic SDK explicitly (UNVERIFIED opt-out).
+- After rotating a secret, **trigger a new deploy**: functions keep the old value until then.
 
 ## Deploys
 - **Pushing to `main`** creates a production deploy. Deploys are atomic, and Approve commits to `main` (ADR-0003).
-- **Credits:** each production deploy costs **15 credits**. The Free plan has **300 per month**, a hard cap, and projects pause at 0. Track usage, and tell the orchestrator at about 70%.
-- **Deploy Previews** are built for PRs (`deploy-preview-N--site.netlify.app`, noindex). Branch deploys are optional.
-- **Rollback:** Deploys → pick the previous deploy → **Publish deploy**. It is instant and needs no rebuild. "Lock to stop auto publishing" freezes production.
+- **Credits:** each successful production deploy costs **15**. The Free plan has **300 per month**, a hard cap, and projects pause at 0. The Approve cap (14 a month) is 210 credits, exactly 70%. Tell the orchestrator at about 70% and at 90%.
+- **Deploy Previews** are built for PRs and cost 0. QA runs on the main deploy with a rollback ready (ADR-0003); previews are not on the Approve path.
+- **Rollback:** Deploys → pick the previous deploy → **Publish deploy**. It is instant, needs no rebuild and costs 0. Then **Lock to stop auto publishing**, or the next push overwrites it.
 - **Build hooks** (`POST https://api.netlify.com/build_hooks/<id>`) are for manual redeploys only.
 
 ## Local
 - `netlify link`, then `netlify dev` (port 8888) for the site plus functions.
-- `netlify deploy` creates a draft. `--prod` deploys to production; avoid it, because `main` deploys automatically.
+- `netlify deploy` creates a draft. **Never `--prod`**: `main` deploys automatically.

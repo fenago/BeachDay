@@ -37,12 +37,14 @@ public/
   js/score-config.js  thresholds as a default-exported frozen object
   js/ui/*.js          render functions that take data and return DOM (no fetch)
   js/router.js        hash router (see examples/03-proposed-adr)
+  vendor/supabase-auth-js-<ver>.mjs  pre-bundled, pinned auth client; imported only by js/console/* (ADR-0006, examples/04)
+  generated/config.js build output: SUPABASE_URL, publishable key, BUILD_VERSION; git-ignored (ADR-0006)
 ```
 
 Boundary rules this implies:
 
 - **Pure modules** (`score.js`, `api/openmeteo.js` normalizers) have no top-level side effects. Vitest can import them in Node without a DOM, and they are evaluated once and shared.
-- **Relative specifiers with `.js` extensions** everywhere (`./score.js`). There is no bundler and no import map, so bare specifiers would fail.
+- **Relative specifiers with `.js` extensions** everywhere (`./score.js`). There is no bundler and no import map, so bare specifiers would fail. That is why npm's `@supabase/supabase-js` can't be copied into `public/` as-is (its `dist/index.mjs` imports five `@supabase/*` packages by bare name). We vendor one pre-bundled auth-only file instead (examples/04).
 - **No top-level await in shared modules.** It would make every importer wait on network I/O. Do the fetches in `app.js`.
 - **`sw.js` stays a classic script.** `import()` rejects in service workers. Whether static `import` in a module service worker (`register(url, {type: "module"})`) is safe on our iOS Safari baseline is **[UNVERIFIED]**; pwa-mobile-engineer owns that decision.
 - **Netlify serves `.js` as JavaScript** by default; that is the reason to keep `.js` rather than `.mjs` under `public/`. The Netlify MIME mapping is **[UNVERIFIED]** in this retrieval, so check it with `curl -I` on a Deploy Preview. Node-side scripts and examples use `.mjs`.

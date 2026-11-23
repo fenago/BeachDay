@@ -46,13 +46,13 @@ The notation page was not read in this retrieval. The site says diagrams are not
 
 ## Beach Day notes
 
-How C4 maps onto Beach Day (ADR-0001):
+How C4 maps onto Beach Day (ADR-0006, which restates ADR-0001):
 
 | C4 element | Beach Day | Owned by us? |
 |---|---|---|
 | Person | Beach-goer (phone); Dr. Lee (Console operator) | — |
 | Software system in scope | **Beach Day** | Yes |
-| External system | Open-Meteo Forecast API, Open-Meteo Marine API, Anthropic Claude API, GitHub (`fenago/BeachDay`), NWS (link-out only, ADR-0002), Netlify CI/CD | No |
+| External system | Open-Meteo Forecast API, Open-Meteo Marine API, Anthropic Claude API, GitHub (`fenago/BeachDay`), **Supabase Auth** (identity + `profiles.role` only, ADR-0006), Google (OAuth sign-in), NWS (link-out only, ADR-0002), Netlify CI/CD | No |
 | Container | **PWA** (client-side web app + service worker) | Yes |
 | Container | **Agent Console UI** (client-side, `/console`) | Yes |
 | Container | **Netlify Functions**: one container per function in C4 terms ("A single serverless function"). Drawn as one group for readability | Yes |
@@ -61,10 +61,11 @@ How C4 maps onto Beach Day (ADR-0001):
 
 Rules the diagrams must show, because they *are* the architecture:
 
-- The browser → Open-Meteo arrow goes **directly** from the PWA. There is no function in between (ADR-0001).
+- The browser → Open-Meteo arrow goes **directly** from the PWA. There is no function in between (ADR-0001, restated in ADR-0006).
 - NWS is a **hyperlink** relationship, not a data fetch (ADR-0002).
 - Only Functions talk to Claude and GitHub; secrets live only there.
+- The Console UI talks to Supabase Auth directly (publishable key), and every Function checks token + role with Supabase (ADR-0006). Supabase is drawn as an external system, not a container: we hold no app data there.
 - GitHub → Netlify CI is the deploy path after Approve (ADR-0003).
-- No database or other server containers exist. If a diagram needs one, that needs an ADR first.
+- No database or other server containers of our own exist. Anything beyond identity in Supabase, or any other store, needs an ADR first.
 
 Validated Mermaid source for both diagrams is in `examples/01-c4-diagrams/`. Put design notes in `docs/design/<topic>.md`, with the diagrams inline.
