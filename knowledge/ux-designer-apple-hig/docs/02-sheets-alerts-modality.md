@@ -62,8 +62,10 @@ From [Accessibility](https://developer.apple.com/design/human-interface-guidelin
 - Every sheet has a visible close button as well as swipe-to-dismiss. That is the HIG "alternatives to gestures" rule, and it matters for keyboard and switch users.
 - **No alert at launch.** Offline and errors on Today are inline labels over cached data ("Offline — showing 8:15 am forecast").
 - **Approve in the Console:**
-  - Approve deploys to production. It is deliberate, rare and can't be undone (it can only be reverted), so it gets an explicit confirmation step with consequences spelled out, plus password re-auth (doc 04 §4). The confirm button is titled with the result, "Approve and Deploy", never "OK".
+  - Approve deploys to production. It is deliberate, rare and can't be undone (it can only be reverted), so it gets an explicit confirmation step with consequences spelled out, plus a "Confirm it's you" step-up (docs/04 §4; password or Google). The confirm button is titled with the result, "Approve and Deploy", never "OK".
   - Cancel is always present and is not the default.
-  - The re-auth password field is in the confirmation sheet itself: Apple's "include a text field only if you need people's input", with a secure field.
+  - The step-up lives in the confirmation sheet itself: Apple's "include a text field only if you need people's input", with a secure field for the password path. The Google path leaves the page and returns to the same proposal with the sheet reopened.
+- **No-access, session-ended and cap-reached** are screens or inline alerts, not alert dialogs: there is nothing to decide, and HIG says to avoid alerts that only give information.
+- **Sign out** has no confirmation: it is common and recoverable.
 - **Reject** is low-risk and undoable in effect (the proposal can be regenerated), so no alert. Use an inline "Rejected" status instead.
 - Web implementation: `<dialog>` with `showModal()` for modal sheets and alerts. Focus goes to the dialog heading or first field and returns to the invoking button on close. `Esc` closes (Apple lists Escape as an alternative way to cancel).

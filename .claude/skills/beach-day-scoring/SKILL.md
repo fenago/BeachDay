@@ -53,7 +53,7 @@ Each hour starts at 100; penalties are subtracted; floor 0.
 ## Day verdict
 The verdict comes from the average score of the **best 3-hour window** (earliest wins ties), **rounded to an integer first**, then banded (lower bound inclusive).
 
-| Score | Text (Wren finalises) | Icon | Color token |
+| Score | Text (final, Wren) | Icon | Color token |
 |---|---|---|---|
 | [80,100] | Great beach day | sun | `--verdict-great` |
 | [65,80) | Good | sun-cloud | `--verdict-good` |
@@ -64,6 +64,7 @@ The verdict comes from the average score of the **best 3-hour window** (earliest
 - No eligible window but hard stops present → "Skip it" with the stop reasons.
 
 ## Output and presentation
+- **Wording (final):** every reason and advice code has fixed copy in docs/01 §5.2 "Reason and advice wording" and in `knowledge/ux-designer-apple-hig/examples/02-copy-deck/copy-deck.json`. Short window: label stays "Good" at most, with "Only {hours} beach hours left". Storm outside the best window: first reason, "Thunderstorms around {time}". Rain codes pick the phrase: 51/53/55 "Drizzle around", 61/63/65 "Rain in the forecast", 80-82 "Showers around". No usable hour: "No verdict yet. Some forecast data is missing." Never write "clear" for an unknown code.
 - **Output:** `{ verdict, score, bestWindow: {start, end, hours}, reasons: [≤4 codes], advice: [...], confidence, seaTempMeanF }`. Reasons are codes; Wren owns the copy.
 - **Confidence:** `high | medium | low | outlook`. Start high; −1 for marine waves or SST missing in the window, −1 for a short window or unscorable hours; day index ≥ 3 (day 4+) is `outlook`, shown with less emphasis.
 - **Missing marine data:** skip those factors and say so ("Waves unavailable"). Don't guess. Day water temp = mean of hourly SST over the best window; day waves = max inside the best window, labelled "offshore waves".

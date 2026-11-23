@@ -45,9 +45,12 @@ Retrieved: 2026-11-23 (Writing page change log: "December 16, 2025 Clarified gui
 ## Beach Day notes
 - **Voice:** a friendly local who checks the beach for you. Plain, short, specific, calm about safety.
 - **Lead with the answer, then the reason:** "Good — storms likely after 2 pm."
-- **Terms list:** beach day, best hours, offshore waves, feels like, rip-current risk, beach flags, forecast, Approve, Reject, proposal, deploy. Don't mix in synonyms ("surf" vs "waves", "accept" vs "approve").
+- **Terms list:** beach day, best hours, offshore waves, feels like, rip-current risk, beach flags, forecast, Approve, Reject, proposal, deploy, Sign In, Sign Out, Create Account, Confirm it's you, approvals used, next slot. Don't mix in synonyms ("surf" vs "waves", "accept" vs "approve", "log in" vs "sign in", "register" vs "create account").
 - **Case:** buttons and tab labels in Title Case; everything else (verdicts, reasons, errors, status) in sentence case.
 - **No "we", "oops" or blame.** Errors say what happened, what still works, and what to do next: "Couldn't load waves. Showing weather only."
 - **Units:** "84 °F", "12 mph", "3 ft". Screen readers get the words: "84 degrees Fahrenheit".
 - **The safety line is fixed text, never shortened:** "Beach Day is not a safety service — check NWS rip-current risk and posted beach flags." The link text is "NWS rip-current risk" (descriptive, not "click here").
+- **Account copy never reveals whether an email has an account:** sign-in failures say "Email or password didn't match", reset says "If an account uses {email}, a reset link is on its way." Never say which of the two was wrong.
+- **Name the method** on auth buttons (HIG Managing accounts). "Sign In" in the UI; "log in" is an engineering word and doesn't appear on screen.
+- **No-access copy** says the account can't use the Console and who to ask ("the project lead"), not a person's name and not a role name.
 - Copy changes to verdicts or reasons need open-meteo-integrator review (agent rules). `examples/02-copy-deck` holds the deck and a length and readability checker.

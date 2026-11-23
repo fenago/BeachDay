@@ -69,9 +69,9 @@ From Understanding 4.1.3:
 - **Status messages (`role="status"`, polite)**, mapped to WCAG examples:
   - Today: "Updated 8:15 am" / "Offline — showing 8:15 am forecast" / "Forecast is 3 hours old"
   - Picker: "Hollywood Beach selected"
-  - Console: "New change ready. Check the diff below.", "Committing to main…", "Committed abc1234", "Deploying…", "Live"
-- **Errors:** `role="alert"` only for errors that block the task ("Wrong password", "Commit failed"). The Today "couldn't load waves" message is a polite status, because cached data still answers the question.
+  - Console: "New change ready. Check the diff below.", "Committing to main…", "Committed abc1234. Deploying…" or "Committed abc1234. No deploy needed.", "Live"
+- **Errors:** `role="alert"` only for errors that block the task ("That password didn't match", "The commit failed", the approve-cap message). The Today "couldn't load waves" message is a polite status, because cached data still answers the question.
 - **Chat:** the message list is `role="log"` (ARIA23) with `aria-busy="true"` while a reply streams, then `false`.
 - **No auto-dismissing toasts that carry unique information.** Toasts duplicate the persistent status line.
-- **Approve is "difficult to recover from"** (production deploy), so it gets a two-step confirmation (review → confirm with password), matching the HIG Assistive Access advice.
+- **Approve is "difficult to recover from"** (production deploy), so it gets a two-step confirmation (review → "Confirm it's you" and approve), matching the HIG Assistive Access advice.
 - Run axe (`@axe-core/playwright`, tags `wcag2a wcag2aa wcag21a wcag21aa wcag22aa`) on each screen state. axe can't judge copy, focus order or announcement noise, so do the manual VoiceOver/TalkBack pass too.
