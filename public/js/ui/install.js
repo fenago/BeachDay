@@ -36,7 +36,7 @@ export function createInstallUi({ slot, say, storage, visits, win = window, setT
            h("li", {}, h("span", {}, t("install.ios.step1"), " ", icon("share"))),
            h("li", {}, h("span", {}, t("install.ios.step2"), " ", icon("plus-square"))),
            h("li", {}, h("span", {}, t("install.ios.step3"))))]
-      : [h("p", {}, hint.text)]; // other variants: fallback wording from install-hint.js (copy ids pending, Wren)
+      : [h("p", {}, t(hint.variant === "open-in-browser" ? "install.ios.open.browser" : "install.ios.open.safari"))];
     const done = h("button", { class: "btn btn--primary", type: "button", "data-testid": "install-done", onclick: () => sheet.close() }, t("btn.done"));
     sheet = h("dialog", { class: "sheet", "aria-labelledby": "install-sheet-title", "data-testid": "install-sheet" },
       h("div", { class: "sheet__grabber" }), title, h("div", { class: "sheet__body" }, body), h("div", { class: "sheet__footer" }, done));

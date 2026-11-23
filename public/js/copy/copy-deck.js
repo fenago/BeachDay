@@ -752,7 +752,7 @@ export const DECK = deepFreeze({
     },
     {
       "id": "console.cap.nodeploy",
-      "text": "This still uses one of the 14 approval slots."
+      "text": "This still uses one of the {per31Days} approval slots."
     },
     {
       "id": "console.stale.card",

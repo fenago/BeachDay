@@ -17,7 +17,7 @@ import { todayView } from "./ui/today.js";
 import { showUpdateToast } from "./ui/toast.js";
 
 const $ = (id) => document.getElementById(id);
-const els = { title: $("page-title"), status: $("status"), actions: $("head-actions"), view: $("view"), install: $("install-slot"), toasts: $("toast-region") };
+const els = { title: $("page-title"), status: $("status"), actions: $("head-actions"), view: $("view"), install: $("install-slot"), toasts: $("toast-region"), announce: $("announce") };
 
 const state = {
   beachId: null, forecast: null, error: null, route: { name: "today" },
@@ -59,8 +59,8 @@ const nowHHMM = () => instantToWallClock(Date.now()).slice(11, 16);
 
 function apply(vm, { focus }) {
   els.title.textContent = vm.title;
-  say(state.announce ?? vm.status ?? "");
-  state.announce = null;
+  say(vm.status ?? "");
+  if (state.announce) { els.announce.textContent = state.announce; state.announce = null; } // hidden live region: not shown next to the h1
   syncRefresh(vm.refresh);
   els.view.replaceChildren(...vm.nodes.filter(Boolean));
   setCondition(vm.condition);

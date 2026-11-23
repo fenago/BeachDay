@@ -127,8 +127,8 @@ export function showCap(card, approvals) {
   const a = approvals ?? {};
   const daily = Number.isInteger(a.usedToday) && Number.isInteger(a.perDay) && a.usedToday >= a.perDay;
   const line = daily
-    ? say("console.cap.day")
-    : say("console.cap.month", { used: a.used31 ?? a.per31Days ?? 14, date: formatWhen(a.retryAt) || "—" });
+    ? say("console.cap.day", { perDay: a.perDay })
+    : say("console.cap.month", { used: a.used31 ?? a.per31Days ?? "—", per31Days: a.per31Days ?? "—", date: formatWhen(a.retryAt) || "—" });
   clear(card.alert, h("div", { class: "cap-note", dataset: { testid: "approve-cap" } },
     h("p", {}, line), h("p", {}, say("console.cap.waiting"))));
   card.actions.querySelector('[data-testid="proposal-review"]')?.remove();

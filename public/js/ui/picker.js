@@ -1,4 +1,4 @@
-import { t, STRINGS } from "../copy/copy-deck.js";
+import { t } from "../copy/copy-deck.js";
 import { BEACHES } from "../data/beaches.js";
 import { h, icon } from "./dom.js";
 
@@ -43,7 +43,7 @@ export function PickerView({ favorites, saved, onChoose, onToggleFavorite, onNea
 
   const favBeaches = BEACHES.filter((b) => favorites.includes(b.id));
   const lists = [];
-  const favTitle = STRINGS["ui.favorites"] ?? "Favorites"; // copy id pending (Wren)
+  const favTitle = t("ui.favorites");
   if (favBeaches.length) lists.push(group(favTitle, favBeaches, { "data-testid": "favorites" }));
   for (const c of COUNTY_ORDER) lists.push(group(t(`ui.county.${c}`), BEACHES.filter((b) => COUNTY[b.id] === c)));
 

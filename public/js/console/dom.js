@@ -1,56 +1,11 @@
 // Small DOM helpers for the Agents page (Console). No framework, no innerHTML.
 // Every dynamic string (model output, diffs, file paths, server and Supabase errors) goes in through
 // textContent or a Text node (docs/04 §10, agent-console-security). Attributes are set one by one.
-import { STRINGS, t } from "../copy/copy-deck.js";
+import { t } from "../copy/copy-deck.js";
 
-/**
- * Strings the build needed that are not in Wren's copy deck yet. `say()` prefers the deck, so once Wren adds an
- * id with the same name the deck wins and this entry is dead. Listed in the W2 HANDOFF for Wren.
- */
-export const LOCAL_COPY = Object.freeze({
-  "agents.account": "Signed in as {email}",
-  "agents.you": "You",
-  "agents.chat.refusal": "The agent can't help with that request. Try asking another way.",
-  "agents.chat.unavailable": "The agent is unavailable right now. Your message is still here.",
-  "agents.chat.ratelimited": "Too many messages for now. Try again after {time}.",
-  "agents.chat.ratelimited.nodate": "Too many messages for now. Try again in a minute.",
-  "agents.chat.toolong": "That message is too long. Shorten it and send again.",
-  "agents.chat.session": "Your session ended before the reply finished. Sign in and send again.",
-  "agents.chat.tool.read_file": "Reading a file",
-  "agents.chat.tool.list_files": "Looking through folders",
-  "agents.chat.tool.propose_change": "Writing a proposal",
-  "agents.chat.background": "This is taking longer, so it moved to the background. Results appear here.",
-  "agents.chat.paused": "The background job paused at its time limit.",
-  "agents.chat.continue": "Continue",
-  "agents.chat.jobfailed": "The background job stopped. Nothing was committed.",
-  "agents.proposal.meta": "Base {base} · Hash {hash}",
-  "agents.proposal.diff.for": "Changes in {path}",
-  "agents.proposal.bytes": "{bytes} bytes",
-  "agents.proposal.allowed": "Allowed path",
-  "agents.proposal.denied": "Not allowed",
-  "agents.proposal.loading": "Loading the proposal…",
-  "agents.proposal.missing": "That proposal couldn't be found.",
-  "agents.proposal.committing": "The commit is still being confirmed. Check back in a minute.",
-  "agents.proposal.failed": "The commit failed. Nothing was deployed. Ask the agent to propose it again.",
-  "agents.proposal.warn.code": "Runs in the browser next to sign-in tokens. Read every line.",
-  "agents.proposal.warn.agents": "Changes how an agent behaves or which model it uses.",
-  "agents.proposal.warn.tests": "Runs in CI.",
-  "agents.sheet.commit": "One commit to main: “{summary}”",
-  "agents.sheet.meta": "Base {base} · Hash {hash}",
-  "console.status.stilldeploying": "Still deploying. Check Netlify.",
-  "console.error.approve": "Couldn't approve right now. Try again in a minute.",
-  "console.error.screens": "The sign-in screen didn't load. Reload the page to try again.",
-});
-
-/** Copy lookup: Wren's deck first, then LOCAL_COPY. Unknown ids throw (same as the deck's t()). */
+/** Copy lookup: Wren's deck only (every Console id now lives there). Unknown ids or missing placeholders throw. */
 export function say(id, params) {
-  if (Object.prototype.hasOwnProperty.call(STRINGS, id)) return t(id, params);
-  const raw = LOCAL_COPY[id];
-  if (typeof raw !== "string") throw new Error(`Unknown copy id ${id}`);
-  return raw.replace(/\{(\w+)\}/g, (_, k) => {
-    if (!params || !(k in params)) throw new Error(`Missing {${k}} for ${id}`);
-    return String(params[k]);
-  });
+  return t(id, params);
 }
 
 /**

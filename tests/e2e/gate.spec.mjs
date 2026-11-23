@@ -80,7 +80,8 @@ test("401 mid-session: 'Your session ended' on sign-in with the draft kept; afte
   await page.route("**/api/agents", (r) => { hits++; return r.fulfill({ status: 401, headers: { "content-type": "application/json", "cache-control": "no-store", "www-authenticate": "Bearer" }, body: JSON.stringify({ error: { code: "unauthorized", message: "Sign in to continue." } }) }); });
   await page.reload();
   await expect(page.getByText(STRINGS["console.session.expired"])).toBeVisible();
-  await expect(h1(page)).toBeFocused();
+  await expect(page.locator("h1:visible"), "exactly one visible h1 on the session-ended screen").toHaveCount(1);
+  await expect(page.getByRole("heading", { level: 1, name: STRINGS["auth.signin.title"] })).toBeFocused();
   expect(hits, "one refresh-and-resend, then S7").toBe(2);
   await page.unroute("**/api/agents");
   await signIn(page, ADMIN);

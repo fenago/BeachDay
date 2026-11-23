@@ -88,8 +88,8 @@ export async function openApproveSheet({ auth, api, card, hasDraft = () => false
         h("li", {}, say("agents.sheet.undo"))),
       h("p", { class: "sheet__note proposal-card__meta" }, say("agents.sheet.meta", { base: shortSha(p.baseSha), hash: shortHash(p.contentHash) })),
       view.approvals ? h("p", { class: "usage-line", dataset: { testid: "usage-line" } },
-        say("console.cap.usage", { used: view.approvals.used31 }),
-        deploys ? null : ` ${say("console.cap.nodeploy")}`) : null,
+        say("console.cap.usage", { used: view.approvals.used31, per31Days: view.approvals.per31Days }),
+        deploys ? null : ` ${say("console.cap.nodeploy", { per31Days: view.approvals.per31Days })}`) : null,
       stepup, status, alert),
     h("div", { class: "sheet__footer" }, approve));
 

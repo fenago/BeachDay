@@ -18,7 +18,7 @@ test("a streamed reply lands in role=log; the streaming message is aria-busy unt
   await page.getByTestId("chat-send").click();
   await expect(input).toBeFocused();
   await expect(log.getByTestId("msg-user")).toContainText("Say hello.");
-  const reply = log.getByTestId("msg-assistant");
+  const reply = log.getByTestId("msg-agent");
   await expect(reply).toContainText("Hello from the agent.");
   await expect(reply).toHaveAttribute("aria-busy", "false");
   await expect(input).toBeFocused();
@@ -33,7 +33,7 @@ test("model output is text: HTML, a script tag and a javascript: link render as 
   await c.h.anthropic.script({ turns: [T.text([evil])] });
   await openFirstChat(page);
   await sendMessage(page, "Show me something unsafe.");
-  const reply = page.getByTestId("msg-assistant");
+  const reply = page.getByTestId("msg-agent");
   await expect(reply).toContainText("<img src=");
   await expect(reply).toContainText("javascript:window.__pwned=3");
   expect(await reply.locator("img, script, a, iframe").count()).toBe(0);
@@ -45,8 +45,8 @@ test("a refusal removes the partial bubble and shows an alert; the draft is not 
   await c.h.anthropic.script({ turns: [T.refusal("I can")] });
   await openFirstChat(page);
   await sendMessage(page, "Do something the model will refuse.");
-  await expect(page.getByTestId("chat-alert")).not.toBeEmpty({ timeout: 15_000 });
-  await expect(page.getByTestId("msg-assistant")).toHaveCount(0);
+  await expect(page.getByTestId("msg-error").or(page.getByTestId("chat-alert").locator("p"))).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("msg-agent")).toHaveCount(0); // the partial bubble is gone
   await expect(page.getByTestId("chat-alert")).toHaveAttribute("role", "alert");
 });
 
@@ -81,7 +81,7 @@ test("a 401 before the stream refreshes the token once and sends again; an open 
   await c.h.anthropic.script({ turns: [T.text(["Back again."])] });
   await page.route("**/api/chat", (r) => { n++; return n === 1 ? r.fulfill(json(401, "unauthorized")) : r.continue(); });
   await sendMessage(page, "retry me");
-  await expect(page.getByTestId("msg-assistant")).toContainText("Back again.");
+  await expect(page.getByTestId("msg-agent")).toContainText("Back again.");
   expect(n).toBe(2);
 });
 
@@ -89,7 +89,7 @@ test("the draft and transcript live in memory only (nothing in storage)", async 
   await c.h.anthropic.script({ turns: [T.text(["noted"])] });
   await openFirstChat(page);
   await sendMessage(page, "a private sentence 7731");
-  await expect(page.getByTestId("msg-assistant")).toContainText("noted");
+  await expect(page.getByTestId("msg-agent")).toContainText("noted");
   const dump = await page.evaluate(() => JSON.stringify({ l: { ...localStorage }, s: { ...sessionStorage } }));
   expect(dump).not.toContain("a private sentence 7731");
   expect(dump).not.toContain("noted");

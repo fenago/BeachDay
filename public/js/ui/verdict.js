@@ -1,5 +1,5 @@
 // Verdict card, reasons, advice, key numbers, day strip and hourly list. Pure functions that return elements.
-import { t, STRINGS, VERDICTS, verdictFor } from "../copy/copy-deck.js";
+import { t, VERDICTS, verdictFor } from "../copy/copy-deck.js";
 import { formatClock } from "../data/beach-window.js";
 import { h, icon, spoken } from "./dom.js";
 import { dayParts, num, roundHalf } from "./format.js";
@@ -101,7 +101,7 @@ export function HourlyList(day, { id } = {}) {
     return h("li", {}, h("div", { class: cls, "data-time": hs.time.slice(11, 16) },
       h("span", { class: "hourly-row__time" }, formatClock(hs.time)),
       v ? icon(v.icon) : icon("info"),
-      h("span", { class: "hourly-row__detail" }, isBest ? (STRINGS["ui.hourly.best"] ?? "Best") : ""),
+      h("span", { class: "hourly-row__detail" }, isBest ? t("ui.hourly.best") : ""),
       h("span", { class: "hourly-row__label" }, v ? v.short : "–")));
   });
   return h("ul", { class: "hourly-list", id, "data-testid": "hourly", hidden: true }, rows);

@@ -7,7 +7,7 @@
 // - Sign-up, reset and resend never reveal whether an address has an account.
 // - Inputs have no `name`, so a form that somehow submitted without JS would send nothing (no password in a URL).
 // - Errors are mapped from codes to Wren's copy ids. Supabase's own text never reaches the page.
-import { STRINGS, t as deckT } from "../copy/copy-deck.js";
+import { t as deckT } from "../copy/copy-deck.js";
 import { mountSecurity } from "./security.js";
 
 export const MIN_PASSWORD_LENGTH = 12; // docs/04 §4.5, the Supabase Dashboard setting
@@ -27,11 +27,6 @@ const NOTICES = Object.freeze({
   signedOutAll: "auth.signout.all.done",
   emailConfirmed: "auth.confirm.done",
 });
-// Strings not in Wren's deck yet. The deck wins once it has the id (requested in the W2 HANDOFF).
-const LOCAL_COPY = Object.freeze({
-  "agents.account": "Signed in as {email}",
-  "auth.totp.qr.alt": "QR code for your authenticator app",
-});
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -39,10 +34,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 // ---------- small DOM helpers (textContent only) ----------
 export function makeKit(copy) {
   const deck = typeof copy === "function" ? copy : typeof copy?.t === "function" ? copy.t : deckT;
-  const tx = (id, vars) => {
-    if (Object.prototype.hasOwnProperty.call(STRINGS, id) || !(id in LOCAL_COPY)) return deck(id, vars);
-    return LOCAL_COPY[id].replace(/\{(\w+)\}/g, (_, k) => String(vars?.[k] ?? ""));
-  };
+  const tx = (id, vars) => deck(id, vars);
   let seq = 0;
   const uid = (p) => `auth-${p}-${++seq}`;
   function el(tag, attrs = {}, ...kids) {
@@ -151,7 +143,7 @@ export function errorCopy(error, where) {
   if (code === "weak_password") return "auth.error.password.short";
   if (where === "signin") return code === "email_not_confirmed" ? "auth.error.unconfirmed" : "auth.error.credentials";
   if (where === "signup" && (code === "validation_failed" || code === "email_address_invalid")) return "auth.error.email.format";
-  return "auth.error.network";
+  return "auth.error.generic"; // not a network failure, so never "Couldn't reach sign in"
 }
 
 /**
