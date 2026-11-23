@@ -122,12 +122,25 @@ describe("Google and the PKCE return", () => {
     expect(s.history.replaced).toEqual(["/console"]);
   });
   it("completeRedirect: ?error= from Google is stripped and mapped to oauth_failed; the raw description never leaves", async () => {
-    const s = setup({ href: `${SITE}/console?error=access_denied&error_code=x&error_description=%3Cimg%20src%3Dx%3E` });
+    const s = setup({ href: `${SITE}/console?error=server_error&error_code=x&error_description=%3Cimg%20src%3Dx%3E` });
     s.sessionStore.setItem(RETURN_ROUTE_KEY, "#/console");
     const r = await s.auth.completeRedirect();
     expect(r).toEqual({ kind: "oauth", ok: false, error: { code: "oauth_failed", status: 0, retryable: false } });
     expect(s.history.replaced).toEqual(["/console"]);
     expect(s.sessionStore.getItem(RETURN_ROUTE_KEY)).toBeNull();
+  });
+  it("completeRedirect: error=access_denied (the person cancelled at Google) is oauth_cancelled, so S1 can say 'Nothing changed'", async () => {
+    const s = setup({ href: `${SITE}/console?error=access_denied&error_code=oauth_provider_denied&error_description=User%20denied#/console` });
+    const r = await s.auth.completeRedirect();
+    expect(r).toEqual({ kind: "oauth", ok: false, error: { code: "oauth_cancelled", status: 0, retryable: false } });
+    expect(s.history.replaced).toEqual(["/console#/console"]);
+    expect(s.log).toEqual([]);
+  });
+  it("completeRedirect: an error param alongside a code never exchanges the code", async () => {
+    const s = setup({ href: `${SITE}/console?code=abc&error=access_denied` });
+    const r = await s.auth.completeRedirect();
+    expect([r.ok, r.error.code]).toEqual([false, "oauth_cancelled"]);
+    expect(s.log).toEqual([]);
   });
   it("completeRedirect: nothing in the URL does nothing", async () => {
     const s = setup({ href: `${SITE}/console#/console/agents` });
@@ -203,6 +216,20 @@ describe("sign up, reset, resend: one exact redirect, no enumeration", () => {
     expect(await s.auth.resendConfirmation("a@example.com")).toEqual({ ok: true });
     s = setup({ routes: { "POST /auth/v1/recover": ipLimit } });
     expect((await s.auth.sendReset("a@example.com")).error).toEqual({ code: "over_request_rate_limit", status: 429, retryable: false });
+  });
+  it("sign-up: a per-user email cooldown 429 is the same 'check your email' as a success (no enumeration)", async () => {
+    const s = setup({ routes: { "POST /auth/v1/signup": () => Response.json({ code: 429, error_code: "over_email_send_rate_limit", msg: "x" }, { status: 429 }) } });
+    expect(await s.auth.signUp("a@example.com", "correct horse battery staple")).toEqual({ ok: true, needsConfirmation: true });
+  });
+  it("sign-up and new password: a leaked (pwned) password is its own code; a short one stays weak_password", async () => {
+    const pwned = () => Response.json({ code: 422, error_code: "weak_password", msg: "x", weak_password: { reasons: ["pwned"] } }, { status: 422 });
+    const short = () => Response.json({ code: 422, error_code: "weak_password", msg: "x", weak_password: { reasons: ["length"] } }, { status: 422 });
+    let s = setup({ routes: { "POST /auth/v1/signup": pwned, "PUT /auth/v1/user": pwned } });
+    expect((await s.auth.signUp("a@example.com", "password1234")).error.code).toBe("password_leaked");
+    await withSession(s);
+    expect((await s.auth.setNewPassword("password1234")).error.code).toBe("password_leaked");
+    s = setup({ routes: { "POST /auth/v1/signup": short } });
+    expect((await s.auth.signUp("a@example.com", "short")).error).toEqual({ code: "weak_password", status: 422, retryable: false });
   });
   it("wrong password: a code, never the message", async () => {
     const s = setup({ routes: { "POST /auth/v1/token?password": () => Response.json({ code: 400, error_code: "invalid_credentials", msg: "Invalid login credentials" }, { status: 400 }) } });

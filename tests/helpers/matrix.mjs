@@ -90,7 +90,7 @@ async function tampered(h) {
   return `Bearer ${a}.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.${c}`;
 }
 
-const u401 = (id, make) => ({ id, group: "401", run: async (h, route) => call(h, route, { token: await make(h), wantStatus: 401, profileReadsAtMost: 0 }) });
+const u401 = (id, make, extra = {}) => ({ id, group: "401", ...extra, run: async (h, route) => call(h, route, { token: await make(h), wantStatus: 401, profileReadsAtMost: 0 }) });
 const NOT_DENIED = (st) => ![401, 403, 503].includes(st);
 
 /** Positive control: a valid super_admin must get past the guard on every route, or the matrix could pass by refusing everything. */
@@ -111,7 +111,9 @@ export const CELLS = [
   { id: "no Authorization header", group: "401", run: (h, r) => call(h, r, { token: undefined, wantStatus: 401, profileReadsAtMost: 0 }) },
   u401("Basic credentials", async () => "Basic dXNlcjpwYXNz"),
   u401("Bearer with garbage", async () => "Bearer not-a-token"),
-  u401("three garbage parts", async () => "Bearer aaaa.bbbb.cccc"),
+  // FOUND 2026-11-23 (W2): with the JWT header pre-check off (D12), auth-js throws on a header that is not base64 JSON and the guard answers 503. docs/06 §3.1 wants 401. Owner: Cass (guard.mts).
+  u401("three garbage parts", async () => "Bearer aaaa.bbbb.cccc", { knownBug: "guard.mts answers 503 (not 401) for a token whose header is not JSON, because auth-js throws and the guard maps a throw to 503 (owner: supabase-auth-engineer)" }),
+  u401("three base64 parts that are not a JWT", async () => "Bearer not.a-jwt.at-all"),
   u401("expired (exp in the past)", async (h) => `Bearer ${await h.supabase.mintExpired(ADMIN)}`),
   u401("bad signature (payload edited to another sub)", tampered),
   u401("signed by another project's key (unknown kid)", (h) => tokenFor(h, ADMIN, {}, { key: h.supabase.otherKey })),

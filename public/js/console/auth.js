@@ -35,6 +35,12 @@ export function safeError(e) {
 }
 const fail = (code, extra = {}) => ({ ok: false, error: { code, status: 0, retryable: false, ...extra } });
 const failFrom = (e) => ({ ok: false, error: safeError(e) });
+// A password HaveIBeenPwned knows (leaked-password protection, Pro plan) gets its own code for its own copy.
+const passwordFail = (e) => {
+  const r = failFrom(e);
+  if (r.error.code === "weak_password" && Array.isArray(e?.reasons) && e.reasons.includes("pwned")) r.error.code = "password_leaked";
+  return r;
+};
 
 function checkConfig(config) {
   const url = config?.SUPABASE_URL;
@@ -169,7 +175,8 @@ export function createAuth({
     async signUp(email, password) {
       try {
         const { data, error } = await client.signUp({ email, password, options: { emailRedirectTo: redirectTo } });
-        if (error) return failFrom(error);
+        // A per-user email cooldown 429 means the address has an account: answer like a success (no enumeration).
+        if (error) return error.status === 429 && error.code === "over_email_send_rate_limit" ? { ok: true, needsConfirmation: true } : passwordFail(error);
         // Confirm email on: no session, "check your email". The same answer for an address that already has an
         // account (needs Confirm phone on too, docs/04 §4.5), so this never reveals whether it exists.
         return { ok: true, needsConfirmation: !data?.session };
@@ -201,8 +208,10 @@ export function createAuth({
       const code = p.get("code");
       const hadError = p.has("error") || p.has("error_code") || p.has("error_description");
       if (!code && !hadError) return { kind: "none" };
+      // access_denied = the person cancelled at Google (S1: "Nothing changed"). Anything else is a generic failure.
+      const cancelled = p.get("error") === "access_denied";
       strip(OAUTH_PARAMS);
-      if (hadError || !code) { takeReturnRoute(); return { kind: "oauth", ok: false, error: { code: "oauth_failed", status: 0, retryable: false } }; }
+      if (hadError || !code) { takeReturnRoute(); return { kind: "oauth", ...fail(cancelled ? "oauth_cancelled" : "oauth_failed") }; }
       try {
         const { data, error } = await client.exchangeCodeForSession(code);
         if (error || !data?.session) { takeReturnRoute(); return { kind: "oauth", ...failFrom(error ?? {}) }; }
@@ -247,7 +256,7 @@ export function createAuth({
     async setNewPassword(password) {
       try {
         const { error } = await client.updateUser({ password });
-        return error ? failFrom(error) : { ok: true };
+        return error ? passwordFail(error) : { ok: true };
       } catch (e) { return failFrom(e); }
     },
 
