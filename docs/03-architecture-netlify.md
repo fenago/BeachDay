@@ -224,7 +224,7 @@ Background functions are available on the **Free** plan (credit-based Free, Pers
 | `ANTHROPIC_API_KEY` | **yes** | Production | `chat`, `jobs-run` | Mark **Contains secret values**. Dedicated Anthropic workspace + low spend limit (doc 05). |
 | `GITHUB_TOKEN` | **yes** | **Production only** | `approve` (writes); under ADR-0007 as it stands also the read tools in `chat` and `jobs-run`, through a read-only module | Fine-grained PAT, this repo only, Contents R/W (ADR-0005). See the Free-plan rules below. |
 | `GITHUB_READ_TOKEN` | **yes** | Production only | `chat`, `jobs-run` | **Proposed, not decided.** security-engineer recommends a separate token for public-repo reads with no permissions, so only `approve` loads the write token (docs/04 §4.6). It is **ADR-0009 (Proposed)** and needs Dr. Lee's acceptance. **Do not create it until he does;** until then ADR-0007 stands. |
-| `GITHUB_REPO` | no | all | approve | `fenago/BeachDay` |
+| `GITHUB_REPO` | no | all | nothing today | Optional. No code reads it: the repo name is a constant in `github-read.mts`. `fenago/BeachDay` if you set it |
 | `SUPABASE_URL` | **no** | all | auth check in every function | The project URL. Public by design. |
 | `SUPABASE_PUBLISHABLE_KEY` | **no** | all | auth check in every function | The publishable key. Public by design. **Do not mark it secret**: secret scanning would then fail any build whose output contains it. |
 
@@ -233,9 +233,10 @@ Removed on 2026-11-23 (decision 9): the two old Console-password variables (name
 Dr. Lee runs these; agents never see or set real values:
 
 ```bash
-netlify env:set ANTHROPIC_API_KEY <value> --context production --secret
-netlify env:set GITHUB_TOKEN      <value> --context production --secret
-netlify env:set GITHUB_REPO       fenago/BeachDay
+# Secrets: set them in the Netlify UI (Site configuration, Environment variables; secret, Production only).
+# CLI alternative, never with the value on the command line:
+read -rs V && netlify env:set ANTHROPIC_API_KEY "$V" --context production --secret; unset V
+read -rs V && netlify env:set GITHUB_TOKEN "$V" --context production --secret; unset V
 netlify env:set SUPABASE_URL      https://<project-ref>.supabase.co
 netlify env:set SUPABASE_PUBLISHABLE_KEY <publishable key>
 netlify env:list --context production        # secrets stay masked

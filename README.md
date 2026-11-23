@@ -6,7 +6,7 @@ The deployed app also has an **Agents** page (the Agent Console, `/console`). A 
 
 Beach Day is not a safety service. Always check the National Weather Service rip-current risk and posted beach flags. Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0).
 
-Status: built and tested locally with fakes. It has not been deployed. No Netlify site is linked yet, so a push to `main` costs 0 credits today. Everything marked UNVERIFIED below needs a real project to confirm.
+Status: built and tested locally with fakes. It has not been deployed. No Netlify site is linked yet, so a push to `main` costs 0 credits today. Everything marked "not yet checked" below needs a real project to confirm.
 
 ## Architecture in five lines
 
@@ -52,34 +52,13 @@ On a machine without a preinstalled browser, run `npx playwright install chromiu
 
 **The harness is the local proof.** `tests/harness/server.mjs` serves `public/` with the real `_headers` rules (so CSP violations show up), runs the real function code from `netlify/functions/`, and fakes Supabase, Anthropic and GitHub in-process. It never reaches a real host and reads no real secret. A route whose handler file is missing answers 501.
 
-### Run it locally: what was proven, and how to repeat it
+### Run it locally: what was proven
 
-Checked on 2026-11-23 at commit `b828c82`, in a scratch copy of the repo, with netlify-cli 27.20.1 (install it yourself; it is not a project dependency). Every run used fake values only: `SUPABASE_URL=https://bdlocaltest.supabase.co`, `SUPABASE_PUBLISHABLE_KEY=sb_publishable_bdlocaltest_0000000000000000`, and `COMMIT_REF` set to the commit.
+Checked on 2026-11-23 at commit `b828c82` with fake values only. Full commands, results and how to repeat them: [docs/runbooks/local-proof.md](docs/runbooks/local-proof.md).
 
-| | What | Result |
-|---|---|---|
-| **L1** | Netlify build, offline: `netlify build --offline` | **Proven.** The build command ran. 12 agents and 25 skills went into `agents.json` (biggest prompt 124.3 KB of 350 KB). `sw.js` was stamped with `b828c82d7228`, no placeholder is left, and `version.json` agrees. `public/generated/config.js` was written. All 8 functions bundled (`agents`, `approve`, `chat`, `job-run`, `job-status`, `jobs`, `proposal`, `reject`). Exit 0 |
-| **L1, negative** | Same build with the `<project-ref>` placeholder left in `public/_headers` | **Proven.** The build fails at `gen-config` (exit 2, "CSP connect-src ... does not list every required source", value not shown) and writes no `config.js`. This is the guard working |
-| **L2** | `netlify dev --offline --port 8899` | **Could not run here.** The static server and all 8 functions load, then the CLI stops with "fetch failed" in its Edge Functions set-up (`prepareServer`): it downloads the Edge Functions runtime and the sandbox blocks that download. We use no edge functions. It may work on your machine, after `netlify link`. UNVERIFIED for this repo |
-| **L2, substitute** | `netlify functions:serve --offline --port 8899 --functions netlify/functions` | **Proven** (it needs `NODE_OPTIONS` unset). The real bundled function code answers on its `config.path` URLs. With no token, all 7 sync routes answer 401 with `cache-control: no-store`, `nosniff` and the JSON CSP. A well-formed but fake bearer token answers 503 (Supabase unreachable, fail closed), never 200. `POST /api/jobs-run` answers 202, as a background function always does. With no Supabase variables set, a route answers 503 `misconfigured`. This serves no static files, so headers from `_headers` are not covered here |
-| **L3** | Full stack through the harness: real function code, fake Supabase, Anthropic and GitHub, in a real browser | Tess's W3 run of `approve.spec.mjs`: **pending Tess W3** (counts to be filled in from her HANDOFF). Before that, `scripts/smoke.mjs` run against the harness passed every `/api` check (7 routes, 401, `no-store`, `nosniff`, no CORS or cookie) and the `sw.js`, manifest, CSP and COOP checks. It reported one FAIL, "sw.js contains the version in /version.json", because the harness serves a fixture `version.json` (not the build's) while it stamps `sw.js` in memory. That is a harness quirk, not a product bug; on a real deploy both come from one build |
-
-Repeat L1 (bash, from a scratch copy so your tree stays clean):
-
-```bash
-export COMMIT_REF=$(git rev-parse HEAD)
-export NETLIFY=true CI=true SUPABASE_URL=https://bdlocaltest.supabase.co \
-  SUPABASE_PUBLISHABLE_KEY=sb_publishable_bdlocaltest_0000000000000000
-fresh() { rm -rf /tmp/bd-proof && mkdir /tmp/bd-proof && git archive HEAD | tar -x -C /tmp/bd-proof && (cd /tmp/bd-proof && npm ci); }
-
-fresh && cd /tmp/bd-proof && netlify build --offline        # negative check: expect exit 2 (placeholder guard)
-cd - && fresh && cd /tmp/bd-proof \
-  && sed -i 's/<project-ref>/bdlocaltest/g' public/_headers \
-  && netlify build --offline                                # expect exit 0 (edits the COPY only)
-```
-
-
-`NETLIFY=true` is needed because `--offline` builds do not set it, and `stamp-sw.mjs` refuses to run without it. Repeat the L2 substitute with `unset NODE_OPTIONS; netlify functions:serve --offline --port 8899 --functions netlify/functions`, then `curl -i http://localhost:8899/api/agents` (expect 401). Use `deploy` only for drafts, never `--prod`.
+- **Build (proven):** `netlify build --offline` in a scratch copy builds the site, stamps `sw.js`, writes the browser config and bundles all 8 functions. Leaving the `<project-ref>` placeholder in `public/_headers` makes it fail on purpose.
+- **`netlify dev` (could not run in the sandbox):** it stops at "fetch failed" while setting up Edge Functions, most likely a blocked download of the Edge Functions runtime. A substitute, `netlify functions:serve`, ran the real function code: no token gives 401, a fake token gives 503 or fails closed, never 200.
+- **Full stack in a browser (pending Tess W3):** the harness with fake Supabase, Anthropic and GitHub is the end-to-end proof.
 
 `node scripts/build-agents.mjs` runs anywhere. `stamp-sw.mjs` and `gen-config.mjs` refuse to run outside Netlify unless you pass `--force`. `gen-config.mjs` fails until `public/_headers` names your real Supabase host (see Step 5).
 
@@ -91,17 +70,19 @@ No agent can do these steps; they hold credentials. Never paste a real value int
 
 ### 1. Supabase project
 
-1. Create a Supabase project (Free plan). Note the **project URL** and the **publishable** key (`sb_publishable_...`). **Do not copy the secret key or the legacy `service_role` key anywhere.** Beach Day uses neither.
-2. Apply `supabase/migrations/20261123000000_profiles.sql` in the SQL editor, or with `supabase link --project-ref <project-ref>` then `supabase db push`. Try it on a throwaway project first: the SQL was tested in pglite, not on a real project. Details: `supabase/README.md`.
+First decide the production host (a custom domain, or the `<name>.netlify.app` name you will claim in Step 6). If it changes later, update the Supabase Site URL, the Redirect URLs and the Google authorised origin.
+
+1. Create a Supabase project (Free plan). Note the **project URL** (a bare origin with no trailing slash, for example `https://<project-ref>.supabase.co`) and the **publishable** key (`sb_publishable_...`). **Do not copy the secret key or the legacy `service_role` key anywhere.** Beach Day uses neither.
+2. Apply `supabase/migrations/20261123000000_profiles.sql` in the **SQL editor** (the main path): paste it and run it once. Try it on a throwaway project first: the SQL was tested in pglite, not on a real project. The CLI route (`supabase link --project-ref <project-ref>`, then `supabase db push`) may need `supabase init` first and has not been checked here; do not commit any config it generates without review. Details: `supabase/README.md`.
 3. Dashboard, Advisors, Security Advisor: expect no warning on `public.profiles`. Create a test user and check that a row with `role = 'user'` appears.
 4. Set the Auth settings below (docs/04 §4.5):
 
 | Setting | Value |
 |---|---|
 | Confirm email | On |
-| Confirm phone | On, even though phone sign-in stays off (stops "User already registered" account enumeration; hosted behaviour UNVERIFIED) |
+| Confirm phone | On, even though phone sign-in stays off (stops "User already registered" account enumeration; hosted behaviour not yet checked) |
 | Custom SMTP | Required before launch. The built-in sender mails only your own team, about 2 an hour. The SMTP password lives in Supabase only |
-| Email templates | Confirm signup and Reset password link to `{{ .SiteURL }}?token_hash={{ .TokenHash }}&type=email` and `&type=recovery`. A query string, never a `#` fragment. Exact strings UNVERIFIED until tried |
+| Email templates | Confirm signup and Reset password link to `{{ .SiteURL }}?token_hash={{ .TokenHash }}&type=email` and `&type=recovery`. A query string, never a `#` fragment. Exact strings not yet checked until tried |
 | Password minimum length | 12. No character-class rules |
 | Leaked-password protection | Pro plan and above only; not available on Free |
 | Anonymous sign-ins | Off |
@@ -119,11 +100,11 @@ In Google Cloud, create an OAuth client of type **Web application**. Use the cal
 ### 3. GitHub token and repository rules
 
 1. Create a **fine-grained personal access token** (ADR-0005): resource owner `fenago`, **only** `fenago/BeachDay`, **Contents: Read and write**, nothing else. **No Workflows permission.** Expiry 90 days, then rotate. A token cannot be limited to paths, so the allow-list in code is the control.
-2. Add a ruleset on `main` that blocks force pushes and blocks deletions (available on Free for public repos).
+2. Add a ruleset on `main` that blocks force pushes and blocks deletions (available on Free for public repos). Do **not** add "Require a pull request" or required status checks, and leave the bypass list empty: Approve pushes straight to `main`, so those rules would stop it.
 
 ### 4. Anthropic
 
-Create a dedicated workspace with a **low spend limit**, and an API key in it. After the first chat, Anthropic's console should show the spend, and Netlify's Usage page should show no AI-inference credits (UNVERIFIED: the AI Gateway may inject its own variables; the code passes the endpoint and key explicitly).
+Create a dedicated workspace with a **low spend limit**, and an API key in it. After the first chat, Anthropic's console should show the spend, and Netlify's Usage page should show no AI-inference credits (not yet checked: the AI Gateway may inject its own variables; the code passes the endpoint and key explicitly).
 
 ### 5. Put your Supabase host in `public/_headers`
 
@@ -132,36 +113,43 @@ Create a dedicated workspace with a **low spend limit**, and an API key in it. A
 ### 6. Netlify site and environment variables
 
 1. Add the site from the GitHub repo. Netlify reads `netlify.toml` (publish `public`, functions `netlify/functions`, Node 22).
-2. Set the variables (UI or CLI). **Never set the Supabase secret or `service_role` key.**
+2. Set the variables. **Never set the Supabase secret or `service_role` key.** Set the two secrets in the Netlify UI (Site configuration, Environment variables): mark each as a secret, Production only. Never paste a secret value on a command line, where it lands in shell history.
 
 | Variable | Secret | Context | Used by |
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` | yes | Production only | `chat`, `job-run` |
 | `GITHUB_TOKEN` | yes | Production only | `approve`; under ADR-0007 (current) also the read tools in `chat` and `job-run`, through a module with no write methods |
-| `GITHUB_REPO` = `fenago/BeachDay` | no | all | GitHub calls |
-| `SUPABASE_URL` | **no** | all | every function, and the build (`config.js`) |
+| `GITHUB_REPO` = `fenago/BeachDay` | no | all | Optional. No code reads it today (the repo name is a constant in `github-read.mts`). You may leave it out |
+| `SUPABASE_URL` (bare origin, no trailing slash) | **no** | all | every function, and the build (`config.js`) |
 | `SUPABASE_PUBLISHABLE_KEY` | **no** | all | every function, and the build (`config.js`) |
 | `GITHUB_READ_TOKEN` | yes | Production only | **Do not create it.** ADR-0009 is Proposed. Create it only if Dr. Lee accepts ADR-0009 (see D2) |
-| `SECRETS_SCAN_OMIT_KEYS` = `SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY` | no | all | **Only** as the documented fallback if Netlify's secret scan flags the publishable key in `config.js` (UNVERIFIED; the first deploy is the test). Do not turn scanning off |
+| `SECRETS_SCAN_OMIT_KEYS` = `SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY` | no | all | **Only** as the documented fallback if Netlify's secret scan flags the publishable key in `config.js` (not yet checked; the first deploy is the test). Do not turn scanning off |
+
+Non-secret values (CLI, fine to paste):
 
 ```bash
-netlify env:set ANTHROPIC_API_KEY <value> --context production --secret
-netlify env:set GITHUB_TOKEN      <value> --context production --secret
-netlify env:set GITHUB_REPO       fenago/BeachDay
 netlify env:set SUPABASE_URL      https://<project-ref>.supabase.co
 netlify env:set SUPABASE_PUBLISHABLE_KEY <publishable key>
 netlify env:list --context production         # secrets stay masked
 netlify env:list --context deploy-preview     # the two secrets must be ABSENT
 ```
 
+CLI alternative for a secret: it reads the value without echoing it, then clears it. **Never paste the value itself on the command line.**
+
+```bash
+read -rs V && netlify env:set ANTHROPIC_API_KEY "$V" --context production --secret; unset V
+read -rs V && netlify env:set GITHUB_TOKEN "$V" --context production --secret; unset V
+```
+
+
 The two Supabase values are public by design and reach the browser through the build-written `public/generated/config.js`. Do **not** mark them secret: secret scanning would then fail the build. The build fails unless the key starts with `sb_publishable_`, which catches a pasted secret key. After rotating any secret, **trigger a new deploy**: functions keep the old value until then.
 
-3. **Turn OFF Deploy Previews and branch deploys.** This is required, not optional. Per-context secret values on the Free plan are UNVERIFIED, so with no non-production deploy no function outside Production can read a token. Keep "Build without sensitive variables" for builds from forks. Check the setting's name and its Free availability; if you cannot turn it off, tell the team, because the in-code production check is then the only barrier left.
+3. **Turn OFF Deploy Previews and branch deploys.** This is required, not optional. Per-context secret values on the Free plan are not yet checked, so with no non-production deploy no function outside Production can read a token. Keep "Build without sensitive variables" for builds from forks. Check the setting's name and its Free availability; if you cannot turn it off, tell the team, because the in-code production check is then the only barrier left.
 4. Remember the four layers that keep secrets out of previews: Production-only values, previews off, a production-context check in code (503 `unavailable` otherwise), and nothing agent-writable running in the build.
 
 ### 7. First deploy and smoke test
 
-- Every push to `main` is a production deploy and costs **15 of 300 Free credits a month** (ADR-0004), about 20 deploys. Batch changes. A failed build costs 0. A build skipped by the `ignore` rule is expected to cost 0 (UNVERIFIED; check the Usage page after the first skip). The site-wide Approve cap (ADR-0008) holds approvals to at most 210 credits in any cycle, which is 70%. Warn at about 70% and at 90% of 300.
+- Every push to `main` is a production deploy and costs **15 of 300 Free credits a month** (ADR-0004), about 20 deploys. Batch changes. A failed build costs 0. A build skipped by the `ignore` rule is expected to cost 0 (not yet checked; look at the Usage page after the first skip). The site-wide Approve cap (ADR-0008) holds approvals to at most 210 credits in any cycle, which is 70%. Warn at about 70% and at 90% of 300.
 - **Post-deploy smoke test** after each deploy that builds (run by hand or by QA):
 
 ```bash
@@ -216,7 +204,7 @@ Each is one value in one place. Change the value, not the code, then get securit
 
 | # | Decision | Built as | Where to change it |
 |---|---|---|---|
-| D1 | Compute budget | 180 function-minutes per rolling 31 days (about 30 credits at 1024 MB, UNVERIFIED) | `netlify/functions/lib/settings.mts` `computeBudgetMinutes` |
+| D1 | Compute budget | 180 function-minutes per rolling 31 days (about 30 credits at 1024 MB, not yet checked) | `netlify/functions/lib/settings.mts` `computeBudgetMinutes` |
 | D2 | ADR-0009: separate public-read token (**Proposed**) | Not accepted. Read tools use `GITHUB_TOKEN` through a read-only module | `settings.mts` `githubReadTokenEnv`: `"GITHUB_TOKEN"` to `"GITHUB_READ_TOKEN"` (fails closed, no fallback), then create that secret |
 | D3 | Positive reasons on good days | Off | `public/js/score-config.js` `SCORE_CONFIG.reasons.positiveOnGoodDays` |
 | D4 | Heading when the account is not allowed | "This account can't use Agents" | copy id `console.noaccess.title` in `public/js/copy/copy-deck.js` |
@@ -241,4 +229,4 @@ Also awaiting Dr. Lee: **ADR-0010** (Proposed) keeps two added packages, pinned 
 
 ## Known unknowns
 
-Netlify's and Supabase's documentation could not be reached while this was written, so these are marked UNVERIFIED and have a cheap real-world test: per-context secret values on Free; Blobs on Free and any quota; the credit cost of a skipped build; whether previews can be turned off on Free; secret scanning versus the publishable key; AI Gateway variables; and the hosted Supabase behaviours listed in the tests above. The register is in `docs/03-architecture-netlify.md` §12.
+Netlify's and Supabase's documentation could not be reached while this was written, so these are marked "not yet checked" and have a cheap real-world test: per-context secret values on Free; Blobs on Free and any quota; the credit cost of a skipped build; whether previews can be turned off on Free; secret scanning versus the publishable key; AI Gateway variables; and the hosted Supabase behaviours listed in the tests above. The register is in `docs/03-architecture-netlify.md` §12.
