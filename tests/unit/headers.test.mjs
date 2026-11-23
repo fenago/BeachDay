@@ -30,7 +30,7 @@ test("CSP equals docs/04 §10 except the Supabase host; exact host, no wildcard"
   expect(doc).toBeTruthy();
   const ours = get("/", "content-security-policy");
   expect(ours.replace(HOST, "HOST")).toBe(doc.slice("Content-Security-Policy: ".length).replace(HOST, "HOST"));
-  expect(ours).toContain("https://<project-ref>.supabase.co"); // placeholder kept until Dr. Lee's project exists; gen-config fails the build until it matches SUPABASE_URL
+  expect(ours).toMatch(/https:\/\/[a-z0-9]{20}\.supabase\.co/); // the real project host (README step 5)
   expect(ours.match(/supabase\.co/g)).toHaveLength(1);
   expect(ours).not.toMatch(/\*|unsafe-inline|unsafe-eval|anthropic|github/);
   expect(ours).toMatch(/script-src 'self'(;|$)/);
