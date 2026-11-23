@@ -47,8 +47,8 @@ Logs themselves are a target. One listed failure mode is "Logs contain technical
 | Secret | Where | Scope / lifetime | Rotation |
 |---|---|---|---|
 | `ANTHROPIC_API_KEY` | Netlify secret env var, Production context | dedicated workspace with a spend limit | on suspicion; at least yearly (our choice) |
-| `GITHUB_TOKEN` | Netlify secret env var, **Production context only**, read only by approve | fine-grained PAT: 1 repo, Contents R/W, no Workflows (ADR-0005) | 90-day expiry, calendar reminder |
-| `GITHUB_READ_TOKEN` (proposed, needs an ADR) | Netlify secret env var, Production | fine-grained PAT, **Public repositories** access, no permissions; read tools only | 90-day expiry |
+| `GITHUB_TOKEN` | Netlify secret env var, **Production context only**. Today (ADR-0007) also used by the read module in `chat` and `jobs-run`; under ADR-0009 only `lib/github-write.mts`, imported only by approve | fine-grained PAT: 1 repo, Contents R/W, no Workflows (ADR-0005) | 90-day expiry, calendar reminder |
+| `GITHUB_READ_TOKEN` (**Proposed, [ADR-0009](../../../docs/adr/0009-public-read-token-for-agent-reads.md); do not create until Dr. Lee accepts it**) | Netlify secret env var, Production context only, read only by `lib/github-read.mts` | fine-grained PAT, **public repositories only**, no permissions; read tools only; no fallback to `GITHUB_TOKEN` | 90-day expiry, same reminder as `GITHUB_TOKEN` |
 | User access/refresh tokens | the user's browser `localStorage` only | access token 600 s; refresh token single-use | sign-out; refresh reuse detection revokes the session |
 
 **Not secrets:** `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` and `GITHUB_REPO`. Never mark them secret, or secret scanning fails the build on `config.js`.

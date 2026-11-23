@@ -4,7 +4,7 @@ Date: 2026-11-23 (reworked the same day for ADR-0006 Supabase Auth, ADR-0007 and
 Reference notes from OWASP, GitHub's and Supabase's official docs, plus runnable examples of the Console's security controls. Read them with:
 - `docs/04-agent-console.md` §3, §4, §6, §9, §10 and §12;
 - the `secure-by-design`, `agent-console-security` and `supabase-auth` skills;
-- ADR-0003 to ADR-0008;
+- ADR-0003 to ADR-0008, and the Proposed ADR-0009 (read token);
 - `knowledge/supabase-auth-engineer/`, for the auth API details.
 
 ## docs/
@@ -22,7 +22,7 @@ Retired on 2026-11-23 with ADR-0006: `docs/02-password-storage-and-sessions.md` 
 ## examples/
 | Example | Demonstrates | Verified |
 |---|---|---|
-| [examples/01-bearer-step-up-and-origin/](examples/01-bearer-step-up-and-origin/) | Approve step-up (`amr` password/oauth ≤ 600 s, `last_sign_in_at`, `aal2` when a factor exists, TOTP never a substitute) with `getUser` failures failing closed; `Sec-Fetch-Site`/`Origin` check | 3 tests (21-row step-up table, 7-row Origin table) pass, `node:test` |
+| [examples/01-bearer-step-up-and-origin/](examples/01-bearer-step-up-and-origin/) | Approve step-up (`amr` password/oauth ≤ 600 s, `last_sign_in_at`, `aal2` when a factor exists, TOTP never a substitute) with `getUser` failures failing closed, **including returned (not thrown) `AuthRetryableFetchError` → 503** (fixed wave 3b); optional `alg`/`kid` header pre-check; `Sec-Fetch-Site`/`Origin` check | 4 tests (21-row step-up table, 9-row `getUser` failure table, 14-row header pre-check table, 7-row Origin table) pass, `node:test` |
 | [examples/02-path-allowlist/](examples/02-path-allowlist/) | Layered path validator (charset allow-list → segments → case-insensitive DENY → exact-case ALLOW) with the canonical list from docs/04 §6, warnings, and proposal checks | 63-row attack table + 2 more tests, all pass |
 | [examples/03-secret-scan-and-review/](examples/03-secret-scan-and-review/) | Proposal secret scanner, including `sb_secret_` and full-JWT rules, a path-shaped exclusion and redacted findings; a sample **APPROVE WITH CHANGES** review | 4/4 `node:test`; repo self-scan 6 findings, none real |
 
@@ -31,7 +31,7 @@ All examples use only Node built-ins. No real secrets are used anywhere. Placeho
 ## Open items (for the orchestrator / Dr. Lee)
 1. **Deny `public/console.html` and `public/js/console/**`** to agents (my recommendation). Until Dr. Lee rules, they are allowed with a warning.
 2. **Site-wide compute budget of 180 function-minutes per rolling 31 days** (docs/04 §9). The number needs Dr. Lee's confirmation; without some budget, the per-user daily limits can't bound Netlify credits.
-3. **Separate public-read-only GitHub token for the read tools** (docs/04 §4.6). It needs an ADR, which software-architect would draft.
+3. **Separate public-read-only GitHub token for the read tools:** drafted as [ADR-0009](../../docs/adr/0009-public-read-token-for-agent-reads.md) (`GITHUB_READ_TOKEN`), **Proposed**, awaiting Dr. Lee. Until he accepts it, ADR-0007 stands.
 4. **TOTP for the `super_admin` account** (recommended; free on all Supabase plans).
 5. **Pre-launch tests on the real Supabase project** (docs/04 §4.2 a–e). Approve stays disabled until they pass.
 6. **OWASP Top 10 edition.** The current edition is **2025**, not 2021. Use the A0x:2025 IDs in reviews.

@@ -55,6 +55,8 @@ Approve ships code to production. It is rare, deliberate and **not undoable in p
   - **Password path:** typing it and pressing Approve and Deploy re-signs in, then approves, in one tap. Never prefilled (HIG Entering data). Paste and password managers work (WCAG 3.3.8): `autocomplete="current-password"`, no paste blocking, no CAPTCHA. The label says "password", never "passcode" (HIG Managing accounts).
   - **Google path:** under the button: "After Google, you'll return here. Choose Approve and Deploy again." It leaves the page (redirect) and returns to the same proposal with the sheet reopened and "Confirmed. Nothing is approved yet. Choose Approve and Deploy within 10 minutes." Focus lands on Approve and Deploy. A second tap approves. Nothing approves automatically, and no URL parameter approves.
   - A Google-only account sees only the Google button; a password-only account sees only the password field. No "Or" is shown when there is one path.
+  - **Two-step code:** if the account has an authenticator factor, a labelled "Authenticator code" field (`autocomplete="one-time-code"`, numeric, paste allowed) is the last field in the sheet, on both paths. Wrong code: "That code didn't match. Try again." (alert, `aria-invalid`, text selected). Enrolment is `../04-console-auth/flow-spec.md` S12.
+  - **Google leaves the page:** "Leaving for Google clears any message you haven't sent." shows under the Google button when a chat draft exists.
   - Timed out: "Time ran out. Confirm it's you again." (status).
   - Server says `401 step_up_required`: the sheet reopens unconfirmed with "Confirm it's you to approve. Your last sign-in was over 10 minutes ago." (status); the proposal stays pending.
 - **Wrong password:** "That password didn't match. Try again." appears under the field (`role="alert"`) with `aria-invalid="true"`. Focus stays in the field with the text selected. After too many wrong tries the error is "Too many tries. Wait a minute, then try again." The real limit comes from Supabase and the Approve function. **[UNVERIFIED]** the count; the copy states none.
@@ -66,7 +68,7 @@ Approve ships code to production. It is rare, deliberate and **not undoable in p
 |---|---|---|---|---|
 | In progress | request sent | "Committing to main…" | status | none (can't cancel: the commit may already exist) |
 | Committed | 200 + commit SHA | "Committed abc1234. Deploying…" (SHA links to GitHub) | status | — |
-| **Committed, no deploy needed** | 200 + SHA, and the paths are all ones Netlify's ignore rule skips | "Committed abc1234. No deploy needed." + "Only docs or agent files changed, so the site stays as it is." The sheet said so before Approve: "This commits to main. The live site doesn't change, so no deploy runs." | status | — |
+| **Committed, no deploy needed** | 200 + SHA, and the paths are all ones Netlify's ignore rule skips | "Committed abc1234. No deploy needed." + "Only docs, tests or skill files changed, so the site stays as it is." (only `docs/**`, `tests/**`, `.claude/skills/**`; agent files do deploy). The sheet said so before Approve: "This commits to main. The live site doesn't change, so no deploy runs. This still uses one of the 14 approval slots." | status | — |
 | Live | Console polls `/version.json` until the new build shows | "Live. The change is on the site." + "View commit abc1234" | status | — |
 | **Cap reached** | 429 `approve_cap` (ADR-0008) | "14 of 14 approvals used in the last 31 days. Next slot frees Dec 4." (or "5 of 5 approvals used today. More open up at midnight Eastern.") + "The proposal is still waiting." | alert | Reject; Review and Approve hidden until `retryAt` |
 | **Confirm needed** | 401 `step_up_required` | Sheet reopens: "Confirm it's you to approve. Your last sign-in was over 10 minutes ago." | status | Password field or Google button |
@@ -74,6 +76,8 @@ Approve ships code to production. It is rare, deliberate and **not undoable in p
 | **Approve off** | pre-launch tests not passed | "Approve is off until the launch checks pass. You can still read and reject." under a dimmed, `aria-disabled` Review and Approve | text (describedby) | Reject |
 | Stale base | 409 (main moved) | "Main changed since this proposal. Ask the agent to redo it." | alert | Ask agent (chat) |
 | Path not allowed | 422/403 from the allow-list re-check | "This proposal edits a file agents can't change. Nothing was committed." | alert | — |
+| **Commit not confirmed** | 502 | "Couldn't confirm the commit yet." + "Check the commit list on GitHub before you approve again." + View Commits on GitHub link | alert | the link (no Try Again: a retry could commit twice) |
+| **Stale on the card** | base moved before approval | "Out of date: main changed after this proposal. No approval was used." Review and Approve hidden | status | Reject, or ask the agent |
 | Commit failed | 5xx / GitHub error | "The commit failed. Nothing was deployed. Try again in a minute." | alert | **Try Again** (focused) |
 | Session ended | 401 | Back to sign in with "Your session ended. Sign in to pick up where you left off." The proposal stays pending and the person returns to it. | status (alert inside the Approve flow) | Sign In |
 | No access | 403 (not `super_admin`) | The no-access screen, see `../04-console-auth/flow-spec.md` S6 | h1 | Sign Out |
@@ -91,7 +95,7 @@ Approve ships code to production. It is rare, deliberate and **not undoable in p
 - The cap check happens after auth, role and step-up (ADR-0008), so someone who isn't confirmed never learns the usage numbers.
 
 ## 6. Prototype and checks
-`prototype.html` implements sections 2–4 with a mocked server (`?outcome=ok|stale|fail`; demo password `demo-password`). It makes no network calls. `axe-check.mjs` drives it through every state in light and dark and runs axe with WCAG 2.0/2.1/2.2 A and AA tags. It also asserts:
+`prototype.html` implements sections 2–4 with a mocked server (`?outcome=ok|stale|fail|nodeploy|unconfirmed|...`; `?totp=1` adds the code field, demo code `123456`; demo password `demo-password`). It makes no network calls. `axe-check.mjs` drives it through every state in light and dark and runs axe with WCAG 2.0/2.1/2.2 A and AA tags. It also asserts:
 - focus moves to the field on open (or the Google button for `?account=google`) and returns on Cancel or Esc
 - `aria-invalid` is set on a wrong password
 - paste isn't blocked and autocomplete is `current-password`

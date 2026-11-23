@@ -48,7 +48,7 @@
     .sheet-body h2 { font-size: 1.25rem; margin: 0 0 8px; }
     .consequences { margin: 0 0 16px; padding-left: 1.2em; }
     label { display: block; font-weight: 600; margin-bottom: 6px; }
-    input[type=password] { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+    input[type=password], input[type=text] { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
     input[aria-invalid="true"] { border-color: var(--danger); border-width: 2px; }
     .field-error { color: var(--danger); font-weight: 600; margin: 6px 0 0; min-height: 1.4em; }
     .or { display: flex; align-items: center; gap: 12px; margin: 16px 0; color: var(--text-2); font-weight: 600; }
@@ -125,6 +125,12 @@
           <button type="button" class="secondary wide" id="google" aria-describedby="google-note">Confirm with Google</button>
           <p id="google-note" class="meta" style="margin:6px 0 0">After Google, you'll return here. Choose Approve and Deploy again.</p>
           <p id="confirmed" class="meta" style="margin:8px 0 0" hidden>Confirmed. Nothing is approved yet. Choose Approve and Deploy within 10 minutes.</p>
+          <div id="path-code" hidden>
+            <label for="code" style="margin-top:16px">Authenticator code</label>
+            <input id="code" name="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" aria-describedby="code-help code-error">
+            <p id="code-help" class="meta" style="margin:6px 0 0">Enter the 6-digit code from your app. It changes every 30 seconds.</p>
+            <p id="code-error" class="field-error" role="alert"></p>
+          </div>
           <p id="sheet-status" role="status" class="meta" style="margin:8px 0 0"></p>
         </fieldset>
         <div class="actions" style="justify-content:flex-end">
@@ -145,6 +151,9 @@
     // Mocked account: ?account=google means a Google-only account (no password path).
     const googleOnly = new URLSearchParams(location.search).get('account') === 'google';
     let confirmedByGoogle = false;
+    const totp = new URLSearchParams(location.search).get('totp') === '1'; // account has an authenticator factor
+    const code = $('code'), codeError = $('code-error');
+    if (totp) $('path-code').hidden = false;
     if (googleOnly) { $('path-password').hidden = true; $('or').hidden = true; }
     const markConfirmed = () => { confirmedByGoogle = true; $('confirmed').hidden = false; $('google').hidden = true; $('google-note').hidden = true; $('or').hidden = true; $('path-password').hidden = true; };
     const unconfirm = () => { confirmedByGoogle = false; $('confirmed').hidden = true; $('google').hidden = false; $('google-note').hidden = false; if (!googleOnly) { $('path-password').hidden = false; $('or').hidden = false; } };
@@ -160,6 +169,7 @@
     }
     review.addEventListener('click', () => {
       if (review.getAttribute('aria-disabled') === 'true') return; // Approve is off: no sheet
+      code.value = ''; codeError.textContent = ''; code.removeAttribute('aria-invalid');
       pw.value = ''; pwError.textContent = ''; alertBox.textContent = ''; pw.removeAttribute('aria-invalid');
       dialog.showModal();
       (googleOnly && !confirmedByGoogle ? $('google') : confirmedByGoogle ? approve : pw).focus();
@@ -189,6 +199,12 @@
         pw.focus(); pw.select();
         return;
       }
+      if (totp && code.value !== '123456') {
+        code.setAttribute('aria-invalid', 'true');
+        codeError.textContent = code.value ? "That code didn't match. Try again." : 'Enter the 6-digit code.';
+        code.focus(); code.select();
+        return;
+      }
       if (outcome === 'stepup' && !stepupSeen) { // server: 401 step_up_required, the 10 minutes ran out
         stepupSeen = true; unconfirm(); pw.value = '';
         $('sheet-status').textContent = "Confirm it's you to approve. Your last sign-in was over 10 minutes ago.";
@@ -214,7 +230,12 @@
         return;
       }
       if (outcome === 'nodeploy') {
-        say('Committed <a href="#commit-abc1234">abc1234</a>. No deploy needed. Only docs or agent files changed, so the site stays as it is.');
+        say('Committed <a href="#commit-abc1234">abc1234</a>. No deploy needed. Only docs, tests or skill files changed, so the site stays as it is.');
+        return;
+      }
+      if (outcome === 'unconfirmed') {
+        say(''); alertBox.innerHTML = 'Couldn\u2019t confirm the commit yet. Check the commit list on GitHub before you approve again. <a href="#commits" id="commits">View Commits on GitHub</a>';
+        review.hidden = true; $('commits').focus();
         return;
       }
       if (outcome === 'stale') {

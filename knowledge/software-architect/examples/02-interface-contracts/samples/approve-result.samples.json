@@ -1,0 +1,46 @@
+[
+ {
+  "expect": "valid",
+  "why": "committed, touches public/** so it deploys; usage after recording",
+  "data": {
+   "proposal": { "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX", "status": "committed", "commitSha": "9fceb02d0ae598e95dc970b74767f19372d61af8", "decidedAt": "2026-11-23T18:04:11.000Z" },
+   "deploys": true,
+   "approvals": { "used31": 4, "usedToday": 2, "per31Days": 14, "perDay": 5, "retryAt": null }
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "docs/** only: no deploy, still used a slot; usage read failed → null",
+  "data": {
+   "proposal": { "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX", "status": "committed", "commitSha": "9fceb02d0ae598e95dc970b74767f19372d61af8", "decidedAt": "2026-11-23T18:04:11.000Z" },
+   "deploys": false,
+   "approvals": null
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "commit landed but recording failed: still 200 with commitSha, status committing until the reconciler runs",
+  "data": {
+   "proposal": { "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX", "status": "committing", "commitSha": "9fceb02d0ae598e95dc970b74767f19372d61af8", "decidedAt": "2026-11-23T18:04:11.000Z" },
+   "deploys": true,
+   "approvals": null
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "deploys missing: the UI must not guess",
+  "data": {
+   "proposal": { "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX", "status": "committed", "commitSha": "9fceb02d0ae598e95dc970b74767f19372d61af8", "decidedAt": "2026-11-23T18:04:11.000Z" },
+   "approvals": null
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "a 200 never carries failed; that is a 502 upstream",
+  "data": {
+   "proposal": { "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX", "status": "failed", "commitSha": "9fceb02d0ae598e95dc970b74767f19372d61af8", "decidedAt": "2026-11-23T18:04:11.000Z" },
+   "deploys": true,
+   "approvals": null
+  }
+ }
+]

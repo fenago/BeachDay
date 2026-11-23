@@ -17,10 +17,18 @@ Why it is built this way:
 - **Array order is not trusted.** Supabase documents `amr` as most-recent-first, but the code takes the maximum timestamp anyway.
 - **Types are strict.** A string timestamp, a missing `amr` or a non-array `amr` all fail.
 
-**`approveStepUp(token, claims, getUser)`** calls `getUser`:
-- A thrown network error becomes **503 `unavailable`** (fail closed, error not echoed).
-- An error or empty user from `getUser` becomes **401 `unauthorized`**.
+**`approveStepUp(token, claims, getUser, now, isRetryable)`** calls `getUser`:
+- **auth-js returns network and 5xx failures; it does not throw them.** `getUser` answers `{ data: { user: null }, error: AuthRetryableFetchError }` (knowledge/supabase-auth-engineer/examples/01, test 21). A returned error for which `isRetryable(error)` is true becomes **503 `unavailable`**. Real code passes auth-js's own `isAuthRetryableFetchError`; the example's default, `looksRetryable`, copies its test (`__isAuthError` plus the name) so no npm install is needed.
+- A throw of any kind also becomes **503 `unavailable`**.
+- Any other returned error (for example 403 `session_not_found` after sign-out, or `user_banned`), or no user, becomes **401 `unauthorized`**.
+- The error is never echoed (the test checks the response for the upstream message).
 - Any failed step-up rule becomes **401 `step_up_required`**, which the Console turns into its re-sign-in prompt.
+
+**Fixed 2026-11-23 (wave 3b):** the first version mapped only a *throw* to 503, so during a Supabase outage Approve answered 401 and the Console sent the user to sign in again instead of saying "try again". Found by supabase-auth-engineer. The test table now includes returned (not thrown) retryable errors; the committed version fails those rows.
+
+**`precheckJwtHeader(token)`** is the optional pre-check from docs/04 §4.1 step 1. It decodes only the JWT header and returns 401 unless `alg` is `ES256` or `RS256` and `kid` is a non-empty string. It verifies nothing; `getClaims` still does. It exists because `getClaims` falls back to `GET /auth/v1/user` for an unknown `kid` or an `HS*` alg, so every cheap forged token would cost one Auth call from the function's IP. Turn it on only once the project is confirmed to use asymmetric signing keys, or it rejects every real token (fail closed, but a total outage).
+
+**Why `amr` and `last_sign_in_at` are both checked, and which one binds the session.** From the Auth server source (knowledge/supabase-auth-engineer/docs/03): an `amr` timestamp belongs to one **session** and one method, is written when that session is created by a sign-in, and is not moved by a refresh. `last_sign_in_at` belongs to the **user**, so a sign-in on any other device also makes it fresh. Rule 2 (`amr`) is therefore the rule that ties the step-up to *this* session; rule 3 is only a server-side cross-check that some sign-in really happened recently.
 
 **`checkOrigin(req, siteOrigin)`** is defence in depth on POST routes. Bearer tokens are not sent automatically by the browser, so classic CSRF no longer applies (docs/04 §4.4). The check still rejects:
 - a `Sec-Fetch-Site` header that is present and not `same-origin`, including `same-site` sibling subdomains;
@@ -35,50 +43,52 @@ node --test stepup.test.mjs     # Node built-ins only
 ```
 
 ## Verified
-Run on 2026-11-23 with Node v22.23.5, from a scratch copy outside the repo:
+Run on 2026-11-23 (wave 3b) with Node v22.23.5, from a scratch copy outside the repo. The step-up and Origin rows are unchanged from the first run and pass as before; the output below shows the new rows:
 
 ```
 $ node --test stepup.test.mjs
 # PASS  true  fresh password sign-in (2 min)
-# PASS  true  fresh Google sign-in (9 min 59 s)
-# PASS  true  exactly 10 min
-# PASS  false 10 min 1 s: too old -> primary_sign_in_too_old
-# PASS  false only token_refresh is fresh -> primary_sign_in_too_old
-# PASS  false recovery link is not a step-up -> primary_sign_in_too_old
-# PASS  false otp / magic link is not a step-up -> primary_sign_in_too_old
-# PASS  true  array order is not trusted (fresh entry last)
-# PASS  false timestamp 2 min in the future -> primary_sign_in_too_old
-# PASS  true  timestamp 30 s in the future (skew ok)
-# PASS  false amr missing -> primary_sign_in_too_old
-# PASS  false amr malformed -> primary_sign_in_too_old
-# PASS  false timestamp as string -> primary_sign_in_too_old
-# PASS  false fresh amr but last_sign_in_at stale -> last_sign_in_too_old
-# PASS  false last_sign_in_at missing -> last_sign_in_too_old
-# PASS  false verified TOTP factor, token aal1 -> aal2_required
-# PASS  true  verified TOTP factor, token aal2
-# PASS  true  unverified factor only, aal1 ok
-# PASS  false token thief enrols own TOTP: fresh totp + aal2 but old sign-in -> primary_sign_in_too_old
-# PASS  false getUser returned another user -> user_mismatch
-# PASS  false banned user -> banned
-# PASS  true  same-origin fetch
-# PASS  false cross-site POST -> cross_site
-# PASS  false same-site sibling subdomain -> cross_site
-# PASS  false foreign Origin, no Fetch Metadata -> bad_origin
-# PASS  false Origin null (sandboxed iframe) -> bad_origin
-# PASS  true  no Origin, no Fetch Metadata (server-to-server, jobs -> jobs-run)
-# PASS  true  GET is not checked
+  ... (21 step-up rows, all PASS, as before)
+# PASS  503 unavailable thrown network error
+# PASS  503 unavailable RETURNED network error (status 0), the auth-js shape
+# PASS  503 unavailable RETURNED 502 from /user
+# PASS  401 unauthorized returned 403 session_not_found (signed out)
+# PASS  401 unauthorized returned 403 user_banned
+# PASS  401 unauthorized plain-object error (not an auth error)
+# PASS  401 unauthorized name only, no __isAuthError marker
+# PASS  401 unauthorized no error and no user
+# PASS  401 unauthorized undefined result
+# PASS  true  ES256 with kid
+# PASS  true  RS256 with kid
+# PASS  false HS256 (legacy secret or forged)
+# PASS  false alg none
+# PASS  false alg lower-case es256
+# PASS  false kid missing
+# PASS  false kid empty
+# PASS  false kid not a string
+# PASS  false header not JSON
+# PASS  false header is an array
+# PASS  false two parts
+# PASS  false padding / bad chars in header
+# PASS  false oversized token
+# PASS  false not a string
+  ... (7 Origin rows, all PASS, as before)
 ok 1 - step-up table
 ok 2 - approveStepUp: getUser failures fail closed
-ok 3 - Origin / Sec-Fetch-Site defence in depth
-# tests 3
-# pass 3
+ok 3 - precheckJwtHeader: cheap forgeries rejected before getClaims
+ok 4 - Origin / Sec-Fetch-Site defence in depth
+# tests 4
+# pass 4
 # fail 0
 ```
 
+Regression check: the committed (pre-fix) `approveStepUp` given a *returned* `AuthRetryableFetchError` answered `401 unauthorized`; the fixed one answers `503 unavailable`.
+
 ## What this example cannot prove (pre-launch tests on the real project, docs/04 §12)
 These depend on how Supabase behaves, and supabase.com was blocked from the sandbox. Each one is **UNVERIFIED** until run against Dr. Lee's project:
-1. The `password`/`oauth` `amr` timestamp stays at the **sign-in** time after a token refresh. If a refresh moves it forward, rule 2 is meaningless, and Approve must stay disabled until security-engineer re-specifies the rule.
+1. The `password`/`oauth` `amr` timestamp stays at the **sign-in** time after a token refresh. The Auth server source supports this (the refresh grant writes no `amr` row), but hosted behaviour is still to be tested. If a refresh moves it forward, rule 2 is meaningless, and Approve must stay disabled until security-engineer re-specifies the rule.
 2. A second `signInWithPassword` (or Google sign-in) in the same browser produces a new, current timestamp.
 3. `last_sign_in_at` is updated by both password and Google sign-ins, and is not updated by a refresh.
 4. `getUser(token)` after `signOut({scope:'local'})` on that session. If it still succeeds, a signed-out token keeps working until `exp` (10 min).
 5. After a TOTP verify the token carries `aal2`.
+6. A real access token's header has `alg` `ES256` or `RS256` and a `kid` (needed before `precheckJwtHeader` is switched on).

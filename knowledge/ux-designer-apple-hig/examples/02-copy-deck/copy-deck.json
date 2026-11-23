@@ -753,7 +753,7 @@
     },
     {
       "id": "auth.signout.all.help",
-      "text": "Ends your Console session on every device."
+      "text": "Signs you out on every device."
     },
     {
       "id": "auth.signout.all.done",
@@ -777,7 +777,7 @@
     },
     {
       "id": "auth.totp.setup.title",
-      "text": "Set up an authenticator app"
+      "text": "Set up two-step sign in"
     },
     {
       "id": "auth.totp.setup.scan",

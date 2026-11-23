@@ -8,12 +8,13 @@ Four contracts that builders can code against in parallel. All are JSON Schema 2
 |---|---|---|
 | `schemas/forecast-hour.schema.json` | `api/openmeteo.js` normalizer → `score.js` | Fixed units (°F, mph, inch, ft). WMO code 0–99. Marine fields are **present but `null`** when missing, never absent or guessed. SST already converted to °F |
 | `schemas/day-verdict.schema.json` | `scoreDay()` → UI | Verdict **key** (`great/good/fair/skip`), not display text. Score bands tied to the verdict with `if/then` (80–100, 65–79, 45–64, 0–44). ≤4 reasons. `confidence: forecast \| outlook`. `marineAvailable: false` requires the reason "Wave data unavailable" |
-| `schemas/sse-event.schema.json` | `/api/chat` function → Console UI | `oneOf` union of the six docs/04 §2.1 event types: `text`, `tool`, `proposal`, `handoff`, `error`, `done`. `additionalProperties: false` everywhere, so an error can't leak a `stack`. Tool names are limited to the Console's three tools. ≤20 files, ≤200 KB each. `error.code` includes `unauthorized` (401) and `forbidden` (403, not `super_admin`). IDs `p_`/`j_` + 26-char ULID |
+| `schemas/sse-event.schema.json` | `/api/chat` function → Console UI | `oneOf` union of the six docs/04 §2.1 event types (a refusal is a terminal `error {code: "refusal"}`, never `done`; `done.stopReason` has no `refusal`): `text`, `tool`, `proposal`, `handoff`, `error`, `done`. `additionalProperties: false` everywhere, so an error can't leak a `stack`. Tool names are limited to the Console's three tools. ≤20 files, ≤200 KB each. `error.code` includes `unauthorized` (401) and `forbidden` (403, not `super_admin`). IDs `p_`/`j_` + 26-char ULID |
 | `schemas/proposal.schema.json` | `propose_change` → Blobs → approve | ID `^p_[0-9A-Z]{26}$`. Status enum `pending/committing/committed/failed/stale/rejected` (docs/04 §2.1). 40-hex SHAs, `sha256:` content hash, `decidedBy` = Supabase user id. Path shape mirrors the **canonical list** in docs/04 §6: ALLOW `public/**` text types, `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`; DENY wins: `public/_headers`, `public/_redirects`, `public/sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `public/version.json`, `..`, `.env*`, `*.pem`, `*.key`. `committed` requires `commitSha` + `decidedAt`; `failed`/`stale` require `error`; only `committed` may carry `commitSha` |
 
 | `schemas/api-error.schema.json` | every `/api/*` route (and `/api/chat` before its stream opens) → Console fetch wrapper | `{error:{code,message,retryAt?}, approvals?}`. **One code list** shared with the SSE `error` event (docs/04 §2.1), including `step_up_required` (401) and `budget_exhausted` (429). Every 429 code requires `retryAt`; `approve_cap` also requires `approvals`. No `stack` field can appear |
 | `schemas/approvals.schema.json` | `checkApproveCap()` → Approve sheet | `{used31, usedToday, per31Days: 14, perDay: 5, retryAt}`; `retryAt` is `null` when a slot is free. Advisory only; the check inside the approve lock decides (ADR-0008) |
 | `schemas/proposal-view.schema.json` | `GET /api/proposals/:id` → proposal card and Approve sheet | `{proposal (proposal.schema.json), diffs[], deploys, approveEnabled, approvals or null}`. Diffs sit beside the stored record, never inside it. `deploys` is required so the UI never guesses |
+| `schemas/approve-result.schema.json` | `POST /api/proposals/:id/approve` 200 → outcome copy | `{proposal:{id, status committed or committing, commitSha, decidedAt}, deploys, approvals or null}`. `deploys` (from `lib/deploys.mts` `deploysOnCommit()`) is required; a 200 never carries `failed` |
 
 `validate.mjs` performs four checks:
 
@@ -41,6 +42,8 @@ cd /tmp/scratch/contracts && node validate.mjs
 ```
 
 ## Verified
+
+**Re-run 2026-11-23, wave 3b** (same Node and Ajv): refusal rule settled (`done.stopReason` lost `refusal`; +1 valid `error{code:refusal}`, +1 invalid `done{stopReason:refusal}`) and new `approve-result.schema.json` (3 valid, 2 invalid). 64 sample checks plus the fixture and SSE round trip, all PASS (`ALL CONTRACT CHECKS PASSED`).
 
 **Re-run 2026-11-23, wave 3** (Node v22.23.5, ajv 8.20.0, ajv-formats 3.0.1), after docs/04 §2.1 gained the shared error table, `step_up_required`, `budget_exhausted` and the proposal payload for the Approve sheet. 16 new samples (7 api-error, 4 approvals, 4 proposal-view, 1 SSE `budget_exhausted`); 55 sample checks plus the fixture and SSE round trip, all PASS. Excerpt:
 

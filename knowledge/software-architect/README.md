@@ -33,8 +33,9 @@ Read this index first, then the files the task needs.
 
 ## Findings to pass on (not fixed here)
 
-- **Field-name drift:** docs/04 §7, ADR-0007/0009 and `proposal.schema.json` use `baseSha` / `readBlobSha`; the `netlify-blobs` skill uses `baseCommitSha` / `baseBlobSha` and the `github-repo-workflow` skill uses `baseCommitSha`. docs/04 wins; the skills' owners should align.
-- **Cap record after a commit (wave 3):** docs/04 §7 says "record, then mark; if either fails, leave `committing` and let the reconciler finish". An alternative in docs/04 §1 (a `site:approvals-unrecorded/<sha>` marker counted by `checkApproveCap()`) was written in parallel; only one should survive. Architect's preference is the reconciler, because it needs no change to `checkApproveCap()` and no second key family.
+- **Field-name drift (resolved, wave 3b):** `baseSha` / `readBlobSha` are canonical (docs/04 §2.1 "Proposal field names"); the `netlify-blobs` and `github-repo-workflow` skills now use them and no file in the repo uses `baseCommitSha` / `baseBlobSha`.
+- **Refusal reporting (settled, wave 3b):** a refusal is one terminal SSE `error {code: "refusal", retryable: false}` with no `done`; `done.stopReason` no longer lists `refusal` (docs/04 §2.1).
+- **Cap record after a commit (resolved):** the docs/04 §7 reconciler won; the `site:approvals-unrecorded` marker was withdrawn.
 
 - ADR-0005 has an extra `## Open check` section that isn't in the `docs/adr/README.md` template. Either add an optional "Open questions" section to the template, or move the note into Consequences in a future superseding ADR.
 - The scoring skill names `confidence: "outlook"` but gives no value for days 1–3. The contract example uses `"forecast"`; confirm it with open-meteo-integrator.
