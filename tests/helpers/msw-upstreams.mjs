@@ -2,7 +2,7 @@
 // fake Supabase project, all behind ONE MSW server with onUnhandledRequest = error (loopback is let through).
 // Nothing here ever reaches the network. Tokens/keys are built at runtime (secrets.mjs).
 import { setupServer } from "msw/node";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, passthrough } from "msw";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -145,6 +145,7 @@ export function createFakeGithub({ owner = FIXTURE_REPO.owner, repo = FIXTURE_RE
   const rootTree = putTree(seed);
   main = sha1("commit root");
   commits.set(main, { tree: rootTree, parents: [], message: "root", author: { name: "Dr. Lee", email: "lee@example.test", date: new Date(0).toISOString() } });
+  const baseMain = main;
   const mode = { patch: null, readDown: false, failNext: [] }; // see the setters below
   const prefix = `/repos/${owner}/${repo}`;
   const err = (status, message) => HttpResponse.json({ message, documentation_url: "https://docs.github.com/rest" }, { status });
@@ -175,7 +176,8 @@ export function createFakeGithub({ owner = FIXTURE_REPO.owner, repo = FIXTURE_RE
     setReadDown(v = true) { mode.readDown = v; },
     /** Fail the next request whose "METHOD /path" matches the regexp. */
     failNext(re, status = 500) { mode.failNext.push({ re, status }); },
-    reset() { mode.patch = null; mode.readDown = false; mode.failNext = []; calls.length = 0; },
+    reset() { state.resetRepo(); mode.patch = null; mode.readDown = false; mode.failNext = []; calls.length = 0; },
+    resetRepo() { main = baseMain; state.violations.length = 0; },
     violations: [], // things Beach Day must never do (deletions, workflow paths, force, missing base_tree), recorded even if answered
   };
 
@@ -291,19 +293,20 @@ export function createUpstreams({ supabase, github, anthropic = createFakeAnthro
       const res = await supabase.handle(request);
       return res.type === "error" ? HttpResponse.error() : res;
     })] : []),
+    http.all("*", ({ request }) => { // catch-all, last: anything that is not one of the fakes above
+      const u = new URL(request.url);
+      if (allowedLoopback && (u.hostname === "127.0.0.1" || u.hostname === "localhost")) return passthrough(); // the harness calling itself
+      unexpected.push(`${request.method} ${u.origin}${u.pathname}`);
+      return HttpResponse.error(); // the request fails: no test can reach a real host
+    }),
   ];
   const server = setupServer(...handlers);
   const api = {
     server, anthropic, github, supabase, unexpected,
     listen() {
-      server.listen({
-        onUnhandledRequest(request, print) {
-          const u = new URL(request.url);
-          if (allowedLoopback && (u.hostname === "127.0.0.1" || u.hostname === "localhost")) return; // the harness calling itself
-          unexpected.push(`${request.method} ${u.origin}${u.pathname}`);
-          print.error(); // throws: the request fails, so a test can never reach a real host by accident
-        },
-      });
+      // MSW 3 renamed `onUnhandledRequest` to `onUnhandledFrame` and the old name is silently ignored (default "warn"),
+      // and throwing from the callback does not fail the request. So unexpected hosts are caught by the LAST handler instead.
+      server.listen({ onUnhandledFrame: "bypass" });
       return api;
     },
     resetHandlers() { server.resetHandlers(); },

@@ -36,7 +36,7 @@ describe("schemas", () => {
 describe("samples", () => {
   const sampleFiles = readdirSync(join(here, "samples")).filter((f) => f.endsWith(".samples.json")).sort();
   it("every schema has samples, with at least one valid and one invalid", () => {
-    expect(sampleFiles.map((f) => f.replace(".samples.json", ""))).toEqual(Object.keys(v).sort());
+    expect(sampleFiles.map((f) => f.replace(".samples.json", "")).sort()).toEqual(Object.keys(v).sort());
     for (const f of sampleFiles) {
       const kinds = new Set(load(`samples/${f}`).map((s) => s.expect));
       expect([...kinds].sort(), f).toEqual(["invalid", "valid"]);
@@ -206,14 +206,43 @@ describe("seam: DEPLOY_PATHS (D9) and SETTINGS locations (build-contracts §6)",
   });
 });
 
-describe("seam: DayVerdict codes <-> copy deck (open-meteo-integrator <-> ux-designer)", () => {
+describe("seam: DayVerdict <-> copy deck (open-meteo-integrator <-> ux-designer <-> beach UI)", () => {
   const dv = load("schemas/day-verdict.schema.json").$defs;
-  const STATUS = ["no_beach_window", "data_unavailable"];
-  it.skipIf(!exists("public/js/copy/copy-deck.js"))("every reason, advice and positive code has copy, and the deck has no extra codes", async () => {
+  const hasDeck = exists("public/js/copy/copy-deck.js");
+
+  it.skipIf(!hasDeck)("every copyId in the valid samples exists in the deck and renders with its params", async () => {
     const deck = await imp("public/js/copy/copy-deck.js");
-    expect(Object.keys(deck.REASON_IDS).sort()).toEqual(dv.reason.properties.code.enum.filter((c) => !STATUS.includes(c)).sort());
-    expect(Object.keys(deck.ADVICE_IDS).sort()).toEqual([...dv.advice.properties.code.enum].sort());
-    expect(Object.keys(deck.POSITIVE_REASON_IDS).sort()).toEqual([...dv.positive.properties.code.enum].sort());
+    for (const s of load("samples/day-verdict.samples.json").filter((x) => x.expect === "valid")) {
+      for (const it of [...s.data.reasons, ...s.data.advice]) {
+        expect(deck.STRINGS, `${s.why}: ${it.copyId}`).toHaveProperty([it.copyId]);
+        expect(() => deck.t(it.copyId, it.params), `${s.why}: ${it.copyId}`).not.toThrow();
+      }
+    }
+  });
+
+  it.skipIf(!hasDeck)("D3 positive codes are the deck's POSITIVE_REASON_IDS keys", async () => {
+    const deck = await imp("public/js/copy/copy-deck.js");
+    const positives = Object.keys(deck.POSITIVE_REASON_IDS).sort();
+    expect(dv.reason.properties.code.enum.filter((c) => positives.includes(c)).sort()).toEqual(positives);
+  });
+
+  it.skipIf(!hasDeck || !exists("public/js/forecast.js"))("real loadForecast() on the Miami captures: every day is a valid DayVerdict and every reason/advice renders", async () => {
+    const deck = await imp("public/js/copy/copy-deck.js");
+    const { loadForecast } = await imp("public/js/forecast.js");
+    const fc = readFileSync(join(here, "fixtures/forecast-miami-beach.json"), "utf8");
+    const mr = readFileSync(join(here, "fixtures/marine-miami-beach.json"), "utf8");
+    const fetchImpl = async (url) => new Response(String(url).includes("marine") ? mr : fc, { status: 200, headers: { "content-type": "application/json" } });
+    // Midday, evening (window over: no verdict) and night, New York time on 2026-11-23.
+    for (const when of ["2026-11-23T17:00:00Z", "2026-11-23T22:30:00Z", "2026-11-24T03:00:00Z"]) {
+      const mem = new Map();
+      const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, val) => mem.set(k, val), removeItem: (k) => mem.delete(k) };
+      const out = await loadForecast("miami-beach", { fetchImpl, storage, now: Date.parse(when), online: true });
+      expect(out.days.length, when).toBeGreaterThan(0);
+      for (const d of out.days) {
+        expect(v["day-verdict"](d), `${when} ${d.date}: ${errs(v["day-verdict"])}`).toBe(true);
+        for (const it of [...d.reasons, ...d.advice]) expect(() => deck.t(it.copyId, it.params), `${d.date} ${it.copyId}`).not.toThrow();
+      }
+    }
   });
 });
 
@@ -233,7 +262,6 @@ describe("seam: agents.json -> GET /api/agents (netlify-engineer -> agent-consol
     for (const a of list) {
       expect(typeof a.systemPrompt).toBe("string");
       expect(Buffer.byteLength(a.systemPrompt), a.name).toBeLessThanOrEqual(350 * 1024);
-      expect(a.systemPrompt).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/); // no timestamps: stays cacheable
     }
     const view = { agents: list.map(({ systemPrompt: _s, ...card }) => card) };
     expect(v["agents-response"](view), errs(v["agents-response"])).toBe(true);

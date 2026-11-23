@@ -28,7 +28,7 @@ const FIXTURE_SITE = join(REPO_ROOT, "tests", "fixtures", "site");
 const TYPES = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8", ".webmanifest": "application/manifest+json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon", ".txt": "text/plain; charset=utf-8", ".map": "application/json" };
 const JSON_HEAD = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
-export async function startHarness({ port = 0, host = "127.0.0.1", publicDir = join(REPO_ROOT, "public"), version = "fixture0000000000000000000000000000000000", approveEnabled = true, settingsOverrides = {}, seedFiles = DEFAULT_SEED, quiet = true } = {}) {
+export async function startHarness({ port = 0, host = "127.0.0.1", publicDir = join(REPO_ROOT, "public"), functionsDir = join(REPO_ROOT, "netlify", "functions"), version = "fixture0000000000000000000000000000000000", approveEnabled = true, settingsOverrides = {}, seedFiles = DEFAULT_SEED, quiet = true } = {}) {
   const s = { version, deployContext: "production", approveEnabled, settingsOverrides: { ...settingsOverrides }, clockOffsetMs: 0, background: new Set(), depsAdapters: new Map(), moduleCache: new Map(), log: [] };
   const clock = { now: () => Date.now() + s.clockOffsetMs };
 
@@ -74,7 +74,7 @@ export async function startHarness({ port = 0, host = "127.0.0.1", publicDir = j
   }
 
   async function loadHandler(routeInfo) {
-    const file = join(REPO_ROOT, "netlify/functions", `${routeInfo.module}.mts`);
+    const file = join(functionsDir, `${routeInfo.module}.mts`);
     if (!existsSync(file)) return { missing: `netlify/functions/${routeInfo.module}.mts does not exist yet` };
     const mod = await import(pathToFileURL(file).href);
     if (typeof mod[routeInfo.factory] !== "function") return { missing: `${routeInfo.module}.mts does not export ${routeInfo.factory}` };

@@ -54,19 +54,6 @@
   },
   {
     "expect": "invalid",
-    "why": "first message from assistant",
-    "data": {
-      "agent": "software-architect",
-      "messages": [
-        {
-          "role": "assistant",
-          "content": "hi"
-        }
-      ]
-    }
-  },
-  {
-    "expect": "invalid",
     "why": "system role smuggled in",
     "data": {
       "agent": "software-architect",
@@ -90,6 +77,19 @@
         }
       ],
       "model": "claude-opus-5-5"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "empty message text",
+    "data": {
+      "agent": "software-architect",
+      "messages": [
+        {
+          "role": "user",
+          "content": ""
+        }
+      ]
     }
   }
 ]

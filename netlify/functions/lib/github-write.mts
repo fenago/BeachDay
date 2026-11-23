@@ -1,7 +1,7 @@
 // WRITE GitHub module: ONE atomic multi-file commit to main via the Git Database API (ADR-0003, ADR-0005).
 // Only the approve function imports this file. It loads GITHUB_TOKEN (never the read-token setting).
 // Steps follow docs/04 §7 1–6 exactly: serial requests, base_tree ALWAYS, mode 100644 blobs with content
-// (never sha:null, so no deletions), one parent, force:false, 6b retry once, 6c re-read on unknown outcome.
+// (never a null blob sha, so no deletions), one parent, force:false, 6b retry once, 6c re-read on unknown outcome.
 // The handler owns the lock, the CAS status changes, the cap and the audit; this module only talks to GitHub.
 import { createGitHubRead, makeRequester, GitHubError, type GhOptions } from "./github-read.mts";
 import { buildCommitMessage, commitAuthorName, COMMIT_AUTHOR_EMAIL, type ProposalRecord } from "./proposals.mts";

@@ -78,16 +78,19 @@ test("a Supabase network failure injected on the fake reaches the browser as a f
   expect(failed).toBe(true);
 });
 
-test("host guard: a request to any other host is aborted and recorded; Open-Meteo is served from fixtures", async ({ page, context, baseURL }) => {
+test("host guard: pages cannot fetch other hosts (CSP), a navigation to one is aborted and recorded, Open-Meteo is served from fixtures", async ({ page, context, baseURL }) => {
   const guard = await guardHosts(context, { siteOrigin: baseURL });
   const om = await routeOpenMeteo(context);
   await page.goto("/offline.html");
   const results = await page.evaluate(async () => ({
-    claude: await fetch("https://api.anthropic.com/v1/messages").then(() => "reached", () => "blocked"),
+    claude: await fetch("https://api.anthropic.com/v1/messages").then(() => "reached", () => "blocked"), // refused by connect-src before it leaves the page
     github: await fetch("https://api.github.com/repos/x/y").then(() => "reached", () => "blocked"),
     meteo: await fetch("https://api.open-meteo.com/v1/forecast?latitude=25.78&longitude=-80.13").then((r) => r.json()).then((j) => j.timezone, () => "failed"),
   }));
   expect(results).toEqual({ claude: "blocked", github: "blocked", meteo: "America/New_York" });
+  await page.goto("https://api.github.com/repos/x/y").catch(() => {}); // not subject to the page's CSP: only the guard stops it
+  await page.goto("https://api.anthropic.com/v1/messages").catch(() => {});
   expect(guard.violations.map((v) => new URL(v.split(" ")[1]).host).sort()).toEqual(["api.anthropic.com", "api.github.com"]);
+  expect(() => guard.assertClean()).toThrow(/unexpected hosts reached/);
   expect(om.forecastCalls()).toBe(1);
 });

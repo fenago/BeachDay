@@ -154,7 +154,7 @@ export function scoreDay({ hours, priorHour = null, dayIndex = 0, formatTime = d
     if (C.reasons.positiveOnGoodDays && (verdict === 'great' || verdict === 'good')) reasons.push(...positiveReasons(win, winRes));
   } else {
     // No eligible hour: every hour is hard-stopped or unscorable. Skip it, with the stop reasons.
-    score = Math.min(capScore('skip'), round(mean(usable.map((r) => r.score))));
+    score = 0; // every usable hour is a hard stop (score 0), so the day number is 0 and agrees with Skip it
     verdict = 'skip';
     const stops = new Set(res.flatMap((r) => r.hardStops));
     for (const s of STOP_ORDER) if (stops.has(s)) reasons.push({ code: s, copyId: STOP_COPY[s], params: {} });

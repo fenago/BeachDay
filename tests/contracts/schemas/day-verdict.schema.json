@@ -2,40 +2,88 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://beachday.example/schemas/day-verdict.schema.json",
   "title": "DayVerdict",
-  "description": "One element of loadForecast(...).days in public/js/forecast.js (open-meteo-integrator) -> the beach UI (pwa-mobile-engineer), with copy from public/js/copy/copy-deck.js (ux-designer). It is scoreDay()'s output (docs/01 §5.2 'Output') plus date, dayIndex, positives and the key numbers. Reasons and advice are CODES with their placeholder values, never display text; the UI turns them into words with reasonText()/adviceText(). Contract: docs/design/build-contracts.md §3.",
+  "description": "One element of loadForecast(...).days (public/js/forecast.js buildDays, open-meteo-integrator) -> the beach UI (pwa-mobile-engineer), worded by public/js/copy/copy-deck.js (ux-designer). scoreDay() output (docs/01 §5.2) plus date, dayIndex, isToday, beachWindow, sunrise and sunset. Times are DST-correct beach wall clock \"HH:MM\". Reasons and advice are codes + copyId + params, never display text. Contract: docs/design/build-contracts.md §3.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "date",
     "dayIndex",
+    "isToday",
     "verdict",
     "score",
     "bestWindow",
     "reasons",
-    "positives",
     "advice",
     "confidence",
     "seaTempMeanF",
-    "numbers"
+    "numbers",
+    "beachWindow",
+    "sunrise",
+    "sunset"
   ],
   "$defs": {
-    "localHour": {
-      "type": "string",
-      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:00$"
-    },
-    "localTime": {
-      "type": "string",
-      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$"
+    "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Placeholder values for t(copyId, params), already rounded for display (docs/01 §5.2 Placeholders). Integers: temp, mph, pct, n, hours. ft one decimal. in two decimals. time is display text such as \"3 pm\" from formatClock().",
+      "properties": {
+        "time": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12
+        },
+        "hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "pct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "in": {
+          "type": "number",
+          "minimum": 0
+        },
+        "temp": {
+          "type": "integer",
+          "minimum": -40,
+          "maximum": 140
+        },
+        "mph": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 200
+        },
+        "ft": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 60
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "uv": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20
+        }
+      }
     },
     "reason": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "code"
+        "code",
+        "copyId",
+        "params"
       ],
+      "description": "Drivers first (docs/01 §5.2 order), then D3 positives (codes = copy-deck POSITIVE_REASON_IDS keys, copyId reason.pos.*) only when SCORE_CONFIG.reasons.positiveOnGoodDays is true. Status codes only when verdict is null.",
       "properties": {
         "code": {
-          "description": "docs/01 §5.2 reason codes, plus the two status codes used when there is no verdict.",
           "enum": [
             "storm_outside_window",
             "short_window",
@@ -53,75 +101,28 @@
             "wind",
             "waves",
             "water_temp",
-            "no_beach_window",
-            "data_unavailable"
-          ]
-        },
-        "avgPoints": {
-          "$ref": "#/$defs/p_avgPoints"
-        },
-        "hours": {
-          "$ref": "#/$defs/p_hours"
-        },
-        "at": {
-          "$ref": "#/$defs/p_at"
-        },
-        "time": {
-          "$ref": "#/$defs/p_time"
-        },
-        "pct": {
-          "$ref": "#/$defs/p_pct"
-        },
-        "in": {
-          "$ref": "#/$defs/p_in"
-        },
-        "temp": {
-          "$ref": "#/$defs/p_temp"
-        },
-        "mph": {
-          "$ref": "#/$defs/p_mph"
-        },
-        "ft": {
-          "$ref": "#/$defs/p_ft"
-        },
-        "weatherCode": {
-          "$ref": "#/$defs/p_weatherCode"
-        },
-        "cloudPct": {
-          "$ref": "#/$defs/p_cloudPct"
-        },
-        "variant": {
-          "$ref": "#/$defs/p_variant"
-        }
-      },
-      "description": "Reason code plus placeholder values. Placeholder values, already rounded for display (docs/01 §5.2 'Placeholders', over the best window). temp, mph, pct, n are integers; ft has at most one decimal; in is a two-decimal string; time is a short local hour such as '3 pm'. weatherCode and cloudPct are carried so the copy layer can pick the word variant; variant (an index into the deck's id list) wins when present."
-    },
-    "positive": {
-      "description": "D3 (pending Dr. Lee; SCORE_CONFIG.reasons.positiveOnGoodDays, default false). Codes are the keys of POSITIVE_REASON_IDS in the copy deck.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "code"
-      ],
-      "properties": {
-        "code": {
-          "enum": [
             "dry",
             "sunny_sky",
             "comfortable",
             "light_wind",
             "calm_waves",
-            "warm_water"
+            "warm_water",
+            "no_beach_window",
+            "data_unavailable"
           ]
         },
-        "temp": {
-          "$ref": "#/$defs/p_temp"
+        "copyId": {
+          "type": "string",
+          "pattern": "^(reason|status)\\.[a-z0-9.]+$",
+          "description": "Copy-deck id (public/js/copy/copy-deck.js STRINGS). The data layer picks the variant from score-config.js bands, so band edges live in ONE place; the UI renders t(copyId, params) and never re-derives it."
         },
-        "mph": {
-          "$ref": "#/$defs/p_mph"
+        "params": {
+          "$ref": "#/$defs/params"
         },
-        "ft": {
-          "$ref": "#/$defs/p_ft"
+        "avgPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Mean penalty over the best window (ordering/debug only, never shown)"
         }
       }
     },
@@ -129,11 +130,15 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "code"
+        "code",
+        "copyId",
+        "params"
       ],
+      "description": "Advice, never scored. lightning pairs with thunderstorms/thunder_wait (docs/01 §5.2).",
       "properties": {
         "code": {
           "enum": [
+            "lightning",
             "uv_moderate",
             "uv_high",
             "uv_very_high",
@@ -143,107 +148,50 @@
             "marine_partial"
           ]
         },
-        "n": {
-          "$ref": "#/$defs/p_n"
+        "copyId": {
+          "type": "string",
+          "pattern": "^advice\\.[a-z0-9.]+$",
+          "description": "Copy-deck id (public/js/copy/copy-deck.js STRINGS). The data layer picks the variant from score-config.js bands, so band edges live in ONE place; the UI renders t(copyId, params) and never re-derives it."
         },
-        "uv": {
-          "$ref": "#/$defs/p_uv"
+        "params": {
+          "$ref": "#/$defs/params"
+        },
+        "avgPoints": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Mean penalty over the best window (ordering/debug only, never shown)"
         }
       }
     },
-    "nullableNumber": {
-      "type": [
-        "number",
-        "null"
-      ]
-    },
-    "p_avgPoints": {
-      "type": "number",
-      "minimum": 0
-    },
-    "p_hours": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 3
-    },
-    "p_at": {
-      "$ref": "#/$defs/localHour"
-    },
-    "p_time": {
+    "hhmm": {
       "type": "string",
-      "pattern": "^(1[0-2]|[1-9]) (am|pm)$"
-    },
-    "p_pct": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 100
-    },
-    "p_in": {
-      "type": "string",
-      "pattern": "^\\d{1,2}\\.\\d{2}$"
-    },
-    "p_temp": {
-      "type": "integer",
-      "minimum": -40,
-      "maximum": 140
-    },
-    "p_mph": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 200
-    },
-    "p_ft": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 60
-    },
-    "p_n": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 20
-    },
-    "p_uv": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 20
-    },
-    "p_weatherCode": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 99
-    },
-    "p_cloudPct": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 100
-    },
-    "p_variant": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 5
+      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
     }
   },
   "properties": {
     "date": {
       "type": "string",
       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
-      "description": "Local date, America/New_York"
+      "description": "Beach-local date, America/New_York"
     },
     "dayIndex": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 7,
+      "maximum": 15,
       "description": "0 = today"
     },
+    "isToday": {
+      "type": "boolean"
+    },
     "verdict": {
-      "description": "Key, not display text. null = no verdict (window over, or no usable hour).",
       "enum": [
         "great",
         "good",
         "fair",
         "skip",
         null
-      ]
+      ],
+      "description": "Key, not display text. null = no verdict (window over, or no usable hour)"
     },
     "score": {
       "type": [
@@ -252,6 +200,15 @@
       ],
       "minimum": 0,
       "maximum": 100
+    },
+    "rawScore": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Optional: score before any cap"
     },
     "bestWindow": {
       "oneOf": [
@@ -268,10 +225,10 @@
           ],
           "properties": {
             "start": {
-              "$ref": "#/$defs/localHour"
+              "$ref": "#/$defs/hhmm"
             },
             "end": {
-              "$ref": "#/$defs/localHour"
+              "$ref": "#/$defs/hhmm"
             },
             "hours": {
               "type": "integer",
@@ -287,20 +244,11 @@
       "maxItems": 4,
       "items": {
         "$ref": "#/$defs/reason"
-      },
-      "description": "Most important first (docs/01 §5.2)"
-    },
-    "positives": {
-      "type": "array",
-      "maxItems": 4,
-      "items": {
-        "$ref": "#/$defs/positive"
-      },
-      "description": "Always present; empty unless D3 is switched on"
+      }
     },
     "advice": {
       "type": "array",
-      "maxItems": 6,
+      "maxItems": 8,
       "items": {
         "$ref": "#/$defs/advice"
       }
@@ -315,96 +263,190 @@
       "description": "docs/01 §5.3; outlook from dayIndex 3 (day 4)"
     },
     "seaTempMeanF": {
-      "$ref": "#/$defs/nullableNumber",
-      "description": "Mean hourly SST over the best window, degF"
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "wavesMaxFt": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "Optional: max offshore wave height in the best window"
+    },
+    "marineAvailable": {
+      "type": "boolean",
+      "description": "Optional; the advice marine_missing / marine_partial is what the UI shows"
     },
     "numbers": {
-      "description": "Key numbers for the Today card (docs/01 §1), over the best window (whole beach window when there is none). null = not available; the UI then says 'Waves unavailable' etc., never 0.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "feelsLikeF",
-        "windMph",
-        "gustMph",
-        "rainChancePct",
-        "waveFtMax",
-        "waterTempF",
-        "uvMax",
-        "sunrise",
-        "sunset"
-      ],
-      "properties": {
-        "feelsLikeF": {
-          "type": [
-            "integer",
-            "null"
-          ]
+      "description": "Key numbers for the Today card (docs/01 §1), over the best window. null when there is no verdict. A null field means \"unavailable\": the UI says so, never shows 0.",
+      "oneOf": [
+        {
+          "type": "null"
         },
-        "windMph": {
-          "type": [
-            "integer",
-            "null"
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "feelsF",
+            "tempF",
+            "windMph",
+            "gustMph",
+            "rainChancePct",
+            "rainIn",
+            "uv",
+            "cloudPct",
+            "waveFt",
+            "seaTempF"
           ],
-          "minimum": 0
-        },
-        "gustMph": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "minimum": 0
-        },
-        "rainChancePct": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "minimum": 0,
-          "maximum": 100
-        },
-        "waveFtMax": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "minimum": 0,
-          "description": "Label it 'offshore waves'"
-        },
-        "waterTempF": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "description": "Equals seaTempMeanF"
-        },
-        "uvMax": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "minimum": 0
-        },
-        "sunrise": {
-          "oneOf": [
-            {
-              "type": "null"
+          "properties": {
+            "feelsF": {
+              "type": [
+                "number",
+                "null"
+              ]
             },
-            {
-              "$ref": "#/$defs/localTime"
-            }
-          ]
-        },
-        "sunset": {
-          "oneOf": [
-            {
-              "type": "null"
+            "tempF": {
+              "type": [
+                "number",
+                "null"
+              ]
             },
-            {
-              "$ref": "#/$defs/localTime"
+            "windMph": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "gustMph": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "rainChancePct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "rainIn": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "uv": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "cloudPct": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "waveFt": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Label \"offshore waves\""
+            },
+            "seaTempF": {
+              "type": [
+                "number",
+                "null"
+              ]
             }
-          ]
+          }
+        }
+      ]
+    },
+    "hourScores": {
+      "type": "array",
+      "maxItems": 24,
+      "description": "Optional: per-hour scores in the beach window (for an hour strip)",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "time",
+          "score",
+          "hardStops"
+        ],
+        "properties": {
+          "time": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:00$"
+          },
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100
+          },
+          "hardStops": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "thunderstorms",
+                "thunder_wait",
+                "too_windy",
+                "dangerous_heat"
+              ]
+            }
+          }
         }
       }
+    },
+    "beachWindow": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "end"
+          ],
+          "properties": {
+            "start": {
+              "$ref": "#/$defs/hhmm"
+            },
+            "end": {
+              "$ref": "#/$defs/hhmm"
+            }
+          }
+        }
+      ]
+    },
+    "sunrise": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/hhmm"
+        }
+      ]
+    },
+    "sunset": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/hhmm"
+        }
+      ]
     }
   },
   "allOf": [
@@ -429,6 +471,7 @@
       }
     },
     {
+      "description": "Good is [65,80), except a short window capped from Great may keep a higher score (docs/01 §5.2 caps the verdict).",
       "if": {
         "required": [
           "verdict"
@@ -443,10 +486,38 @@
         "properties": {
           "score": {
             "type": "integer",
-            "minimum": 65,
-            "maximum": 79
+            "minimum": 65
           }
-        }
+        },
+        "anyOf": [
+          {
+            "properties": {
+              "score": {
+                "type": "integer",
+                "maximum": 79
+              }
+            }
+          },
+          {
+            "required": [
+              "bestWindow"
+            ],
+            "properties": {
+              "bestWindow": {
+                "type": "object",
+                "required": [
+                  "hours"
+                ],
+                "properties": {
+                  "hours": {
+                    "type": "integer",
+                    "maximum": 2
+                  }
+                }
+              }
+            }
+          }
+        ]
       }
     },
     {
@@ -491,6 +562,7 @@
       }
     },
     {
+      "description": "No verdict: no score, no window, exactly one status reason.",
       "if": {
         "required": [
           "verdict"
@@ -529,6 +601,44 @@
       }
     },
     {
+      "description": "Status codes appear only when there is no verdict.",
+      "if": {
+        "required": [
+          "verdict"
+        ],
+        "properties": {
+          "verdict": {
+            "enum": [
+              "great",
+              "good",
+              "fair",
+              "skip"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "not": {
+                    "enum": [
+                      "no_beach_window",
+                      "data_unavailable"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "description": "A window shorter than 3 hours never earns Great and always says so (docs/01 §5.2).",
       "if": {
         "required": [
@@ -542,6 +652,7 @@
             ],
             "properties": {
               "hours": {
+                "type": "integer",
                 "maximum": 2
               }
             }
@@ -582,6 +693,7 @@
         ],
         "properties": {
           "dayIndex": {
+            "type": "integer",
             "minimum": 3
           }
         }

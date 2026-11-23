@@ -2,12 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://beachday.example/schemas/chat-request.schema.json",
   "title": "ChatRequest",
-  "description": "Body of POST /api/chat (console/api.js -> chat.mts). Plain-text turns only: the browser never sends tool_use, tool_result or thinking blocks (agent-console-security). Alternating user/assistant, first and last are user (no prefill). Size rules the schema cannot express are enforced in code BEFORE JSON.parse: whole body <= 64 KB (secure-by-design), last user message <= SETTINGS.perTurn.maxUserMessageBytes (32 KB, UTF-8 bytes). The client drops the oldest user/assistant pairs to stay under 64 KB. Contract: docs/design/build-contracts.md §5.",
+  "description": "Body of POST /api/chat (console/api.js -> chat.mts). Plain-text turns only: the browser never sends tool_use, tool_result or thinking blocks (agent-console-security). Turn order (user first, alternating, user last: no prefill) is checked in code, not here. Size rules the schema cannot express are enforced in code BEFORE JSON.parse: whole body <= 64 KB (secure-by-design), last user message <= SETTINGS.perTurn.maxUserMessageBytes (32 KB, UTF-8 bytes). The client drops the oldest user/assistant pairs to stay under 64 KB. Contract: docs/design/build-contracts.md §5.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["agent", "messages"],
+  "required": [
+    "agent",
+    "messages"
+  ],
   "properties": {
-    "agent": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+    "agent": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$"
+    },
     "messages": {
       "type": "array",
       "minItems": 1,
@@ -15,13 +21,23 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["role", "content"],
+        "required": [
+          "role",
+          "content"
+        ],
         "properties": {
-          "role": { "enum": ["user", "assistant"] },
-          "content": { "type": "string", "minLength": 1 }
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1
+          }
         }
-      },
-      "prefixItems": [ { "type": "object", "properties": { "role": { "const": "user" } } } ]
+      }
     }
   }
 }

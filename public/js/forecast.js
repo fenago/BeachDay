@@ -120,11 +120,11 @@ export async function loadForecast(beachId, opts = {}) {
   const online = opts.online ?? (typeof navigator !== 'undefined' && 'onLine' in navigator ? navigator.onLine : true);
 
   const entry = readEntry(beachId, storage);
-  if (entry && !shouldRefetch(entry, { now, online, userForced })) return toForecast(beach, entry, 'cache', now);
   if (!online) {
     if (entry) return toForecast(beach, entry, 'cache', now, { error: 'offline' });
     throw new OpenMeteoError('offline', 'Offline and no saved forecast');
   }
+  if (entry && !shouldRefetch(entry, { now, online, userForced })) return toForecast(beach, entry, 'cache', now);
 
   try {
     let p = inflight.get(beachId);
