@@ -127,7 +127,3 @@
 .diff__line { white-space: pre-wrap; overflow-wrap: anywhere; min-inline-size: 0; }
 /* Hidden or bidi Unicode shown as a visible chip, e.g. <span class="diff__hidden">⟨U+202E⟩</span>. --text on --banner-warn-bg passes 4.5:1 in both schemes. */
 .diff__hidden { display: inline-block; padding: 0 0.35em; margin-inline: 0.15em; border: 1.5px solid var(--banner-warn-icon); border-radius: var(--radius-xs); background: var(--banner-warn-bg); color: var(--text); font-family: var(--font-mono); font-size: 0.85em; font-weight: 700; white-space: nowrap; }
-
-/* Remy-B W2F2: the Console hosts carry .console (display: grid), which overrides the [hidden] attribute.
-   Hidden must win, or S7 shows the app host's h1 next to "Sign in to Agents". */
-.console[hidden] { display: none; }
