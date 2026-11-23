@@ -96,9 +96,19 @@ test('no profile row -> 403', async () => {
 test('profile lookup fails (500) -> 403, fails closed', async () => {
   assert.equal((await run(mockFetch({ restStatus: 500 }), sign(projectKey, goodClaims()))).reason, 'profile_lookup_failed');
 });
-test('JWKS unreachable -> 401, fails closed', async () => {
+test('JWKS unreachable on a cold instance -> 401, fails closed', async () => {
+  // A different project URL = a different auth-js JWKS cache slot (the cache is module-wide, keyed by URL).
+  const cold = 'https://coldstart.supabase.co';
   const f = async () => { throw new TypeError('network down'); };
-  assert.equal((await run(f, sign(projectKey, goodClaims()))).status, 401);
+  const t = sign(projectKey, goodClaims({ iss: `${cold}/auth/v1` }));
+  const r = await makeRequireSuperAdmin({ url: cold, publishableKey: KEY, fetchImpl: f })(req(t));
+  assert.deepEqual([r.ok, r.status], [false, 401]);
+});
+test('OBSERVED: auth-js keeps the JWKS in a module-wide cache, so a warm instance still verifies when the network drops', async () => {
+  // Earlier tests warmed the cache for URL_. The JWKS fetch is never attempted here; only the profile lookup fails.
+  const f = async () => { throw new TypeError('network down'); };
+  const r = await run(f, sign(projectKey, goodClaims()));
+  assert.equal(r.reason, 'profile_lookup_failed'); // got past getClaims, then failed closed at the role check
 });
 test('super_admin with valid token -> ok', async () => {
   const r = await run(mockFetch(), sign(projectKey, goodClaims()));

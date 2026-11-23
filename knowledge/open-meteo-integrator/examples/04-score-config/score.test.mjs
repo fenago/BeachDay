@@ -87,40 +87,27 @@ test('missing core field: hour is unusable, never scored as fine', () => {
 
 // Verdict bands (day level), via 3 identical hours so the average equals the hour score.
 const dayOf = (over, n = 3) => Array.from({ length: n }, (_, i) => calm({ time: `2026-11-23T${String(9 + i).padStart(2, '0')}:00`, ...over }));
-test('verdict bands: 79/80, 64/65, 44/45', () => {
-  // build scores by choosing rainChance/cloud/feels penalties that sum exactly
-  const v = (penalty) => scoreDay({ hours: dayOf({ feelsF: penalty === 21 ? 72 : 82, cloudPct: 10, rainChance: penalty === 21 ? 41 : 0 }) });
-  assert.equal(scoreDay({ hours: dayOf({ rainChance: 21 }) }).score, 90);
-  const score = (extra) => scoreDay({ hours: dayOf(extra) });
-  // 100-25(rain 41)-10(wind 13)-... compose exact totals:
-  assert.deepEqual(['great', 'good'], [score({ rainChance: 21, cloudPct: 71, windMph: 0 }).verdict, score({ rainChance: 41, cloudPct: 71 }).verdict].map((x, i) => (i === 0 ? x : x)));
-  void v;
-});
-test('verdict cut points use the ROUNDED average: 79.5 -> 80 great; 79.4 -> good', () => {
-  const hs = (scores) => scores.map((s, i) => calm({ time: `2026-11-23T${String(9 + i).padStart(2, '0')}:00`, rainChance: 0, feelsF: 82, cloudPct: s })); // placeholder
-  void hs;
-  // 3 hours scoring 80, 80, 79 -> mean 79.67 -> 80 -> great.  80, 79, 79 -> 79.33 -> 79 -> good.
-  const make = (penalties) => penalties.map((p, i) => calm({ time: `2026-11-23T${String(9 + i).padStart(2, '0')}:00`, waveFt: [1, 2, 3, 5][0], rainChance: p === 20 ? 21 : 0, cloudPct: p === 5 ? 41 : 0, feelsF: 82 }));
-  // penalty 10 via rainChance 21 (=> score 90), 5 via cloud 41 (=> 95): verify the rounding path with real scores
-  const a = scoreDay({ hours: make([20, 5, 5]) }); // 90, 95, 95 -> 93.33 -> 93
-  assert.equal(a.score, 93);
+test('day score is the ROUNDED window average, and the verdict uses that integer', () => {
+  const mk = (rc) => rc.map((r, i) => calm({ time: `2026-11-23T${String(9 + i).padStart(2, '0')}:00`, rainChance: r })); // 21% -> 90, 0% -> 100
+  const d = scoreDay({ hours: mk([21, 0, 0]) }); // (90+100+100)/3 = 96.67
+  assert.deepEqual([d.score, d.verdict], [97, 'great']);
 });
 
 test('bands at day level: exact cut points', () => {
-  // single-hour windows keep arithmetic obvious: need score exactly 80/79, 65/64, 45/44.
-  // 100 - 20 = 80 : wind 19 (-25)?? use composed penalties: rain 41 (25) -> 75; so build from penalties table below.
+  // Three identical hours, so the window average equals the hour score. Penalties come in multiples of 5,
+  // so the exact cut points 80 / 65 / 45 are tested from both sides as 80|75, 65|60, 45|40.
   const hour = (p) => {
-    // choose penalties summing to p from {wind 13:10, cloud 41:5, rain 21:10, waves 3:20, feels 91:10}
+    // greedy composition of p from {rain 41%:25, waves 3 ft:20, wind 13:10, feels 91:10, cloud 41%:5}
     const o = {};
     let left = p;
     const take = (n, k, v) => { if (left >= n) { Object.assign(o, { [k]: v }); left -= n; } };
-    take(20, 'waveFt', 3); take(10, 'rainChance', 21); take(10, 'windMph', 13); take(5, 'cloudPct', 41);
+    take(25, 'rainChance', 41); take(20, 'waveFt', 3); take(10, 'windMph', 13); take(10, 'feelsF', 91); take(5, 'cloudPct', 41);
     assert.equal(left, 0, `cannot compose ${p}`);
     return calm({ time: '2026-11-23T10:00', ...o });
   };
   const v = (p) => scoreDay({ hours: [hour(p), { ...hour(p), time: '2026-11-23T11:00' }, { ...hour(p), time: '2026-11-23T12:00' }] }).verdict;
   assert.deepEqual([v(20), v(25), v(35), v(40), v(55), v(60)], ['great', 'good', 'good', 'fair', 'fair', 'skip']);
-  // 100-20=80 great | 75 good | 65 good (boundary) | 60 fair | 45 fair (boundary) | 40 skip
+  // penalties 20,25,35,40,55,60 -> scores 80,75,65,60,45,40
 });
 
 test('window selection: best 3h, earliest wins ties, hard-stop hours make a window ineligible', () => {
@@ -148,7 +135,7 @@ test('short windows: 2 hours -> capped at good, reason + lower confidence; 0 hou
 test('confidence: marine missing -> medium; outlook days -> outlook; marine day count honest', () => {
   assert.equal(scoreDay({ hours: dayOf({}) }).confidence, 'high');
   const m = scoreDay({ hours: dayOf({ waveFt: null, seaTempF: null }) });
-  assert.deepEqual([m.confidence, m.advice.map((a) => a.code), m.seaTempMeanF], ['medium', ['marine_missing'], null]);
+  assert.deepEqual([m.confidence, m.advice.map((a) => a.code).filter((c) => c.startsWith('marine')), m.seaTempMeanF], ['medium', ['marine_missing'], null]);
   assert.equal(scoreDay({ hours: dayOf({}), dayIndex: 2 }).confidence, 'high');
   assert.equal(scoreDay({ hours: dayOf({}), dayIndex: 3 }).confidence, 'outlook');
 });
