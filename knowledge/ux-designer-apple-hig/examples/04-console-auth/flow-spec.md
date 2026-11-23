@@ -7,7 +7,7 @@ All strings live in `../02-copy-deck/copy-deck.json` (ids in brackets). Mechanis
 - **The beach app never asks for an account.** Accounts exist only for `/console`. HIG "delay sign-in as long as possible" is met by keeping Today and Beaches public.
 - **Name the method on the button.** "Sign In", "Continue with Google", "Confirm with Password". No bare "OK" or "Submit". Say "password", never "passcode" (HIG).
 - **Never reveal whether an email has an account.** Sign-up, reset and sign-in failures use the same words for known and unknown emails.
-- **Never reveal roles.** The no-access screen says the account can't use the Console. It does not say "you are role user".
+- **Never reveal roles.** The no-access screen says the account can't use Agents (heading pending Dr. Lee). It does not say "you are role user".
 - **Nothing is lost.** Sign-in return, session expiry and the Google redirect all bring the person back to the same route (`#/console/...`) with the chat draft and the proposal intact.
 - One question and one prominent button per screen. 44 px targets. Hash routes. Headings: one `h1` per screen.
 
@@ -125,7 +125,7 @@ S4                                       S5
 ```
 - After S4 submit, always show [auth.forgot.sent] "If an account uses {email}, a reset link is on its way." as `role="status"` on the same screen, with Back to Sign In. Same words whether or not the account exists.
 - S5 success: the person is signed in (Supabase recovery session). Status [auth.reset.done] "Password changed. You're signed in." then go to `#/console`. If they open the Agents page without access, S6 follows there.
-- **Route:** the reset link is a query string, `/console?token_hash=…&type=recovery`, never a `#` fragment and never `#/console/reset`. The one-button screen from S3b comes first (scanners again); S5 opens after the tap. Hash routes stay for in-app screens only.
+- **Route:** the reset link is a query string, `/console?token_hash=…&type=recovery`, never a `#` fragment and never `#/console/reset`. The reset screen is reached via `/console?token_hash=…&type=recovery`. The one-button screen from S3b comes first (scanners again); S5 opens after the tap. Hash routes stay for in-app screens only.
 - Expired link: [auth.reset.expired] and Send Reset Link.
 - A Google-only account that asks for a reset gets the same S4 message. We don't say "this account uses Google" because that would reveal that the account exists.
 
@@ -139,7 +139,7 @@ S4                                       S5
 Sign-up is open (Dr. Lee, 2026-11-23): anyone can create an account and use Beach Day. Only the Agents page, chat and Approve say no access, and only S6 says it. Sign-up, sign-in and reset never hint at it, and S6 appears only when the person opens an Agents route.
 ```
 ┌──────────────────────────────────────┐
-│ This account can't use the Console   │  h1
+│ This account can't use Agents        │  h1 (pending Dr. Lee)
 │ Signed in as name@example.com. Ask   │
 │ the project lead to turn on access.  │
 │ Signed in with a different account?  │
@@ -152,7 +152,7 @@ Sign-up is open (Dr. Lee, 2026-11-23): anyone can create an account and use Beac
 - Not an alert dialog (nothing to decide, and HIG says avoid alerts for information); it is a screen. Focus goes to the h1; the h1 text is announced on arrival.
 - The page does not mention roles, the allow-list, agents or what the Console does. The browser makes no further Console calls from this screen.
 - The email shown is the one the person signed in with, so they can spot a wrong account.
-- **Heading wording, pending Dr. Lee:** the current text keeps "This account can't use the Console" ([console.noaccess.title]). Because sign-up is open and only Agents, chat and Approve refuse, the alternative is "This account can't use Agents". Keep the current text until he rules; it is a one-id change.
+- **Heading wording, pending Dr. Lee:** the heading is "This account can't use Agents" ([console.noaccess.title]), because sign-up is open and only Agents, chat and Approve refuse. The earlier "This account can't use the Console" is the fallback if he rules for it; it is a one-id change.
 
 ### S7 Session ended
 - Trigger: a `401` whose `error.code` is **not** `step_up_required`, or a failed token refresh. The client **branches on `error.code`**, never on the bare status: `401 step_up_required` opens S8, any other `401` is S7. A `401` with no code is S7.
@@ -191,7 +191,7 @@ Mechanism (security-engineer, docs/04 §4.2): the server accepts a password or G
 - **Password path:** typing the password and pressing Approve and Deploy signs in again (the client calls `signInWithPassword`), then sends Approve with the new token. One sheet, one tap. While it runs the button reads "Committing…". Same field rules as sign-in: paste, password managers, no CAPTCHA, never prefilled.
 - **Google path:** the line [console.stepup.google.note] "After Google, you'll return here. Choose Approve and Deploy again." sits under the button, so nobody expects the redirect to approve. The page leaves for Google (no popup) and returns to the same proposal with the sheet reopened. Status [console.stepup.done] "Confirmed. Nothing is approved yet. Choose Approve and Deploy within 10 minutes." and focus on Approve and Deploy. One more tap approves. No URL parameter ever approves. Copy never says "click" (tap and choose work on phone and desktop).
 - **`401 step_up_required`** (the 10 minutes ran out, the server disagreed, or the session is below `aal2`): the sheet reopens or stays open, back to unconfirmed, with [console.stepup.required] "Confirm it's you to approve. Your last sign-in was over 10 minutes ago." (`role="status"`). The proposal stays pending. Focus goes to the password field, or the Google button for a Google-only account. This is not S7: the session is fine; only the fresh proof is missing.
-- **Code field** [auth.totp.label] "Authenticator code" with help [auth.totp.help]: `inputmode="numeric"`, `autocomplete="one-time-code"`, `maxlength=6`, `pattern="[0-9]*"`, paste allowed, never prefilled. It sits last in the fieldset, so the person types the password (or returns from Google), then the code, then taps Approve and Deploy. One tap still approves; the code is checked with the password (or after Google), and a wrong code does not reopen the password. Empty: [auth.error.totp.empty]. Wrong: [auth.error.totp] "That code didn't match. Try again.", inline, `role="alert"`, `aria-invalid`, focus stays in the field with the text selected. After a Google return, focus goes to the code field (then Approve and Deploy); [console.stepup.done] still says nothing is approved yet.
+- **Code field** [auth.totp.label] "Authenticator code" with help [auth.totp.help]: `inputmode="numeric"`, `autocomplete="one-time-code"`, a **single input** (never six separate boxes: they break paste and autofill and fail WCAG 3.3.8), `maxlength=6`, `pattern="[0-9]*"`, paste allowed, never prefilled. It sits last in the fieldset, so the person types the password (or returns from Google), then the code, then taps Approve and Deploy. One tap still approves; the code is checked with the password (or after Google), and a wrong code does not reopen the password. Empty: [auth.error.totp.empty]. Wrong: [auth.error.totp] "That code didn't match. Try again.", inline, `role="alert"`, `aria-invalid`, focus stays in the field with the text selected. After a Google return, focus goes to the code field (then Approve and Deploy); [console.stepup.done] still says nothing is approved yet.
 - **WCAG 3.3.8:** a 6-digit code from an app is transcribed, not remembered. Paste, autofill and `one-time-code` are what make that pass; the same sheet always offers a password or Google path first. **[UNVERIFIED]** whether a TOTP step needs a further alternative under 3.3.8 (Cass and Vera to confirm; a passkey or recovery path would be the answer).
 - **Two-step required but not set up:** if Approve needs `aal2` and the account has no factor, the sheet shows [console.totp.required] "Approve needs an authenticator app. Set one up first." with a Set Up Now button to S12 instead of the fields. **[UNVERIFIED]** whether Dr. Lee wants two-step mandatory for `super_admin`; until decided it applies only when a factor exists.
 - **Google-only account:** no password field and no "Or". Only the Google button.

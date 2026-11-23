@@ -52,5 +52,5 @@ Retrieved: 2026-11-23 (Writing page change log: "December 16, 2025 Clarified gui
 - **The safety line is fixed text, never shortened:** "Beach Day is not a safety service — check NWS rip-current risk and posted beach flags." The link text is "NWS rip-current risk" (descriptive, not "click here").
 - **Account copy never reveals whether an email has an account:** sign-in failures say "Email or password didn't match", reset says "If an account uses {email}, a reset link is on its way." Never say which of the two was wrong.
 - **Name the method** on auth buttons (HIG Managing accounts). "Sign In" in the UI; "log in" is an engineering word and doesn't appear on screen.
-- **No-access copy** says the account can't use the Console and who to ask ("the project lead"), not a person's name and not a role name.
+- **No-access copy** says the account can't use Agents (heading pending Dr. Lee) and who to ask ("the project lead"), not a person's name and not a role name.
 - Copy changes to verdicts or reasons need open-meteo-integrator review (agent rules). `examples/02-copy-deck` holds the deck and a length and readability checker.

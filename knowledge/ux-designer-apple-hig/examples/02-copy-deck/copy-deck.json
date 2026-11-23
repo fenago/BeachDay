@@ -1,5 +1,5 @@
 {
-  "$comment": "Beach Day copy deck (example). {placeholders} are filled at runtime. Verdict/reason wording changes need open-meteo-integrator review. Checked by check-copy.mjs. Reason ids map to Dewey's reason codes (docs/01 5.2); auth and Console ids are in the console group. Wave 3b: TOTP, Confirm Email, Sign Out Everywhere and Remy copy added. 403 heading alternative \"This account can't use Agents\" is pending Dr. Lee; console.noaccess.title keeps \"Console\" until he rules.",
+  "$comment": "Beach Day copy deck (example). {placeholders} are filled at runtime. Verdict/reason wording changes need open-meteo-integrator review. Checked by check-copy.mjs. Reason ids map to Dewey's reason codes (docs/01 5.2); auth and Console ids are in the console group. Wave 3b: TOTP, Confirm Email, Sign Out Everywhere and Remy copy added. 403 heading \"This account can't use Agents\" is pending Dr. Lee; console.noaccess.title now reads \"Agents\" (pending Dr. Lee; fallback \"This account can't use the Console\").",
   "rules": {
     "limits": {
       "verdict": 24,
@@ -541,7 +541,7 @@
     },
     {
       "id": "console.noaccess.title",
-      "text": "This account can't use the Console"
+      "text": "This account can't use Agents"
     },
     {
       "id": "console.noaccess.body",
