@@ -21,20 +21,9 @@
       "pattern": "^p_[0-9A-Z]{26}$"
     },
     "agent": {
-      "enum": [
-        "orchestrator",
-        "agent-builder",
-        "software-architect",
-        "open-meteo-integrator",
-        "pwa-mobile-engineer",
-        "security-engineer",
-        "agent-console-engineer",
-        "ui-designer-apple-liquid-glass",
-        "ux-designer-apple-hig",
-        "qa-engineer",
-        "netlify-engineer",
-        "supabase-auth-engineer"
-      ]
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$",
+      "description": "Agent name from agents.json (an enum here would break every time an agent is added)."
     },
     "status": {
       "enum": [
@@ -178,6 +167,12 @@
       "type": "string",
       "maxLength": 500,
       "description": "User-safe reason for failed/stale; never a token, header or stack"
+    },
+    "createdBy": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Supabase user id (sub) of the chat that proposed it. Optional for records written before W1."
     }
   },
   "allOf": [

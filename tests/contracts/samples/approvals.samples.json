@@ -1,45 +1,45 @@
 [
- {
-  "expect": "valid",
-  "why": "slot free now",
-  "data": {
-   "used31": 3,
-   "usedToday": 1,
-   "per31Days": 14,
-   "perDay": 5,
-   "retryAt": null
+  {
+    "expect": "valid",
+    "why": "slot free now",
+    "data": {
+      "used31": 3,
+      "usedToday": 1,
+      "per31Days": 14,
+      "perDay": 5,
+      "retryAt": null
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "at the daily cap: retryAt is next NY midnight",
+    "data": {
+      "used31": 7,
+      "usedToday": 5,
+      "per31Days": 14,
+      "perDay": 5,
+      "retryAt": "2026-11-24T05:00:00.000Z"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "per31Days is a positive integer from SETTINGS (D7); 0 or a string is a bug",
+    "data": {
+      "used31": 3,
+      "usedToday": 1,
+      "per31Days": 0,
+      "perDay": 5,
+      "retryAt": null
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "retryAt is required (null when free), never omitted",
+    "data": {
+      "used31": 3,
+      "usedToday": 1,
+      "per31Days": 14,
+      "perDay": 5
+    }
   }
- },
- {
-  "expect": "valid",
-  "why": "at the daily cap: retryAt is next NY midnight",
-  "data": {
-   "used31": 7,
-   "usedToday": 5,
-   "per31Days": 14,
-   "perDay": 5,
-   "retryAt": "2026-11-24T05:00:00.000Z"
-  }
- },
- {
-  "expect": "invalid",
-  "why": "per31Days must be the ADR-0008 constant 14",
-  "data": {
-   "used31": 3,
-   "usedToday": 1,
-   "per31Days": 20,
-   "perDay": 5,
-   "retryAt": null
-  }
- },
- {
-  "expect": "invalid",
-  "why": "retryAt is required (null when free), never omitted",
-  "data": {
-   "used31": 3,
-   "usedToday": 1,
-   "per31Days": 14,
-   "perDay": 5
-  }
- }
 ]

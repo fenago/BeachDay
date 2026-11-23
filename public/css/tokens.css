@@ -54,7 +54,7 @@
   --focus: #0b3a66;
   --danger: #b3261e;
   --on-danger: #ffffff;
-  --error-text: #a32019;
+  --error-text: #8c1a14;
 
   /* Verdicts: solid chip + on-colour text and icon. Same in both schemes. */
   --verdict-great: #1d7f46;
@@ -153,7 +153,7 @@
     --focus: #ffd166;
     --danger: #b3261e;
     --on-danger: #ffffff;
-    --error-text: #ffa8a0;
+    --error-text: #ffc7c1;
 
     --verdict-great: #1d7f46;
     --on-verdict-great: #ffffff;

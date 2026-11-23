@@ -1,17 +1,829 @@
 [
-  { "expect": "valid", "why": "great day, marine present",
-    "data": { "date": "2026-11-23", "verdict": "great", "score": 86, "bestWindow": { "start": "11:00", "end": "14:00" },
-      "reasons": ["Light wind", "Warm"], "advice": ["UV 5: sunscreen"], "confidence": "forecast", "marineAvailable": true } },
-  { "expect": "valid", "why": "outlook day with marine missing and the required reason",
-    "data": { "date": "2026-11-27", "verdict": "fair", "score": 52, "bestWindow": { "start": "10:00", "end": "13:00" },
-      "reasons": ["Showers likely", "Wave data unavailable"], "advice": [], "confidence": "outlook", "marineAvailable": false } },
-  { "expect": "invalid", "why": "verdict great but score 70 (band is 80-100)",
-    "data": { "date": "2026-11-23", "verdict": "great", "score": 70, "bestWindow": { "start": "11:00", "end": "14:00" },
-      "reasons": [], "advice": [], "confidence": "forecast", "marineAvailable": true } },
-  { "expect": "invalid", "why": "marine missing but no 'Wave data unavailable' reason (must say so, never guess)",
-    "data": { "date": "2026-11-23", "verdict": "good", "score": 70, "bestWindow": { "start": "11:00", "end": "14:00" },
-      "reasons": ["Breezy"], "advice": [], "confidence": "forecast", "marineAvailable": false } },
-  { "expect": "invalid", "why": "display text instead of verdict key, and 5 reasons",
-    "data": { "date": "2026-11-23", "verdict": "Great beach day", "score": 90, "bestWindow": { "start": "11:00", "end": "14:00" },
-      "reasons": ["a", "b", "c", "d", "e"], "advice": [], "confidence": "forecast", "marineAvailable": true } }
+  {
+    "expect": "valid",
+    "why": "great day, marine present, D3 off (positives empty)",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "wind",
+          "mph": 9,
+          "avgPoints": 0
+        },
+        {
+          "code": "water_temp",
+          "temp": 78
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "outlook day, marine missing: advice says so, numbers null (never 0)",
+    "data": {
+      "date": "2026-11-27",
+      "dayIndex": 4,
+      "verdict": "fair",
+      "score": 52,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "rain_chance",
+          "pct": 45,
+          "avgPoints": 8.2
+        },
+        {
+          "code": "rain_code",
+          "weatherCode": 80
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "marine_missing"
+        }
+      ],
+      "confidence": "outlook",
+      "seaTempMeanF": null,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": null,
+        "waterTempF": null,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "storm outside the window comes first with a display time",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "good",
+      "score": 71,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "storm_outside_window",
+          "at": "2026-11-23T15:00",
+          "time": "3 pm"
+        },
+        {
+          "code": "clouds",
+          "cloudPct": 55
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "short window: capped below great and says so",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "good",
+      "score": 88,
+      "bestWindow": {
+        "start": "2026-11-23T16:00",
+        "end": "2026-11-23T18:00",
+        "hours": 2
+      },
+      "reasons": [
+        {
+          "code": "short_window",
+          "hours": 2
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "medium",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "beach hours over: no verdict, one status reason",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": null,
+      "score": null,
+      "bestWindow": null,
+      "reasons": [
+        {
+          "code": "no_beach_window"
+        }
+      ],
+      "positives": [],
+      "advice": [],
+      "confidence": "low",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "skip with hard stops and no eligible window",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "skip",
+      "score": 20,
+      "bestWindow": null,
+      "reasons": [
+        {
+          "code": "thunderstorms"
+        },
+        {
+          "code": "thunder_wait"
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "valid",
+    "why": "D3 on: positives use the copy-deck POSITIVE_REASON_IDS keys",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "wind",
+          "mph": 9,
+          "avgPoints": 0
+        },
+        {
+          "code": "water_temp",
+          "temp": 78
+        }
+      ],
+      "positives": [
+        {
+          "code": "light_wind",
+          "mph": 9
+        },
+        {
+          "code": "warm_water",
+          "temp": 78
+        }
+      ],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "verdict great but score 70 (band is 80-100)",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 70,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "wind",
+          "mph": 9,
+          "avgPoints": 0
+        },
+        {
+          "code": "water_temp",
+          "temp": 78
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "reasons as display text instead of codes (UI owns wording)",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        "Light wind"
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "unknown reason code",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "sharks"
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "short window marked great",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T16:00",
+        "end": "2026-11-23T18:00",
+        "hours": 2
+      },
+      "reasons": [
+        {
+          "code": "short_window",
+          "hours": 2
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "short window without the short_window reason",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "good",
+      "score": 70,
+      "bestWindow": {
+        "start": "2026-11-23T16:00",
+        "end": "2026-11-23T17:00",
+        "hours": 1
+      },
+      "reasons": [
+        {
+          "code": "wind",
+          "mph": 9,
+          "avgPoints": 0
+        },
+        {
+          "code": "water_temp",
+          "temp": 78
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "no verdict but a score",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": null,
+      "score": 40,
+      "bestWindow": null,
+      "reasons": [
+        {
+          "code": "data_unavailable"
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "day 4 must be outlook",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 3,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "wind",
+          "mph": 9,
+          "avgPoints": 0
+        },
+        {
+          "code": "water_temp",
+          "temp": 78
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "unrounded placeholder: temp must be an integer",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "water_temp",
+          "temp": 78.37
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "rain amount must be a two-decimal string",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "rain_amount",
+          "in": 0.1
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "old score-config D3 code name (sunny_comfortable) is not a deck key",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "wind",
+          "mph": 9,
+          "avgPoints": 0
+        },
+        {
+          "code": "water_temp",
+          "temp": 78
+        }
+      ],
+      "positives": [
+        {
+          "code": "sunny_comfortable"
+        }
+      ],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      }
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "numbers missing (the Today card needs them)",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "wind",
+          "mph": 9,
+          "avgPoints": 0
+        },
+        {
+          "code": "water_temp",
+          "temp": 78
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "old contract field marineAvailable is gone (advice marine_missing replaces it)",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "verdict": "great",
+      "score": 86,
+      "bestWindow": {
+        "start": "2026-11-23T10:00",
+        "end": "2026-11-23T13:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "wind",
+          "mph": 9,
+          "avgPoints": 0
+        },
+        {
+          "code": "water_temp",
+          "temp": 78
+        }
+      ],
+      "positives": [],
+      "advice": [
+        {
+          "code": "uv_high",
+          "n": 6,
+          "uv": 6.2
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78.4,
+      "numbers": {
+        "feelsLikeF": 84,
+        "windMph": 9,
+        "gustMph": 15,
+        "rainChancePct": 10,
+        "waveFtMax": 1.6,
+        "waterTempF": 78.4,
+        "uvMax": 6.2,
+        "sunrise": "2026-11-23T06:44",
+        "sunset": "2026-11-23T17:30"
+      },
+      "marineAvailable": true
+    }
+  }
 ]

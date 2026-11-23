@@ -2,53 +2,597 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://beachday.example/schemas/day-verdict.schema.json",
   "title": "DayVerdict",
-  "description": "Output of scoreDay() for one beach and one local date (beach-day-scoring skill). The verdict is derived from the average score of the best 3-hour window, and the score/verdict bands are enforced below so the two can never disagree.",
+  "description": "One element of loadForecast(...).days in public/js/forecast.js (open-meteo-integrator) -> the beach UI (pwa-mobile-engineer), with copy from public/js/copy/copy-deck.js (ux-designer). It is scoreDay()'s output (docs/01 §5.2 'Output') plus date, dayIndex, positives and the key numbers. Reasons and advice are CODES with their placeholder values, never display text; the UI turns them into words with reasonText()/adviceText(). Contract: docs/design/build-contracts.md §3.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["date", "verdict", "score", "bestWindow", "reasons", "advice", "confidence", "marineAvailable"],
-  "properties": {
-    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Local date, America/New_York" },
-    "verdict": {
-      "description": "Key, not display text. Display text and colour token come from the UI: great='Great beach day', good='Good', fair='Fair — pick your hours', skip='Skip it'.",
-      "enum": ["great", "good", "fair", "skip"]
+  "required": [
+    "date",
+    "dayIndex",
+    "verdict",
+    "score",
+    "bestWindow",
+    "reasons",
+    "positives",
+    "advice",
+    "confidence",
+    "seaTempMeanF",
+    "numbers"
+  ],
+  "$defs": {
+    "localHour": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:00$"
     },
-    "score": { "type": "integer", "minimum": 0, "maximum": 100 },
-    "bestWindow": {
+    "localTime": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$"
+    },
+    "reason": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["start", "end"],
+      "required": [
+        "code"
+      ],
       "properties": {
-        "start": { "type": "string", "pattern": "^\\d{2}:00$" },
-        "end": { "type": "string", "pattern": "^\\d{2}:00$" }
+        "code": {
+          "description": "docs/01 §5.2 reason codes, plus the two status codes used when there is no verdict.",
+          "enum": [
+            "storm_outside_window",
+            "short_window",
+            "thunderstorms",
+            "thunder_wait",
+            "too_windy",
+            "dangerous_heat",
+            "rain_chance",
+            "rain_code",
+            "rain_amount",
+            "unusual_weather",
+            "storm_risk",
+            "clouds",
+            "feels_like",
+            "wind",
+            "waves",
+            "water_temp",
+            "no_beach_window",
+            "data_unavailable"
+          ]
+        },
+        "avgPoints": {
+          "$ref": "#/$defs/p_avgPoints"
+        },
+        "hours": {
+          "$ref": "#/$defs/p_hours"
+        },
+        "at": {
+          "$ref": "#/$defs/p_at"
+        },
+        "time": {
+          "$ref": "#/$defs/p_time"
+        },
+        "pct": {
+          "$ref": "#/$defs/p_pct"
+        },
+        "in": {
+          "$ref": "#/$defs/p_in"
+        },
+        "temp": {
+          "$ref": "#/$defs/p_temp"
+        },
+        "mph": {
+          "$ref": "#/$defs/p_mph"
+        },
+        "ft": {
+          "$ref": "#/$defs/p_ft"
+        },
+        "weatherCode": {
+          "$ref": "#/$defs/p_weatherCode"
+        },
+        "cloudPct": {
+          "$ref": "#/$defs/p_cloudPct"
+        },
+        "variant": {
+          "$ref": "#/$defs/p_variant"
+        }
+      },
+      "description": "Reason code plus placeholder values. Placeholder values, already rounded for display (docs/01 §5.2 'Placeholders', over the best window). temp, mph, pct, n are integers; ft has at most one decimal; in is a two-decimal string; time is a short local hour such as '3 pm'. weatherCode and cloudPct are carried so the copy layer can pick the word variant; variant (an index into the deck's id list) wins when present."
+    },
+    "positive": {
+      "description": "D3 (pending Dr. Lee; SCORE_CONFIG.reasons.positiveOnGoodDays, default false). Codes are the keys of POSITIVE_REASON_IDS in the copy deck.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "dry",
+            "sunny_sky",
+            "comfortable",
+            "light_wind",
+            "calm_waves",
+            "warm_water"
+          ]
+        },
+        "temp": {
+          "$ref": "#/$defs/p_temp"
+        },
+        "mph": {
+          "$ref": "#/$defs/p_mph"
+        },
+        "ft": {
+          "$ref": "#/$defs/p_ft"
+        }
       }
     },
+    "advice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "uv_moderate",
+            "uv_high",
+            "uv_very_high",
+            "uv_extreme",
+            "fog",
+            "marine_missing",
+            "marine_partial"
+          ]
+        },
+        "n": {
+          "$ref": "#/$defs/p_n"
+        },
+        "uv": {
+          "$ref": "#/$defs/p_uv"
+        }
+      }
+    },
+    "nullableNumber": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "p_avgPoints": {
+      "type": "number",
+      "minimum": 0
+    },
+    "p_hours": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "p_at": {
+      "$ref": "#/$defs/localHour"
+    },
+    "p_time": {
+      "type": "string",
+      "pattern": "^(1[0-2]|[1-9]) (am|pm)$"
+    },
+    "p_pct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "p_in": {
+      "type": "string",
+      "pattern": "^\\d{1,2}\\.\\d{2}$"
+    },
+    "p_temp": {
+      "type": "integer",
+      "minimum": -40,
+      "maximum": 140
+    },
+    "p_mph": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 200
+    },
+    "p_ft": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 60
+    },
+    "p_n": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 20
+    },
+    "p_uv": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 20
+    },
+    "p_weatherCode": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 99
+    },
+    "p_cloudPct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "p_variant": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    }
+  },
+  "properties": {
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "Local date, America/New_York"
+    },
+    "dayIndex": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 7,
+      "description": "0 = today"
+    },
+    "verdict": {
+      "description": "Key, not display text. null = no verdict (window over, or no usable hour).",
+      "enum": [
+        "great",
+        "good",
+        "fair",
+        "skip",
+        null
+      ]
+    },
+    "score": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 100
+    },
+    "bestWindow": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "end",
+            "hours"
+          ],
+          "properties": {
+            "start": {
+              "$ref": "#/$defs/localHour"
+            },
+            "end": {
+              "$ref": "#/$defs/localHour"
+            },
+            "hours": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3
+            }
+          }
+        }
+      ]
+    },
     "reasons": {
-      "description": "Top reasons, most important first (skill: top 3-4). Plain text, rendered with textContent.",
-      "type": "array", "maxItems": 4, "uniqueItems": true,
-      "items": { "type": "string", "minLength": 1, "maxLength": 60 }
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/reason"
+      },
+      "description": "Most important first (docs/01 §5.2)"
+    },
+    "positives": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/positive"
+      },
+      "description": "Always present; empty unless D3 is switched on"
     },
     "advice": {
-      "description": "Non-scoring advice such as UV ('sunscreen, shade 10 am–4 pm').",
-      "type": "array", "maxItems": 4,
-      "items": { "type": "string", "minLength": 1, "maxLength": 80 }
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "$ref": "#/$defs/advice"
+      }
     },
     "confidence": {
-      "description": "'outlook' for days 4 and later (skill). 'forecast' for days 1-3. The name 'forecast' is this contract's choice; the skill only names 'outlook'.",
-      "enum": ["forecast", "outlook"]
+      "enum": [
+        "high",
+        "medium",
+        "low",
+        "outlook"
+      ],
+      "description": "docs/01 §5.3; outlook from dayIndex 3 (day 4)"
     },
-    "marineAvailable": {
-      "description": "false when wave/water factors were skipped because Marine data was missing; a reason must then say so.",
-      "type": "boolean"
+    "seaTempMeanF": {
+      "$ref": "#/$defs/nullableNumber",
+      "description": "Mean hourly SST over the best window, degF"
+    },
+    "numbers": {
+      "description": "Key numbers for the Today card (docs/01 §1), over the best window (whole beach window when there is none). null = not available; the UI then says 'Waves unavailable' etc., never 0.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "feelsLikeF",
+        "windMph",
+        "gustMph",
+        "rainChancePct",
+        "waveFtMax",
+        "waterTempF",
+        "uvMax",
+        "sunrise",
+        "sunset"
+      ],
+      "properties": {
+        "feelsLikeF": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "windMph": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "gustMph": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "rainChancePct": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+        "waveFtMax": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Label it 'offshore waves'"
+        },
+        "waterTempF": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Equals seaTempMeanF"
+        },
+        "uvMax": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "sunrise": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/localTime"
+            }
+          ]
+        },
+        "sunset": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/localTime"
+            }
+          ]
+        }
+      }
     }
   },
   "allOf": [
-    { "if": { "properties": { "verdict": { "const": "great" } } }, "then": { "properties": { "score": { "type": "integer", "minimum": 80 } } } },
-    { "if": { "properties": { "verdict": { "const": "good" } } },  "then": { "properties": { "score": { "type": "integer", "minimum": 65, "maximum": 79 } } } },
-    { "if": { "properties": { "verdict": { "const": "fair" } } },  "then": { "properties": { "score": { "type": "integer", "minimum": 45, "maximum": 64 } } } },
-    { "if": { "properties": { "verdict": { "const": "skip" } } },  "then": { "properties": { "score": { "type": "integer", "maximum": 44 } } } },
     {
-      "if": { "properties": { "marineAvailable": { "const": false } } },
-      "then": { "properties": { "reasons": { "type": "array", "contains": { "const": "Wave data unavailable" } } } }
+      "if": {
+        "required": [
+          "verdict"
+        ],
+        "properties": {
+          "verdict": {
+            "const": "great"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "minimum": 80
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "verdict"
+        ],
+        "properties": {
+          "verdict": {
+            "const": "good"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "minimum": 65,
+            "maximum": 79
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "verdict"
+        ],
+        "properties": {
+          "verdict": {
+            "const": "fair"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "minimum": 45,
+            "maximum": 64
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "verdict"
+        ],
+        "properties": {
+          "verdict": {
+            "const": "skip"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "maximum": 44
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "verdict"
+        ],
+        "properties": {
+          "verdict": {
+            "const": null
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "score": {
+            "type": "null"
+          },
+          "bestWindow": {
+            "type": "null"
+          },
+          "reasons": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "enum": [
+                    "no_beach_window",
+                    "data_unavailable"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "A window shorter than 3 hours never earns Great and always says so (docs/01 §5.2).",
+      "if": {
+        "required": [
+          "bestWindow"
+        ],
+        "properties": {
+          "bestWindow": {
+            "type": "object",
+            "required": [
+              "hours"
+            ],
+            "properties": {
+              "hours": {
+                "maximum": 2
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "verdict": {
+            "enum": [
+              "good",
+              "fair",
+              "skip"
+            ]
+          },
+          "reasons": {
+            "type": "array",
+            "contains": {
+              "type": "object",
+              "required": [
+                "code"
+              ],
+              "properties": {
+                "code": {
+                  "const": "short_window"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "Outlook days are dayIndex >= 3.",
+      "if": {
+        "required": [
+          "dayIndex"
+        ],
+        "properties": {
+          "dayIndex": {
+            "minimum": 3
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "confidence": {
+            "const": "outlook"
+          }
+        }
+      }
     }
   ]
 }
