@@ -107,6 +107,8 @@ async function boot() {
       clear(appHost); // the hidden app host must not keep the last chat or proposal in the DOM
       chats.clear(); access = "unknown"; accountId = null;
       api.reset();
+      // A deliberate sign-out returns the next sign-in to the list, not to a chat whose transcript was just cleared.
+      if (location.hash !== "#/console") history.replaceState(history.state, "", "/console#/console");
       showAuth(notice);
     } });
   }
