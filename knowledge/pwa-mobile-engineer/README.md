@@ -17,6 +17,7 @@ Date: 2026-11-23. Notes come from MDN, web.dev, developer.chrome.com and webkit.
 | [examples/01-manifest-validator/](examples/01-manifest-validator/) | Valid Beach Day manifest + Node validator (install criteria, Beach Day rules, real PNG sizes) + icon generator; 5 tests | Before shipping any manifest/icon change; CI check |
 | [examples/02-service-worker/](examples/02-service-worker/) | Full `sw.js` + `app.js` update toast + Netlify-like server; Playwright proves registration, cache contents, 4 s timeout fallback, offline reload, `/api/*` never cached, v1→v2 update with one reload | Writing/reviewing `public/sw.js`; QA offline spec |
 | [examples/03-install-prompt/](examples/03-install-prompt/) | `beforeinstallprompt` controller + iOS hint detection (Safari/Chrome/in-app/iPadOS/standalone, 14-day snooze); 7 tests | Building install UX |
+| [examples/04-kill-switch/](examples/04-kill-switch/) | Emergency `kill-sw.js` shipped as `/sw.js`: no fetch handler, deletes every cache, unregisters, reloads clients; Playwright proves it replaces a bad SW (copied into `docs/runbooks/rollback.md`) | Rollback of a bad service worker; reviewing the runbook |
 
 ## Key facts (one line each)
 - Chromium install: name/short_name, 192+512 icons, start_url, installable display, no prefer_related_applications, HTTPS.

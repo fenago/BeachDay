@@ -11,6 +11,10 @@ The project lead is **Dr. Lee**, who makes the product decisions.
 3. **Approve:** commits straight to `main` as one atomic commit, and Netlify auto-deploys it.
 4. **Hosting plan:** Netlify Free (300 credits a month, 15 per production deploy).
 5. **GitHub access:** a fine-grained PAT for this repo only, with Contents read/write and no Workflows permission.
+6. **Supabase Auth (ADR-0006):** see item 1. Publishable key only; never the secret or `service_role` key.
+7. **Agent reads (ADR-0007):** `read_file` / `list_files` read GitHub `main`, pinned to one SHA per turn.
+8. **Approve cap (ADR-0008):** at most 14 per rolling 31 days and 5 per day, site-wide.
+9. **Proposed, not decided (ADR-0009):** a separate read-only `GITHUB_READ_TOKEN` for agent reads. Until Dr. Lee accepts it, ADR-0007 stands.
 
 Research and specs live in `docs/`. Start with `docs/README.md`.
 

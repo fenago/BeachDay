@@ -14,12 +14,13 @@ description: How any Beach Day agent proposes or makes code changes — small re
 
 ## In the deployed Agent Console
 - You have read tools (`read_file`, `list_files`) and **one** write tool, `propose_change`. You cannot commit.
-- Send **complete new file contents** for each changed file, plus a one-paragraph `summary` covering what, why and how it was tested.
+- Send **complete new file contents** for each changed file, plus a one-line `summary` (20–2000 characters, no line breaks, no `Beach-Day-Proposal` text) covering what and why; put test notes in your chat reply. `propose_change` rejects anything else with `is_error: true`, so rewrite and retry.
 - Only allow-listed paths are accepted. Deny wins.
   - **Allowed:** `public/**` (text types only), `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`.
   - **Denied:** `public/_headers`, `public/_redirects`, `public/sw.js` and every file it imports (`public/sw/**`), `public/vendor/**`, `public/generated/**`, `public/version.json`, `netlify/**`, `netlify.toml`, `.github/**`, `package.json`, `package-lock.json`, `scripts/**`, `**/.env*`, `.git/**`, `.gitmodules`, `.claude/settings*`, `**/*.pem`, `**/*.key`, and any binary or non-text file.
   - Open question for Dr. Lee: also deny `public/console.html` and `public/js/console/**` (security-engineer's recommendation). Until he rules, they are allowed.
 - Limits: at most 20 files and 200 KB per file, text files only.
+- `propose_change` creates or replaces whole files only. It **cannot delete** a file (docs/04 §6); deletions are a human change.
 - Never include secrets, tokens or keys in proposed content. Proposals are secret-scanned and rejected if they contain any.
 - Prefer **one proposal per logical change**. Each approval is one production deploy and costs Netlify credits.
 - If the user asks for a change to a denied path, explain that a human must make it outside the Console.

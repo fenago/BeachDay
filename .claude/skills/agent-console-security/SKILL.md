@@ -25,7 +25,7 @@ Approve calls `getUser(token)` and then requires all of these:
 On failure: **401 `step_up_required`**, and the proposal stays `pending`. A `getUser` outage (returned retryable error or throw) is **503**, never 401.
 - `reauthenticate()` is not a step-up. A fresh `totp` alone never passes, because a token thief could enrol their own factor.
 - Google step-up is a new `signInWithOAuth` redirect. After it, the user clicks Approve again; nothing is approved from a URL.
-- Approve stays disabled until the pre-launch tests on the real project pass (docs/04 §4.2 a–e).
+- Approve stays disabled until the pre-launch tests on the real project pass (docs/04 §4.2 a–g).
 
 ## Browser and tokens
 - The session lives in `localStorage`, on the **same origin as the beach app**. Any script on the site can read it, so the CSP is the defence.
@@ -43,7 +43,7 @@ Lives in `netlify/functions/lib/allowlist.mts`. Enforce it at proposal time **an
 - **Allow:** `public/**` with a text extension (`html, css, js, json, webmanifest, svg, txt, md`), `tests/**`, `docs/**`, `.claude/agents/*.md`, `.claude/skills/**/*.md`.
 - **Deny (deny wins):** `public/_headers`, `public/_redirects`, `public/sw.js`, `public/sw/**`, `public/vendor/**`, `public/generated/**`, `public/version.json`, `netlify/**`, `netlify.toml`, `.github/**`, `package.json`, `package-lock.json`, `scripts/**`, `**/.env*`, `.git/**`, `.gitmodules`, `.claude/settings*`, `**/*.pem`, `**/*.key`.
 - **Open for Dr. Lee:** also deny `public/console.html` and `public/js/console/**` (security-engineer's recommendation). Until he rules, they are allowed with a warning.
-- **Validate the exact string sent to GitHub.** Use a character allow-list `[A-Za-z0-9._-/]`. Reject `..`, `.`, empty segments, a leading `/` and trailing dots. Deny is case-insensitive (`Netlify.toml`, `public/_Headers`); allow is exact-case.
+- **Validate the exact string sent to GitHub.** Use a character allow-list `[A-Za-z0-9._/-]`. Reject `..`, `.`, empty segments, a leading `/` and trailing dots. Deny is case-insensitive (`Netlify.toml`, `public/_Headers`); allow is exact-case.
 - **Limits:** at most 20 files, 200 KB per file, UTF-8 text only, mode always `100644`, no case-insensitive duplicates.
 - **Warn in the proposal card** on:
   - `public/**/*.js` and `*.html`, because they run next to the tokens;
