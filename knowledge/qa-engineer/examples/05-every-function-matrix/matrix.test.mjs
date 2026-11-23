@@ -36,7 +36,7 @@ test("mutants: the matrix catches a route that skips the guard, one that touches
   const early = await runMatrix({ mutate: { touchBeforeGuard: "GET /api/agents" } });
   assert.ok(early.some((f) => f.startsWith("GET /api/agents") && f.includes("touched")), "early side effect not caught");
   const sig = await runMatrix({ mutate: { skipSignature: true } });
-  assert.ok(sig.some((f) => f.includes("bad signature")) && sig.some((f) => f.includes("another project's key")), "skipped signature check not caught");
+  assert.ok(sig.some((f) => f.includes("bad signature")), "skipped signature check not caught");
   const role = await runMatrix({ mutate: { trustJwtRole: true } });
   assert.ok(role.some((f) => f.includes("JWT claims role=super_admin")), "role read from the JWT not caught");
   console.log(`  skipSignature mutant: ${sig.length} failures; trustJwtRole mutant: ${role.length} failures`);

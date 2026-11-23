@@ -14,7 +14,7 @@ Owner: agent-console-engineer. Screens, copy and focus rules: Wren's spec, `know
 2. **Checking your access.** With a session, the Console calls `GET /api/agents`, which is the access check. While it runs, the Agents page shows skeleton cards with `aria-busy="true"` on the list and the status line "Checking your access…" (`role="status"`, copy id `console.checking`). The call has a 10 s `AbortController` timeout; a timeout is treated like `503`.
    - `200` → agent cards: name, persona, `personality` (or `description`), model badge, colour (§11).
    - `401` → S7 "Session ended" (see the response table below).
-   - `403` → S6 "This account can't use the Console". The browser makes no more `/api/*` calls from that screen.
+   - `403` → S6 "This account can't use the Console". The browser makes no more `/api/*` calls from that screen. **Open for Dr. Lee:** with open sign-up, should the heading read "This account can't use Agents"? (Wren's copy.)
    - `503` → "Couldn't check your access. Try again in a minute." with Try Again (`role="alert"`). A `503` never shows S6.
 3. **Chat.** Pick an agent; replies stream into a `role="log"` list, and the streaming bubble has `aria-busy="true"` until `done` or `error`. Tool activity shows as one-line `tool` events, never raw input. A `refusal` removes the partial bubble and shows a plain message. On `handoff` the UI polls `GET /api/jobs/:id` every 2–3 s (§8).
    - **Draft and transcript are memory-only.** The composer text and the chat transcript live in JS memory and the DOM. They are never written to `localStorage`, `sessionStorage`, IndexedDB, the service worker or a URL, because they may hold sensitive text. They survive in-page screens (S7 with email sign-in, the Approve sheet) but not a full-page navigation. Before a Google redirect (sign-in or step-up) with text in the composer, the Console says the unsent message will be cleared (Wren owns the copy). After any redirect, an open proposal is restored from the server by its id in the hash route (`#/console/proposals/p_…`); the hash only navigates, it never acts (§4.4).
@@ -51,6 +51,10 @@ Owner: agent-console-engineer. Screens, copy and focus rules: Wren's spec, `know
 | `403` | S6. Stop all Console calls and polling. Never retried |
 | `503` (`unavailable`) | "Couldn't check your access. Try again in a minute." with Try Again. Keep the draft, the transcript and any open proposal. Never S6 |
 | `429` | `rate_limited`: say when to try again from `retryAt`; `budget_exhausted`: S11, keep the draft, Send `aria-disabled`; `approve_cap`: S9. Never retried automatically |
+
+**`budget_exhausted` carries `retryAt` whenever it can be computed.** The compute record (`site:compute`, §9) keeps a timestamp per entry, so the server can give the earliest time at which entries ageing out of the 31 days free the minimum needed (60 s for a chat turn, 5 min for a job). It omits `retryAt` only if the record can't be read, and the UI then uses the no-date copy. This needs `site:compute` to store `{at, seconds}` entries, not one running total (§9 owner, netlify-engineer's example).
+
+**Approve does not count against the compute budget.** The budget covers `/api/chat` and `/api/jobs-run` wall time only (§9). Approve is a few short GitHub calls, is limited by the Approve cap (ADR-0008) and the single approve lock, and is never refused with `budget_exhausted`. Reject, the proposal GET and job polling don't count either.
 | network error or timeout | Same as `503`, with the offline wording if `navigator.onLine` is false |
 
 ## 2. Endpoints (Netlify Functions)

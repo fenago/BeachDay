@@ -169,13 +169,13 @@ Verdict text is final (Wren, 2026-11-23): the label is the accessible name of th
 | `short_window` | Only {hours} beach hours left | shown with a verdict capped at Good |
 | `unusual_weather` | Unusual weather | codes 56, 57, 66, 67, 71-77, 85, 86 |
 | `storm_risk` | Storms possible | variant "Storms possible after {time}" if the first risky hour is known |
-| `rain_chance` | Rain likely, {pct}% chance | |
+| `rain_chance` | {pct}% chance of rain · Rain likely, {pct}% chance | same bands as the penalty: [21,61) first text, [61,100] second (deck `reason.rain.chance`, `reason.rain`). One code; the text variant is picked by the band, like `rain_code` |
 | `rain_code` | Rain in the forecast (61/63/65), Showers around (80-82), Drizzle around (51/53/55) | picked by the weather code |
 | `rain_amount` | About {in} in of rain | only if it is the larger of amount and code (it is the one counted) |
-| `clouds` | Mostly cloudy | |
+| `clouds` | Partly cloudy · Mostly cloudy | [41,71) "Partly cloudy" (`reason.cloudy.part`), [71,100] "Mostly cloudy" (`reason.cloudy`); same bands as the penalty. One code, variant picked by the band, so no new code and no change to score.mjs |
 | `feels_like` | Sunny, feels like {temp} °F · Hot, feels like {temp} °F · Cool, feels like {temp} °F | "Sunny" when [78,91) and clouds < 41; "Hot" from 91; "Cool" below 72. Otherwise "Feels like {temp} °F" |
 | `wind` | Light wind, {mph} mph · Breezy, {mph} mph | breezy from 13 mph |
-| `waves` | Offshore waves under 2 ft · Choppy, waves {ft} ft offshore · Rough, waves over 5 ft offshore | choppy for [2,5) ft; rough from 5 ft |
+| `waves` | Offshore waves under 2 ft · Choppy, waves {ft} ft offshore · Rough, waves {ft} ft offshore | choppy for [2,5) ft; rough from 5 ft |
 | `water_temp` | Warm water, {temp} °F · Cool water, {temp} °F | warm from 78 °F, cool below 74 °F |
 
 | Advice code | Text |
@@ -187,6 +187,8 @@ Verdict text is final (Wren, 2026-11-23): the label is the accessible name of th
 | `fog` | Fog is possible. You may not see far. |
 | `marine_missing` | No wave or water data for this day. (and the two lines "Waves unavailable", "Water temperature unavailable" replace the numbers) |
 | `marine_partial` | Some wave or water data is missing. |
+
+**Placeholders (all over the best window):** `{temp}`, `{mph}` = mean; `{ft}` = max; `{pct}` = max rain chance, integer %; `{in}` = total precipitation, two decimals; `{time}` = start of the first hour concerned, local; `{hours}` = count of usable hours (`bestWindow.hours`). Word variants (Sunny/Hot/Cool, Breezy, Choppy/Rough, Warm/Cool water, Partly/Mostly cloudy) are chosen from the same window value that fills the placeholder, using the band edges above. Status codes: `no_beach_window` → deck `status.after.hours`; `data_unavailable` → `status.no.verdict`.
 
 Other states: window over → "Beach hours are over for today. Here is tomorrow."; no usable hour → "No verdict yet. Some forecast data is missing." Confidence: `high` shows nothing; `medium` shows "Fairly sure. Some data is missing."; `low` shows "Less sure. Check again later."; `outlook` shows the tag "Outlook" and "Outlook. Less certain this far out." The NWS safety line is fixed text on every verdict, never in the reasons list: "Beach Day is not a safety service — check NWS rip-current risk and posted beach flags."
 
