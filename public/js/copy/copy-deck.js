@@ -321,7 +321,15 @@ export const DECK = deepFreeze({
       "text": "Show Hourly"
     },
     {
+      "id": "btn.hideHourly",
+      "text": "Hide Hourly"
+    },
+    {
       "id": "btn.chooseBeach",
+      "text": "Change Beach"
+    },
+    {
+      "id": "btn.pickBeach",
       "text": "Choose Beach"
     },
     {
@@ -1161,6 +1169,10 @@ export const DECK = deepFreeze({
     {
       "id": "agents.chat.with",
       "text": "Chat with {agent}"
+    },
+    {
+      "id": "agents.chat.log",
+      "text": "Conversation"
     },
     {
       "id": "agents.chat.label",

@@ -78,7 +78,7 @@ export function todayView({ beach, forecast, error, online, nowHHMM, onRetry }) 
     card,
     partialRetry,
     safety,
-    next.length ? h("section", { class: "view-section", "aria-labelledby": "next-days" }, h("h2", { id: "next-days", class: "t-title-3" }, t("ui.nextDays")), DayStrip(next)) : null,
+    next.length ? h("section", { class: "view-section", "aria-labelledby": "next-days" }, h("h2", { id: "next-days", class: "t-title-3 panel panel--inset" }, t("ui.nextDays")), DayStrip(next)) : null,
   ];
   return { title: beach.name, status: statusText(forecast, { online, afterHours }), nodes, condition: conditionFor(day, { nowHHMM }), refresh: true, hasVerdict: Boolean(day.verdict) };
 }

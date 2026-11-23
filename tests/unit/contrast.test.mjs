@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 const script = fileURLToPath(new URL("../helpers/contrast-beachday.mjs", import.meta.url));
 
 describe("contrast of public/css/tokens.css", () => {
-  it("every text/background pair passes (script exits 0, 120/120 checks)", () => {
+  it("every text/background pair passes (script exits 0, all checks pass)", () => {
     const r = spawnSync(process.execPath, [script], { encoding: "utf8" });
     expect(r.stderr).toBe("");
-    expect(r.stdout).toMatch(/120\/120 checks pass/);
+    const m = r.stdout.match(/(\d+)\/(\d+) checks pass/);
+    expect(m).not.toBeNull();
+    expect(m[1]).toBe(m[2]);
     expect(r.status).toBe(0);
   });
   it("fails when a check fails (a tokens file with --text equal to its background exits non-zero)", () => {

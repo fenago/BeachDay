@@ -53,7 +53,7 @@ export function PickerView({ favorites, saved, onChoose, onToggleFavorite, onNea
 
   return h("div", { class: "picker", "data-testid": "picker" },
     saved ? h("a", { class: "back-link", href: "#/", "data-testid": "picker-cancel" }, icon("chevron-left"), t("btn.cancel")) : null,
-    h("p", { class: "muted" }, t("ui.choose.sub")),
+    h("p", { class: "muted panel panel--inset" }, t("ui.choose.sub")),
     h("button", { class: "btn btn--secondary btn--block", type: "button", "data-testid": "nearest", onclick: onNearest }, icon("location"), t("btn.nearest")),
     hint,
     h("ul", { class: "beach-list" }, lists));

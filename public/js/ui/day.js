@@ -6,10 +6,11 @@ import { SafetyBlock } from "./safety.js";
 import { VerdictCard, KeyNumbers, HourlyList } from "./verdict.js";
 import { conditionFor, messageBanner, statusText, tryAgainButton, skeleton } from "./today.js";
 
-export function dayView({ beach, forecast, error, date, online, nowHHMM, expandHourly, onRetry }) {
+export function dayView({ beach, forecast, error, date, online, nowHHMM, expandHourly, onRetry, cameFromToday }) {
   const p = dayParts(date);
   const title = `${p.weekdayLong}, ${p.date}`;
   const back = h("a", { class: "back-link", href: "#/", "data-testid": "back" }, icon("chevron-left"), t("ui.day.back"));
+  if (cameFromToday) back.addEventListener("click", (e) => { e.preventDefault(); history.back(); }); // no new history entry
   const safety = SafetyBlock(beach);
   if (!forecast) {
     return { title, status: error ? "" : t("status.loading"), condition: "sunny", refresh: true,
@@ -28,6 +29,7 @@ export function dayView({ beach, forecast, error, date, online, nowHHMM, expandH
   const toggle = h("button", { class: "btn btn--secondary", type: "button", "aria-expanded": "false", "aria-controls": hourlyId, "data-testid": "hourly-toggle" }, t("btn.showHourly"));
   const setOpen = (open) => {
     list.hidden = !open;
+    toggle.textContent = open ? t("btn.hideHourly") : t("btn.showHourly");
     toggle.setAttribute("aria-expanded", String(open));
   };
   toggle.addEventListener("click", () => setOpen(list.hidden));

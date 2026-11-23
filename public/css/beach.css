@@ -6,9 +6,11 @@
 
 /* A view is one screen of the single-column app. */
 .view { display: grid; gap: var(--space-4); align-content: start; min-inline-size: 0; }
-.view > .section-title { margin-block-end: calc(var(--space-2) * -1); }
 .view-section { display: grid; gap: var(--space-2); min-inline-size: 0; }
-.view-section > h2 { padding-inline: var(--space-1); }
+.view-section > h2 { margin: 0; }
+#install-slot { margin-block-start: var(--space-4); }
+.page-bar__actions .btn--text { white-space: nowrap; }
+.page-bar { flex-wrap: wrap; }
 
 /* Panel header: h1 + actions. .page-bar is in components.css. */
 .panel > .page-bar + .status-line { margin-block-start: calc(var(--space-1) * -1); }

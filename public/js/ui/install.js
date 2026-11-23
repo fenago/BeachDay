@@ -7,12 +7,16 @@ import { h, icon } from "./dom.js";
 export const FIRST_VISIT_DELAY_MS = 30_000;
 export const RETURN_VISIT_DELAY_MS = 2_000;
 
-export function createInstallUi({ slot, say, storage, visits, win = window, setTimeoutFn = setTimeout, clearTimeoutFn = clearTimeout }) {
+export function createInstallUi({ slot, say, storage, visits, onFocusLost = () => {}, win = window, setTimeoutFn = setTimeout, clearTimeoutFn = clearTimeout }) {
   let timer = null, gateOpen = false, androidReady = false, sheet = null, androidShown = false;
   const env = () => readEnv(win);
   const standalone = () => isStandalone(env());
 
-  function hideAndroid() { androidShown = false; slot.hidden = true; slot.replaceChildren(); }
+  function hideAndroid() {
+    const hadFocus = slot.contains(win.document.activeElement);
+    androidShown = false; slot.hidden = true; slot.replaceChildren();
+    if (hadFocus) onFocusLost(); // the focused button just left the DOM
+  }
   function showAndroid() {
     if (androidShown || standalone() || isSnoozed(storage)) return;
     androidShown = true;

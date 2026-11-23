@@ -13,7 +13,7 @@ import { createInstallUi } from "./ui/install.js";
 import { PickerView, nearestBeach } from "./ui/picker.js";
 import { KEYS, countVisit, read, readFavorites, write, writeFavorites } from "./ui/storage.js";
 import { dayView } from "./ui/day.js";
-import { todayView } from "./ui/today.js";
+import { todayView, tryAgainButton } from "./ui/today.js";
 import { showUpdateToast } from "./ui/toast.js";
 
 const $ = (id) => document.getElementById(id);
@@ -21,7 +21,7 @@ const els = { title: $("page-title"), status: $("status"), actions: $("head-acti
 
 const state = {
   beachId: null, forecast: null, error: null, route: { name: "today" },
-  loadId: 0, expandHourly: false, scroll: new Map(), lastRouteKey: null, firstPaint: true,
+  loadId: 0, prevKey: null, expandHourly: false, scroll: new Map(), lastRouteKey: null, firstPaint: true,
 };
 const online = () => (typeof navigator.onLine === "boolean" ? navigator.onLine : true);
 const say = (text) => { els.status.textContent = text; };
@@ -38,7 +38,10 @@ export function parseRoute(hash) {
 
 // ---- refresh button (persistent element; added to / removed from the header) ----
 const refreshBtn = h("button", { class: "btn btn--icon", type: "button", id: "refresh", "data-testid": "refresh", "aria-label": t("btn.refresh"), onclick: onRefresh }, icon("refresh"));
+const chooseLink = h("a", { class: "btn btn--text", href: "#/beaches", id: "choose-beach", "data-testid": "choose-beach" }, t("btn.chooseBeach"));
 function syncRefresh(show) {
+  if (show && !chooseLink.isConnected) els.actions.append(chooseLink);
+  if (!show && chooseLink.isConnected) chooseLink.remove();
   if (show && !refreshBtn.isConnected) els.actions.append(refreshBtn);
   if (!show && refreshBtn.isConnected) refreshBtn.remove();
   refreshBtn.setAttribute("aria-disabled", online() ? "false" : "true");
@@ -51,22 +54,28 @@ function onRefresh() {
 // ---- install + toast ----
 let storage = null;
 try { storage = window.localStorage; } catch { /* blocked */ }
-const install = createInstallUi({ slot: els.install, say, storage, visits: countVisit() });
+const install = createInstallUi({ slot: els.install, say, storage, visits: countVisit(), onFocusLost: () => els.title.focus() });
 
 // ---- rendering ----
 function setCondition(c) { document.body.dataset.condition = c || "sunny"; }
 const nowHHMM = () => instantToWallClock(Date.now()).slice(11, 16);
 
 function apply(vm, { focus }) {
+  const active = document.activeElement;
+  const hadFocus = Boolean(active && active !== document.body && (els.view.contains(active) || els.install.contains(active)));
   els.title.textContent = vm.title;
+  document.title = vm.title === "Beach Day" ? vm.title : `${vm.title} · Beach Day`;
   say(vm.status ?? "");
-  if (state.announce) { els.announce.textContent = state.announce; state.announce = null; } // hidden live region: not shown next to the h1
+  // Offline wins: "{beach} selected" must not talk over the Offline status.
+  if (state.announce && online()) els.announce.textContent = state.announce;
+  state.announce = null;
   syncRefresh(vm.refresh);
   els.view.replaceChildren(...vm.nodes.filter(Boolean));
   setCondition(vm.condition);
   if (vm.hasVerdict) install.verdictShown(); else install.pause();
   if (vm.focusTryAgain) els.view.querySelector("[data-testid=try-again]")?.focus();
   else if (focus) els.title.focus();
+  else if (hadFocus && !active.isConnected) els.title.focus(); // the focused element was replaced: don't drop to BODY
 }
 
 function paint({ focus = false } = {}) {
@@ -74,7 +83,7 @@ function paint({ focus = false } = {}) {
   const wantsPicker = r.name === "beaches" || !state.beachId;
   if (wantsPicker) return paintPicker({ focus });
   const beach = getBeach(state.beachId);
-  const base = { beach, forecast: state.forecast, error: state.error, online: online(), nowHHMM: nowHHMM(), onRetry: () => load({ userForced: true }) };
+  const base = { beach, forecast: state.forecast, error: state.error, online: online(), nowHHMM: nowHHMM(), onRetry: () => load({ userForced: true }), cameFromToday: state.prevKey === "today" };
   if (r.name === "day") {
     const vm = dayView({ ...base, date: r.date, expandHourly: state.expandHourly });
     if (vm.notFound) { location.replace("#/"); return; } // unknown or past day: back to Today
@@ -130,10 +139,22 @@ async function load({ userForced = false } = {}) {
   const id = state.beachId;
   if (!id) return;
   const mine = ++state.loadId;
-  const slow = setTimeout(() => { if (mine === state.loadId && !state.forecast) say(t("status.slow")); }, 10_000);
-  if (userForced && state.forecast) { refreshBtn.setAttribute("aria-busy", "true"); say(t("ui.refreshing")); }
+  // No saved forecast: allow 15 s (the default 5 s would end the wait before "slow" could show).
+  const first = !state.forecast;
+  const slow = setTimeout(() => {
+    if (mine !== state.loadId || state.forecast || state.route.name === "beaches") return;
+    say(t("status.slow"));
+    if (!els.view.querySelector("[data-testid=try-again]")) {
+      const b = tryAgainButton(() => { b.remove(); load({ userForced: true }); }, false);
+      els.view.append(b);
+    }
+  }, 10_000);
+  // A forced refresh inside the 60 s window answers from cache at once: show "Refreshing…" long enough to be seen.
+  let hold = null;
+  if (userForced && state.forecast) { refreshBtn.setAttribute("aria-busy", "true"); say(t("ui.refreshing")); hold = new Promise((r) => setTimeout(r, 700)); }
   try {
-    const f = await loadForecast(id, { userForced });
+    const f = await loadForecast(id, first ? { userForced, timeoutMs: 15_000 } : { userForced });
+    if (hold) await hold;
     if (mine !== state.loadId || id !== state.beachId) return;
     state.forecast = f; state.error = null;
   } catch (err) {
@@ -151,6 +172,7 @@ function route({ focus = false } = {}) {
   const prev = state.lastRouteKey;
   if (prev) state.scroll.set(prev, window.scrollY);
   state.route = parseRoute(location.hash);
+  state.prevKey = prev;
   const key = state.route.name === "day" ? "day" : state.route.name;
   state.lastRouteKey = key;
   state.beachId = savedBeach();

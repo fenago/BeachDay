@@ -71,7 +71,7 @@ Rules:
 - The footer is on every page, including `/console` and `/offline.html`. The footer line is the short safety variant. A screen that shows a verdict also shows the full, exact line [safety.line] under the verdict card (§2), so a verdict page has both. That is deliberate: the full line is the contract, the footer is the site-wide floor.
 - Footer NWS link: Miami office (`/beach/mfl`) on static pages. On a beach screen the in-card link follows the beach (Key West beaches use `https://www.weather.gov/key/`).
 - External links open in a new tab with `rel="noopener noreferrer"` and hidden text [offsite.hint]. The `.visually-hidden` span is Sable's utility.
-- No tab bar. The v1 beach app has two places (Today and the picker), reached by a "Change beach" text button in the Today top bar. A tab bar of two items plus a four-item header would be two navigation systems on one phone (HIG: one primary navigation).
+- No tab bar. The v1 beach app has two places (Today and the picker), reached by a [btn.chooseBeach] ("Change Beach") text button in the Today and Day top bars, going to `#/beaches`. The hourly toggle reads [btn.showHourly] / [btn.hideHourly]. The chat log's accessible name is [agents.chat.log]. A tab bar of two items plus a four-item header would be two navigation systems on one phone (HIG: one primary navigation).
 
 ## 2. Beach app flow (deltas from example 01)
 The wireframes, steps and state matrix in example 01 stand. Changes for the build:
@@ -80,7 +80,7 @@ The wireframes, steps and state matrix in example 01 stand. Changes for the buil
 |---|---|---|
 | 1 | The tab bar in example 01 S3/S4 is removed (see §1.1). "Beaches" is the picker sheet or `#/beaches`. | One navigation system |
 | 2 | S1 picker groups by county with [ui.county.*]: Miami-Dade (Miami Beach, Key Biscayne, Bill Baggs, Haulover), Broward (Hollywood, Fort Lauderdale, Deerfield), Palm Beach (Boca Raton, Delray, Palm Beach, Jupiter), Monroe (Key West, Bahia Honda). 13 beaches. | docs/01 §6 |
-| 3 | Favorites are a star on each picker row, with a "Favorites" group on top when any exist. Empty: [empty.favorites] only in the picker's favorites area, with [btn.chooseBeach]. The star's name is [ui.favorite.add] or [ui.favorite.remove]. `aria-pressed` on the star. | HIG: blank screens give a next step |
+| 3 | Favorites are a star on each picker row, with a "Favorites" group on top when any exist. Empty: [empty.favorites] only in the picker's favorites area, with [btn.pickBeach]. The star's name is [ui.favorite.add] or [ui.favorite.remove]. `aria-pressed` on the star. | HIG: blank screens give a next step |
 | 4 | The Today top bar has the beach name as the `h1`, [ui.choose.change] as a text button and Refresh (icon button, name [btn.refresh]). | Standalone mode has no browser chrome |
 | 5 | Key numbers are a small grid under the reasons: [ui.key.feels], [ui.key.wind], [ui.key.rain], [ui.key.waves], [ui.key.water], [ui.key.uv]. Waves and water show [status.waves.na] or [status.water.na] when missing. | docs/01 §5 |
 | 6 | The "Best hours" line is [ui.bestHours] with an en dash: "Best hours 10 am – 1 pm". | Example 01 |
