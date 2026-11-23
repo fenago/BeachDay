@@ -1,11 +1,11 @@
 # Beach Day visual system (Sable) - class inventory
 
 Owner: Sable. Status: W1 build, 2026-11-23. Files: `public/css/{tokens,base,glass,components}.css`, `public/img/sprite.svg`.
-Page-specific CSS (`beach.css`, `pages.css`, `console.css`) comes in W2. Markup owners use **only** the classes below.
+W2 added page CSS: `beach.css` (index.html), `pages.css` (How it works, Resources, Guide, offline), `console.css` (/console). Markup owners use **only** the classes below and in section 8.
 
 ## 0. Rules that apply to every page
-1. Load order in `<head>` (four links, no `@import`, no inline style, CSP is `style-src 'self'`):
-   `/css/tokens.css`, `/css/base.css`, `/css/glass.css`, `/css/components.css`.
+1. Load order in `<head>` (no `@import`, no inline style, CSP is `style-src 'self'`):
+   `/css/tokens.css`, `/css/base.css`, `/css/glass.css`, `/css/components.css`, then ONE page file: `beach.css` on `/`, `pages.css` on content pages (optional there), `console.css` on `/console`.
 2. **No text directly on the sky gradient.** Put titles, status lines and prose in `.panel` (solid) or on glass. Only gaps and glass show the sky.
 3. **At most 3 visible blur surfaces:** `.site-header`, `.verdict-card`, an open `.sheet`. `.glass` is a utility for a 4th kind of surface: don't use it on a page that already shows those. No glass inside glass. The chat composer is solid on purpose.
 4. Verdict = chip colour + icon + text. The icon is `aria-hidden="true"`; the text is the accessible name.
@@ -222,5 +222,14 @@ A scratch page (not in the repo) with every component, served from `public/`, in
 ## 6. Size
 `public/css/*.css` is 44 KB raw, about 10 KB gzipped (budget: 100 KB total transfer). `sprite.svg` is 9 KB raw; load it as an external same-origin `<use>`.
 
-## 7. W2 hand-over
-Pip: `beach.css` is mine; ask for any missing class in `needs:`. Wren: nav, footer, prose and link-list are here. Remy-B and Cass: chat, proposal, diff, sheet, forms and banners are here; the Console page title uses the same `.panel` heading pattern.
+## 7. Contrast
+No new colour tokens in W2. Every new rule pairs existing tokens (`--text`/`--text-2`/`--link` on `--surface-solid`/`--surface-2`, banner bg/icon pairs, `--accent`/`--on-accent`) that `tests/unit/contrast.test.mjs` already covers. `.hourly-row--best` uses a 6 px accent rule plus the text label "Best"; the outcome steps use text plus icon.
+
+## 8. W2 classes
+**beach.css:** `.view`, `.view-section`, `.today-bar`, `.page-bar__actions`, `.back-link`, `.verdict-card__tags|__confidence|__actions`, `.safety-block`, `.safety-line__flags`, `.state-stack` (banners), `.day-summary`, `.hourly-row--best|--stop|--night`, `.hourly-legend`, `.outlook-note`, `.picker`, `.picker__favorites`, `.picker-sheet`, `.install-steps` (ol, number badge generated, inline `share` icon), `.install-action`, `.install-note`, `.toast--update` + `.toast__text`.
+**pages.css:** `.content-page`, `.page-title`, `.lead`, `.page-meta`, `.toc` (44 px link rows), `.toc-panel`, `.pipeline` (+ `--row`), `.verdict-legend`, `.callout--warn|--ok|--error`, `.callout__title`, `.resources-nav` (pill links), `.link-list__meta`, `.step-status`, `.state-screen`, `.offline-page`.
+**console.css:** `.console`, `.console-bar` (+ `__actions`), `.console-sub`, `.account-menu` (+ `__who`), `.auth-card` (+ `__head|__title|__sub|__email`), `.auth-links`, `.auth-switch`, `.provider-btn`, `.otp-row`, `.cooldown-note`, `.password-rules`, `.state-card` (+ `--denied|--error`, `__body|__actions`; use for 401/403/503/empty/checking), `.agent-card__model|__skills`, `.knowledge-heading`, `.chat-head`, `.chat-status`, `.msg--tool`, `.chat-actions`, `.composer__hint`, `.proposal-list`, `.proposal-card__state`, `.warning-list`, `.diff-block` (+ `__path`), `.diff__line--ctx`, `.approve-sheet`, `.sheet__note`, `.sheet__section`, `.stepup`, `.usage-line`, `.cap-note`, `.deploy-note`, `.outcome` (li `data-state="done|pending|failed"`, `.outcome__sha`), `.live-status`, `.security-list`. Empty chat: `<div class="chat-log" data-empty="...">`.
+**components.css aliases:** `.site-nav__list`, `.site-footer__list|__safety|__credit` and a header without `__inner` (Wren's spec 1.1 spelling) work as well as the inventory spelling.
+
+## 9. Render checks (W2)
+Harness on port 4183, Chromium, Pixel 7, iPhone 15 (chromium, labelled), 320 px; light and dark; How it works, Resources, Guide: 0 horizontal scroll, 0 controls under 44 px (inline links in prose excluded), 1 blur surface, 0 console errors. index.html and console.html did not exist when I rendered, so beach.css and console.css are verified only by the class gap-finder, not by pixels.

@@ -197,6 +197,7 @@ Status column: **ok** = opened this session (only GitHub could be reached). **no
 | Open-Meteo terms | https://open-meteo.com/en/terms | Free use rules | not re-checked |
 | Open-Meteo | https://open-meteo.com/ | Weather data by Open-Meteo.com | not re-checked |
 | Free API directory | https://mcp-api.netlify.app/ | Where the keyless Open-Meteo pick came from | not re-checked |
+| Open-Meteo pricing | https://open-meteo.com/en/pricing | Why the free, keyless use is non-commercial | not re-checked; added by Wren from the project docs |
 
 ### 5.3 Hosting and build (Netlify)
 | Label | URL | Why | Status |
@@ -214,6 +215,9 @@ Status column: **ok** = opened this session (only GitHub could be reached). **no
 | How Netlify credits work | https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/ | Why a deploy costs 15 credits | not re-checked |
 | Netlify pricing | https://www.netlify.com/pricing/ | The Free plan limits | not re-checked |
 | Netlify rate limiting | https://docs.netlify.com/manage/security/secure-access-to-sites/rate-limiting/ | Why Beach Day counts its own | not re-checked |
+| Netlify functions: get started | https://docs.netlify.com/build/functions/get-started/ | How the two server functions are written | not re-checked; added by Wren from the project docs |
+| Netlify function environment variables | https://docs.netlify.com/build/functions/environment-variables/ | What functions can read at run time | not re-checked; added by Wren from the project docs |
+| Netlify CLI: env commands | https://cli.netlify.com/commands/env/ | Setting variables from the terminal | not re-checked; added by Wren from the project docs |
 
 ### 5.4 Accounts (Supabase and Google)
 | Label | URL | Why | Status |
@@ -248,6 +252,9 @@ Status column: **ok** = opened this session (only GitHub could be reached). **no
 | API rate limits | https://platform.claude.com/docs/en/api/rate-limits | Usage ceilings | not re-checked |
 | Claude Code sub-agents | https://code.claude.com/docs/en/sub-agents | How the agent team is defined | not re-checked |
 | Claude Code skills | https://code.claude.com/docs/en/skills | How shared skills are written | not re-checked |
+| Anthropic API errors | https://platform.claude.com/docs/en/api/errors | What the chat does when Claude says no or is busy | not re-checked; added by Wren from the project docs |
+| Refusals and fallback | https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback | What a refused reply looks like | not re-checked; added by Wren from the project docs |
+| Anthropic TypeScript SDK | https://github.com/anthropics/anthropic-sdk-typescript | The client the functions use | not re-checked; added by Wren from the project docs |
 
 ### 5.6 GitHub
 | Label | URL | Why | Status |
@@ -261,6 +268,7 @@ Status column: **ok** = opened this session (only GitHub could be reached). **no
 | Git blobs | https://docs.github.com/en/rest/git/blobs | File contents | not re-checked |
 | GitHub API rate limits | https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api | Read limits | not re-checked |
 | Push protection | https://docs.github.com/en/code-security/concepts/secret-security/push-protection | Secret scanning on push | not re-checked |
+| GitHub rulesets | https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets | Protecting `main` from force pushes | not re-checked; added by Wren from the project docs |
 
 ### 5.7 Installable app (PWA)
 | Label | URL | Why | Status |
@@ -275,6 +283,12 @@ Status column: **ok** = opened this session (only GitHub could be reached). **no
 | WebKit: Web Push for web apps on iOS | https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/ | What iOS home-screen apps can do | not re-checked |
 | WebKit: Updates to storage policy | https://webkit.org/blog/14403/updates-to-storage-policy/ | Why iPhone may forget a site | not re-checked |
 | Apple: Configuring web applications | https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariWebContent/ConfiguringWebApplications/ConfiguringWebApplications.html | Home Screen icon and title | not re-checked |
+| Chrome: install criteria update | https://developer.chrome.com/blog/update-install-criteria | When Chrome offers to install | not re-checked; added by Wren from the project docs |
+| MDN: Manifest icons | https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/icons | The icon sizes the manifest lists | not re-checked; added by Wren from the project docs |
+| MDN: Manifest screenshots | https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/screenshots | The richer Android install sheet | not re-checked; added by Wren from the project docs |
+| Trusted Web Activity: Bubblewrap | https://github.com/GoogleChromeLabs/bubblewrap | The Play Store path Beach Day did not take | not re-checked; added by Wren from the project docs |
+| Capacitor documentation | https://capacitorjs.com/docs | The App Store path Beach Day did not take | not re-checked; added by Wren from the project docs |
+| App Store Review Guidelines | https://developer.apple.com/app-store/review/guidelines/ | Why a repackaged website would not pass | not re-checked; added by Wren from the project docs |
 
 ### 5.8 Design and accessibility
 | Label | URL | Why | Status |
@@ -290,6 +304,9 @@ Status column: **ok** = opened this session (only GitHub could be reached). **no
 | WCAG: Target size | https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html | The 44 px targets | not re-checked |
 | WAI-ARIA 1.2 | https://www.w3.org/TR/wai-aria-1.2/ | Roles and live regions | not re-checked |
 | Playwright documentation | https://playwright.dev/docs/emulation | How the phone layouts are tested | not re-checked |
+| WCAG: Use of color | https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html | Why every verdict has a word and an icon | not re-checked; added by Wren from the project docs |
+| Playwright: service workers | https://playwright.dev/docs/service-workers | How offline is tested | not re-checked; added by Wren from the project docs |
+| Playwright: network | https://playwright.dev/docs/network | How the forecast is faked in tests | not re-checked; added by Wren from the project docs |
 
 ### 5.9 This project
 | Label | URL | Why | Status |
@@ -354,6 +371,6 @@ Friction found and the fix built into this spec:
 ## 10. Open items and UNVERIFIED
 - Heading of the 403 screen: pending Dr. Lee (D4).
 - Dewey: confirm nothing emits reason.sunny, reason.wind.light, reason.waves.calm or reason.water.warm after the score.js fix; if so, I drop them.
-- Resources links: only GitHub was reachable; every other URL is "not re-checked". Two links were added by Wren and are not in the project docs (NOAA Tides and Currents, Google Cloud credentials).
+- Resources links: only GitHub was reachable; every other URL is "not re-checked". Two links were added by Wren and are not in the project docs (NOAA Tides and Currents, Google Cloud credentials). W2 added 21 more rows that the project docs cite (Open-Meteo pricing, Netlify functions, Claude errors, GitHub rulesets, PWA, native-path and Playwright pages), also not re-checked.
 - Install-sheet timing (30 s or second visit) is Wren's choice; Pip may adjust with a reason.
 - TOTP and 3.3.8, lost-phone recovery, and Google step-up freshness remain as listed in example 04.
