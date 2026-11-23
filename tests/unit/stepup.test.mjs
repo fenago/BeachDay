@@ -2,7 +2,7 @@
 // Rows ported from knowledge/security-engineer/examples/01-bearer-step-up-and-origin/, with auth-js's own
 // isAuthRetryableFetchError and real AuthRetryableFetchError / AuthApiError objects.
 import { describe, it, expect } from "vitest";
-import { AuthRetryableFetchError, AuthApiError } from "@supabase/auth-js";
+import { AuthRetryableFetchError, AuthApiError, AuthUnknownError } from "@supabase/auth-js";
 import { checkStepUp, approveStepUp, PRIMARY_METHODS } from "../../netlify/functions/lib/stepup.mts";
 import { SETTINGS } from "../../netlify/functions/lib/settings.mts";
 
@@ -74,8 +74,25 @@ describe("approveStepUp: getUser failures fail closed, and are never echoed", ()
   it("returned user_banned -> 401 unauthorized", async () => {
     expect((await step(async () => ({ data: { user: null }, error: new AuthApiError("banned", 403, "user_banned") }))).code).toBe("unauthorized");
   });
-  it("a look-alike error (name only, no auth-js marker) -> 401, not 503", async () => {
-    expect((await step(async () => ({ data: { user: null }, error: Object.assign(new Error("x"), { name: "AuthRetryableFetchError" }) }))).status).toBe(401);
+  it("a look-alike error (name only, no auth-js marker) -> 503, fail closed", async () => {
+    expect((await step(async () => ({ data: { user: null }, error: Object.assign(new Error("x"), { name: "AuthRetryableFetchError" }) }))).status).toBe(503);
+  });
+  it("returned 429 from /user (shared IP rate limit) -> 503, never 'sign in again'", async () => {
+    expect(await step(async () => ({ data: { user: null }, error: new AuthApiError("Too many", 429, "over_request_rate_limit") })))
+      .toEqual({ ok: false, status: 503, code: "unavailable" });
+  });
+  it("returned 505 -> 503", async () => {
+    expect((await step(async () => ({ data: { user: null }, error: new AuthApiError("x", 505, "unexpected_failure") }))).status).toBe(503);
+  });
+  it("an HTML 403 (WAF page, AuthUnknownError) -> 503", async () => {
+    expect((await step(async () => ({ data: { user: null }, error: new AuthUnknownError("<html>", null) }))).status).toBe(503);
+  });
+  it("returned expired / bad JWT (401) -> 401 unauthorized", async () => {
+    expect((await step(async () => ({ data: { user: null }, error: new AuthApiError("expired", 401, "bad_jwt") }))).code).toBe("unauthorized");
+  });
+  it("accepts now in seconds, as the approve handler passes Math.floor(deps.now()/1000)", async () => {
+    const deps = { now: () => NOW * 1000 };
+    expect(await approveStepUp("t", claims(), async () => ({ data: { user: user() }, error: null }), Math.floor(deps.now() / 1000))).toEqual({ ok: true });
   });
   it("no error and no user, or an undefined result -> 401 unauthorized", async () => {
     expect((await step(async () => ({ data: { user: null }, error: null }))).code).toBe("unauthorized");

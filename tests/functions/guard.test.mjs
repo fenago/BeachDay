@@ -3,8 +3,8 @@
 // mocked JWKS; PostgREST and /auth/v1/user are mocked. No network, no real project, no secret key.
 import { describe, it, expect } from "vitest";
 import { generateKeyPairSync, createSign, randomUUID } from "node:crypto";
-import { AuthRetryableFetchError } from "@supabase/auth-js";
-import { createGuard, guardFromEnv, denyResponse, precheckJwtHeader } from "../../netlify/functions/lib/guard.mts";
+import { AuthRetryableFetchError, AuthApiError, AuthUnknownError } from "@supabase/auth-js";
+import { createGuard, guardFromEnv, denyResponse, precheckJwtHeader, tokenRejected } from "../../netlify/functions/lib/guard.mts";
 import { SETTINGS } from "../../netlify/functions/lib/settings.mts";
 
 const URL_ = "https://bdguardtest.supabase.co";
@@ -32,7 +32,7 @@ const claims = (over = {}, url = URL_) => ({
 });
 const projectKey = newKey();
 
-function mockFetch({ profiles = { [SUB]: "super_admin" }, restStatus = 200, restBody, jwksStatus = 200, userStatus = 401, restHang = false } = {}) {
+function mockFetch({ profiles = { [SUB]: "super_admin" }, restStatus = 200, restBody, jwksStatus = 200, userStatus = 401, userHtml = false, restHang = false } = {}) {
   const calls = [];
   const f = async (input, init = {}) => {
     const u = new URL(typeof input === "string" ? input : input.url);
@@ -40,6 +40,8 @@ function mockFetch({ profiles = { [SUB]: "super_admin" }, restStatus = 200, rest
     calls.push({ m: `${init.method ?? "GET"} ${u.pathname}`, apikey: headers.get("apikey"), auth: headers.get("authorization") });
     if (u.pathname === "/auth/v1/.well-known/jwks.json")
       return jwksStatus === 200 ? Response.json({ keys: [projectKey.jwk] }) : new Response("upstream", { status: jwksStatus });
+    if (u.pathname === "/auth/v1/user" && userHtml)
+      return new Response("<html>blocked</html>", { status: userStatus, headers: { "content-type": "text/html" } });
     if (u.pathname === "/auth/v1/user")
       return Response.json({ code: userStatus, error_code: "bad_jwt", msg: "invalid JWT" }, { status: userStatus });
     if (u.pathname === "/rest/v1/profiles") {
@@ -233,7 +235,29 @@ describe("503: the check could not run (fail closed, never 'no access')", () => 
     expect((await make(new AuthRetryableFetchError("down", 0)).check(req(bearer(t())), meta)).status).toBe(503);
     expect((await make(new AuthRetryableFetchError("bad gateway", 502)).check(req(bearer(t())), meta)).status).toBe(503);
     expect((await make(Object.assign(new Error("x"), { name: "AuthRetryableFetchError" })).check(req(bearer(t())), meta)).status)
-      .toBe(401); // a look-alike name is not an auth-js error: mapped by isAuthRetryableFetchError, not by name
+      .toBe(503); // a look-alike is not a token rejection: fail closed (R1)
+    expect((await make(new AuthApiError("Invalid JWT", 401, "bad_jwt")).check(req(bearer(t())), meta)).status).toBe(401);
+    expect((await make(new AuthApiError("Too many", 429, "over_request_rate_limit")).check(req(bearer(t())), meta)).status).toBe(503);
+    expect((await make(new AuthUnknownError("<html>", null)).check(req(bearer(t())), meta)).status).toBe(503);
+  });
+  it("unknown kid while GET /user answers 429 (shared IP rate limit) -> 503, not 'sign in again'", async () => {
+    expect(view(await guard(mockFetch({ userStatus: 429 })).check(req(bearer(sign(newKey(), claims()))), meta))).toEqual([false, 503, "unavailable", "auth_unavailable"]);
+  });
+  it("unknown kid while GET /user answers an HTML 403 (WAF page) -> 503", async () => {
+    expect((await guard(mockFetch({ userStatus: 403, userHtml: true })).check(req(bearer(sign(newKey(), claims()))), meta)).status).toBe(503);
+  });
+  it("unknown kid while GET /user answers 505 -> 503", async () => {
+    expect((await guard(mockFetch({ userStatus: 505 })).check(req(bearer(sign(newKey(), claims()))), meta)).status).toBe(503);
+  });
+  it("unknown kid while GET /user answers JSON 403 (token rejected) -> 401", async () => {
+    expect((await guard(mockFetch({ userStatus: 403 })).check(req(bearer(sign(newKey(), claims()))), meta)).status).toBe(401);
+  });
+  it("tokenRejected: only Supabase rejections of the token count", () => {
+    expect(tokenRejected(new AuthApiError("x", 401, "bad_jwt"))).toBe(true);
+    expect(tokenRejected(new AuthApiError("x", 403, "session_not_found"))).toBe(true);
+    for (const e of [new AuthApiError("x", 429, "over_request_rate_limit"), new AuthApiError("x", 500, "unexpected_failure"),
+      new AuthRetryableFetchError("x", 0), new AuthUnknownError("x", null), Object.assign(new Error("x"), { name: "AuthInvalidJwtError" }),
+      { status: 401 }, null, "x"]) expect(tokenRejected(e)).toBe(false);
   });
   it("a THROW from getClaims -> 503", async () => {
     const g = createGuard({ url: URL_, publishableKey: KEY, log: () => {},

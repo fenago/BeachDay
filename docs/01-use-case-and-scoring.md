@@ -166,17 +166,17 @@ Verdict text is final (Wren, 2026-11-23): the label is the accessible name of th
 | `thunder_wait` | Waiting out thunder | hard stop; pairs with advice "Thunder means go indoors. Wait 30 minutes after it stops." |
 | `too_windy` | Too windy | hard stop |
 | `dangerous_heat` | Dangerous heat | hard stop |
-| `short_window` | Only {hours} beach hours left | shown with a verdict capped at Good |
+| `short_window` | Only {hours} usable beach hours · Only 1 usable beach hour | ids `reason.short`, `reason.short.one` (1 hour); shown with a verdict capped at Good. Not "left": it also appears on future days |
 | `unusual_weather` | Unusual weather | codes 56, 57, 66, 67, 71-77, 85, 86 |
 | `storm_risk` | Storms possible | variant "Storms possible after {time}" if the first risky hour is known |
 | `rain_chance` | {pct}% chance of rain · Rain likely, {pct}% chance | same bands as the penalty: [21,61) first text, [61,100] second (deck `reason.rain.chance`, `reason.rain`). One code; the text variant is picked by the band, like `rain_code` |
 | `rain_code` | Rain in the forecast (61/63/65), Showers around (80-82), Drizzle around (51/53/55) | picked by the weather code |
 | `rain_amount` | About {in} in of rain | only if it is the larger of amount and code (it is the one counted) |
 | `clouds` | Partly cloudy · Mostly cloudy | [41,71) "Partly cloudy" (`reason.cloudy.part`), [71,100] "Mostly cloudy" (`reason.cloudy`); same bands as the penalty. One code, variant picked by the band, so no new code and no change to score.mjs |
-| `feels_like` | Sunny, feels like {temp} °F · Hot, feels like {temp} °F · Cool, feels like {temp} °F | "Sunny" when [78,91) and clouds < 41; "Hot" from 91; "Cool" below 72. Otherwise "Feels like {temp} °F" |
+| `feels_like` | Hot, feels like {temp} °F · Cool, feels like {temp} °F · Feels like {temp} °F | `reason.hot` from 91, `reason.cool` below 72, otherwise `reason.feels` (neutral, [72,91)). Variant chosen from the UNROUNDED window mean; the number shown is rounded. "Sunny" is no longer a penalty text (see the D3 codes below) |
 | `wind` | Light wind, {mph} mph · Breezy, {mph} mph | breezy from 13 mph |
 | `waves` | Offshore waves under 2 ft · Choppy, waves {ft} ft offshore · Rough, waves {ft} ft offshore | choppy for [2,5) ft; rough from 5 ft |
-| `water_temp` | Warm water, {temp} °F · Cool water, {temp} °F | warm from 78 °F, cool below 74 °F |
+| `water_temp` | Warm water, {temp} °F · Water {temp} °F, a bit cool · Cool water, {temp} °F | `reason.water.warm` from 78 °F, `reason.water.cool` below 74 °F, neutral `reason.water` for [74,78) (it carries a penalty of -5, so "a bit cool"). Chosen from the UNROUNDED mean: a 77.6 mean reads "Water 78 °F, a bit cool", never "Warm water, 78" |
 
 | Advice code | Text |
 |---|---|
@@ -184,13 +184,27 @@ Verdict text is final (Wren, 2026-11-23): the label is the accessible name of th
 | `uv_high` | UV high. Wear sunscreen. |
 | `uv_very_high` | UV very high. Use sunscreen. Seek shade 10 am to 4 pm. |
 | `uv_extreme` | UV extreme. Use sunscreen. Seek shade 10 am to 4 pm. |
-| `fog` | Fog is possible. You may not see far. |
+| `lightning` | Thunder means go indoors. Wait 30 minutes after it stops. | emitted whenever the scored hours of the day contain a `thunderstorms` or `thunder_wait` hour (inside or outside the best window); shown first |
+| `fog` |
 | `marine_missing` | No wave or water data for this day. (and the two lines "Waves unavailable", "Water temperature unavailable" replace the numbers) |
 | `marine_partial` | Some wave or water data is missing. |
 
+**Positive reasons (D3, off by default: `SCORE_CONFIG.reasons.positiveOnGoodDays`).** When on, Great and Good days also list what is going well, after the driver reasons and inside the 4-item cap. A code is emitted only when its data is present and its factor has no penalty in any best-window hour.
+
+| Code | Text (copy id) | Condition |
+|---|---|---|
+| `dry` | Low chance of rain (`reason.pos.dry`) | no rain-family, storm-risk or unusual-weather penalty |
+| `sunny_sky` | Mostly sunny (`reason.pos.sunny`) | no cloud penalty (cloud cover < 41 %) |
+| `comfortable` | Comfortable, feels like {temp} °F (`reason.pos.comfortable`) | feels-like in [78,91) |
+| `light_wind` | Light wind, {mph} mph (`reason.pos.wind`) | wind < 13 mph |
+| `calm_waves` | Calm, waves under 2 ft offshore (`reason.pos.waves`) | wave data present, < 2 ft |
+| `warm_water` | Warm water, {temp} °F (`reason.pos.water`) | water data present, mean >= 78 °F |
+
+The older ids `reason.sunny`, `reason.wind.light`, `reason.waves.calm` are no longer emitted.
+
 **Placeholders (all over the best window):** `{temp}`, `{mph}` = mean; `{ft}` = max; `{pct}` = max rain chance, integer %; `{in}` = total precipitation, two decimals; `{time}` = start of the first hour concerned, local; `{hours}` = count of usable hours (`bestWindow.hours`). Word variants (Sunny/Hot/Cool, Breezy, Choppy/Rough, Warm/Cool water, Partly/Mostly cloudy) are chosen from the same window value that fills the placeholder, using the band edges above. Status codes: `no_beach_window` → deck `status.after.hours`; `data_unavailable` → `status.no.verdict`.
 
-Other states: window over → "Beach hours are over for today. Here is tomorrow."; no usable hour → "No verdict yet. Some forecast data is missing." Confidence: `high` shows nothing; `medium` shows "Fairly sure. Some data is missing."; `low` shows "Less sure. Check again later."; `outlook` shows the tag "Outlook" and "Outlook. Less certain this far out." The NWS safety line is fixed text on every verdict, never in the reasons list: "Beach Day is not a safety service — check NWS rip-current risk and posted beach flags."
+Other states: window over → "Beach hours are over for today. Here is tomorrow."; no usable hour → "No verdict yet. Some forecast data is missing." Confidence: `high` shows nothing; `medium` shows "Fairly sure." (the reason line says why); `low` shows "Less sure. Check again later."; `outlook` shows the tag "Outlook" and "Outlook. Less certain this far out." The NWS safety line is fixed text on every verdict, never in the reasons list: "Beach Day is not a safety service — check NWS rip-current risk and posted beach flags."
 
 **Water temperature per day** = the **mean of the hourly SST (degF) over the best window** (Open-Meteo has no daily SST). **Waves per day** = the max `wave_height` inside the best window, labelled "offshore waves" (the optional daily `wave_height_max` covers 24 h including night, so do not headline it).
 
