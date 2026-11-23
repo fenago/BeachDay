@@ -7,7 +7,11 @@ select u.id,
        u.email,
        u.email_confirmed_at,
        u.last_sign_in_at,
-       array_agg(i.provider order by i.provider) filter (where i.provider is not null) as providers
+       array_agg(i.provider order by i.provider) filter (where i.provider is not null) as providers,
+       (select array_agg(f.factor_type::text || ' ' || f.status::text || ' ' || to_char(f.created_at, 'YYYY-MM-DD')
+                         order by f.created_at)
+          from auth.mfa_factors f
+         where f.user_id = u.id) as mfa_factors
 from auth.users u
 left join auth.identities i on i.user_id = u.id
 where u.email = '<EMAIL>'
@@ -16,7 +20,10 @@ group by u.id, u.email, u.email_confirmed_at, u.last_sign_in_at;
 --   exactly one row;
 --   email_confirmed_at is not null;
 --   last_sign_in_at is your own recent sign-in, made the way you will normally sign in;
---   providers lists only methods you set up yourself ('email' = password, 'google' = Google).
+--   providers lists only methods you set up yourself ('email' = password, 'google' = Google);
+--   mfa_factors is empty, or lists only factors you enrolled yourself, on the dates you remember.
+--   A factor you did not enrol (verified or not) means someone else has held a session for this account: STOP.
+--   Do not promote. Reset the password, remove that factor (see the end of this file), sign in again, then rerun STEP 1.
 --   If 'email' is listed but you never chose a password for this account, someone else may have
 --   signed up with your address first: use "Forgot password" to set your own password, then run STEP 1 again.
 
@@ -28,6 +35,11 @@ from auth.users u
 where p.id = u.id
   and u.id = '<USER_ID>'
   and u.email_confirmed_at is not null;
+
+-- Lost authenticator, or a factor you did not enrol, BY HAND (UNVERIFIED on a real project: check the
+-- auth.mfa_factors columns in the Table Editor first). Deleting the row turns two-step off for that factor;
+-- sessions already at aal2 keep that level until their token refreshes. Enrol a new factor afterwards.
+--   delete from auth.mfa_factors where user_id = '<USER_ID>' and id = '<FACTOR_ID>';
 
 -- To demote later: update public.profiles set role = 'user' where id = '<USER_ID>';
 -- The functions read the role on every request (no cache), so the change applies to the next call.

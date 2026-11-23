@@ -18,6 +18,7 @@ description: Supabase Auth rules for the Beach Day Agent Console — the per-req
 
 ## The check, in order (reference code: knowledge/supabase-auth-engineer/examples/01-token-and-role-check/)
 1. `Authorization: Bearer <jwt>` is present and has three parts. Otherwise 401.
+   - **Header pre-check (docs/04 §4.1), switched on only after pre-launch test (f) shows asymmetric signing keys:** decode the header only. If it isn't a JSON object, `alg` isn't `ES256`/`RS256`, or `kid` isn't a non-empty string, answer 401 with **no network call**. It verifies nothing; it stops cheap forgeries before `getClaims` falls back to `GET /auth/v1/user`. Keep it off on a legacy HS256 project, where it would reject every real token (example 01, `headerPrecheck`).
 2. `getClaims(token)` verifies signature and `exp` against the project's JWKS. Pass the token explicitly. Never `getSession()` on a server. Never `allowExpired`.
 3. **auth-js returns failures; it does not throw them.** If `isAuthRetryableFetchError(error)` (network or 5xx), answer 503. For any other `error`, answer 401. Treat a throw as 503.
 4. Check `iss` equals `<SUPABASE_URL>/auth/v1`, `aud` is `authenticated`, `is_anonymous` is not true, and `sub` is a string. `getClaims` does not check these for you.
@@ -43,7 +44,7 @@ description: Supabase Auth rules for the Beach Day Agent Console — the per-req
 - Email confirmation on, and Confirm phone on (phone sign-in stays off).
 - Password minimum length 12. Leaked-password protection is Pro plan and above.
 - JWT expiry 600 s.
-- Site URL and redirect allow-list: exact `/console` URLs, no wildcards.
+- Site URL and redirect allow-list: one exact `/console` URL, no wildcards; every call passes exactly it. Email templates use `token_hash` links.
 - **Custom SMTP.** The built-in sender mails only team members, 2 per hour.
 - Asymmetric signing keys.
 

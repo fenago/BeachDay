@@ -75,13 +75,20 @@ read -rs V && netlify env:set NAME "$V" --context production --secret; unset V
 8. **No history rewrite.** Force-push to `main` is blocked. Rotate the secret and fix forward; a leaked value stays in git history, so rotation is the only remedy.
 
 ## 3a. The super_admin account is compromised
-Do these in order, in the Supabase Dashboard (Auth and SQL editor). Nothing here needs a service key.
-1. Change the password (Dashboard, Authentication, Users, or the Forgot password flow from a clean browser).
-2. End every session: sign out with scope `global` (the Console's "Sign out everywhere", or Dashboard, Users, sign out the user). Existing access tokens still work until they expire (up to the JWT lifetime), so continue with step 3 at once.
-3. Demote the account in SQL: `update public.profiles set role = 'user' where id = '<user id>';`. Every function checks the role on every request, so this closes the Console at once. Re-promote only after step 4.
-4. Check `select * from auth.mfa_factors where user_id = '<user id>';` for factors Dr. Lee did not enrol. Delete any unknown factor, and re-enrol his own.
+Do these in order, in the Supabase SQL editor and Dashboard. Nothing here needs a service key. SQL checked against `knowledge/supabase-auth-engineer/examples/02-profiles-rls-sql/` (supabase-auth-engineer, 2026-11-23); the `auth.*` tables were run in pglite stubs only, so check the real column names in the Table Editor first.
+1. **Demote first** (it is the fastest stop). Every function reads the role on every request, with no cache, so the next call gets 403:
+   `update public.profiles set role = 'user' where id = '<USER_ID>';` (expect "1 row affected").
+   Find the id with step 1 of `promote-super-admin.sql` (it lists email, identities and MFA factors).
+2. **End every session.** Deleting a user's `auth.sessions` rows signs them out everywhere (Supabase sessions guide: a missing session row means signed out):
+   `delete from auth.sessions where user_id = '<USER_ID>';`
+   Refresh tokens then stop working, and `getUser` (Approve) rejects the old access tokens. **UNVERIFIED:** that the refresh tokens' rows go with the sessions on the hosted schema; if `select count(*) from auth.refresh_tokens where user_id = '<USER_ID>'::text and revoked = false;` is not 0, ask supabase-auth-engineer. Access tokens still pass `getClaims` until `exp` (600 s), but step 1 already returns 403 for them.
+3. **Change the password** from a clean browser with Forgot password (or Dashboard, Authentication, Users, send a recovery email).
+4. **Check MFA factors and identities.** Run step 1 of `promote-super-admin.sql` again. For any factor Dr. Lee did not enrol:
+   `delete from auth.mfa_factors where user_id = '<USER_ID>' and id = '<FACTOR_ID>';`
+   For an identity he did not set up (`providers`), stop and ask supabase-auth-engineer before deleting anything. Then sign in again and re-enrol his own factor.
 5. Rotate anything stored in Supabase that may have been exposed: the Google OAuth client secret (Google Cloud console, then Authentication, Providers, Google) and the custom SMTP password (Authentication, SMTP settings).
 6. Review what the account did: the Blobs `audit` log, commits on `main` (roll back per §1 if any is not Dr. Lee's), and the Approve cap record. If an Approve may have been made, also rotate `GITHUB_TOKEN` (§3).
+7. **Re-promote last,** after steps 1–6, with `promote-super-admin.sql` (it refuses an unconfirmed email).
 
 ## 4. Credits and budget
 - 15 credits per production deploy, 300 per month on Free, a hard cap. Tell the orchestrator at about 70% (210) and 90% (270). Rollback costs 0.

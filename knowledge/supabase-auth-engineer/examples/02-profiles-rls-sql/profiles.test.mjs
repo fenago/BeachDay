@@ -16,6 +16,11 @@ const STUBS = `
     last_sign_in_at timestamptz, raw_user_meta_data jsonb default '{}');
   create table auth.identities (id uuid primary key default gen_random_uuid(),
     user_id uuid not null references auth.users (id) on delete cascade, provider text not null);
+  create type auth.factor_type as enum ('totp', 'webauthn', 'phone');
+  create type auth.factor_status as enum ('unverified', 'verified');
+  create table auth.mfa_factors (id uuid primary key default gen_random_uuid(),
+    user_id uuid not null references auth.users (id) on delete cascade, friendly_name text,
+    factor_type auth.factor_type not null, status auth.factor_status not null, created_at timestamptz not null default now());
   create function auth.uid() returns uuid language sql stable
     as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   grant usage on schema auth, public to anon, authenticated;
@@ -80,6 +85,13 @@ test('step 1 of the promotion file lists confirmation, last sign-in and every id
   const { rows } = await db.query(step1);
   assert.equal(rows.length, 1);
   assert.deepEqual([rows[0].id, rows[0].email_confirmed_at, [...rows[0].providers].sort()], [A, null, ['email', 'google']]);
+});
+test('step 1 also lists every MFA factor, so a factor he did not enrol is visible before promotion', async () => {
+  const step1 = step(1).replaceAll('<EMAIL>', 'a@example.com');
+  assert.equal((await db.query(step1)).rows[0].mfa_factors, null, 'no factors yet');
+  await db.exec(`insert into auth.mfa_factors (user_id, factor_type, status, created_at) values
+    ('${A}', 'totp', 'verified', '2026-11-20T10:00:00Z'), ('${A}', 'totp', 'unverified', '2026-11-21T10:00:00Z');`);
+  assert.deepEqual((await db.query(step1)).rows[0].mfa_factors, ['totp verified 2026-11-20', 'totp unverified 2026-11-21']);
 });
 test('Dr. Lee by hand: a confirmed user is promoted (1 row); the user then sees super_admin', async () => {
   await db.exec(`update auth.users set email_confirmed_at = now() where id = '${A}'`);

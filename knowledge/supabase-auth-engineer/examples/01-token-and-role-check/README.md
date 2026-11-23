@@ -11,7 +11,7 @@ It uses only the project URL and the publishable key. Outcomes:
 
 | Status | Meaning | Examples |
 |---|---|---|
-| **401** | Identity not proven | No token, garbage, expired, bad signature, unknown key, wrong project, wrong audience, anonymous, PostgREST rejects the token |
+| **401** | Identity not proven | With `headerPrecheck: true` (only after docs/04 §4.2 test (f)): a header that isn't a JSON object, `alg` not ES256/RS256, or no `kid`, with no network call. Always: no token, garbage, expired, bad signature, unknown key, wrong project, wrong audience, anonymous, PostgREST rejects the token |
 | **403** | Identity proven, but no access | Role `user`, no profile row |
 | **503** | The check could not run | JWKS unreachable or 5xx on a cold instance; profile lookup 5xx, any other non-401 error status, timeout (5 s) or non-JSON. Never shown as "no access" |
 
@@ -37,23 +37,32 @@ ok 7 - wrong project: valid signature but iss points elsewhere -> 401 wrong_proj
 ok 8 - wrong audience -> 401
 ok 9 - anonymous user -> 401
 ok 10 - PostgREST says 401 for the token -> 401
-ok 11 - role user -> 403
-ok 12 - role claim in the JWT or user_metadata is ignored
-ok 13 - no profile row -> 403
-ok 14 - profile lookup 500 -> 503
-ok 15 - profile lookup other 4xx (e.g. missing grant, 403) -> 503, not "no access"
-ok 16 - profile lookup returns non-JSON -> 503
-ok 17 - profile lookup hangs -> 503 after the timeout
-ok 18 - JWKS unreachable on a cold instance -> 503
-ok 19 - JWKS endpoint 502 on a cold instance -> 503
-ok 20 - OBSERVED: auth-js keeps the JWKS in a module-wide cache (keyed by storageKey), so a warm instance still verifies when the network drops
-ok 21 - OBSERVED: auth-js returns network and 5xx failures as { error } (AuthRetryableFetchError); it does not throw
-ok 22 - super_admin with valid token -> ok
-# tests 22
-# pass 22
+ok 11 - pre-check on: HS256 -> 401 with no network call
+ok 12 - pre-check on: alg none -> 401 with no network call
+ok 13 - pre-check on: ES256 without kid -> 401 with no network call
+ok 14 - pre-check on: empty kid -> 401 with no network call
+ok 15 - pre-check on: kid not a string -> 401 with no network call
+ok 16 - pre-check on: header is a JSON array -> 401 with no network call
+ok 17 - pre-check on: header is not JSON -> 401 with no network call
+ok 18 - pre-check on: ES256 with a kid passes to getClaims; super_admin -> ok
+ok 19 - pre-check off (default until test (f)): HS256 reaches getClaims, which asks GET /user
+ok 20 - role user -> 403
+ok 21 - role claim in the JWT or user_metadata is ignored
+ok 22 - no profile row -> 403
+ok 23 - profile lookup 500 -> 503
+ok 24 - profile lookup other 4xx (e.g. missing grant, 403) -> 503, not "no access"
+ok 25 - profile lookup returns non-JSON -> 503
+ok 26 - profile lookup hangs -> 503 after the timeout
+ok 27 - JWKS unreachable on a cold instance -> 503
+ok 28 - JWKS endpoint 502 on a cold instance -> 503
+ok 29 - OBSERVED: auth-js keeps the JWKS in a module-wide cache (keyed by storageKey), so a warm instance still verifies when the network drops
+ok 30 - OBSERVED: auth-js returns network and 5xx failures as { error } (AuthRetryableFetchError); it does not throw
+ok 31 - super_admin with valid token -> ok
+# tests 31
+# pass 31
 # fail 0
 ```
-Tests 14–19 were written first and failed against the previous version, which returned 403 or 401 for upstream failures and had no timeout.
+Tests 11–17 (header pre-check, wave 3c) and the 503 tests were written first and failed against the previous version, which returned 403 or 401 for upstream failures and had no timeout.
 
 ## Findings from running it
 - **auth-js does not throw on network or 5xx failures.** `getClaims` and `getUser` *return* `{ error }`, where the error is an `AuthRetryableFetchError` (status 0 for a network error, otherwise the 5xx status). Map that error with `isAuthRetryableFetchError(error)` to **503**, and any other auth error to **401**. Code that only catches a *throw* turns an outage into a 401 (test 21).

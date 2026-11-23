@@ -26,7 +26,9 @@ export function makeAuth({ url, publishableKey, siteOrigin, fetchImpl, storage }
     resendConfirmation: (email) => client.resend({ type: 'signup', email, options: { emailRedirectTo: redirectTo } }),
     logIn: (email, password) => client.signInWithPassword({ email, password }),
     google: () => client.signInWithOAuth({ provider: 'google', options: { redirectTo, skipBrowserRedirect: true } }),
-    forgot: (email) => client.resetPasswordForEmail(email, { redirectTo: `${siteOrigin}/console?reset=1` }),
+    // Same exact /console entry as every other call. The custom "Reset password" template links to
+    // {{ .SiteURL }}?token_hash={{ .TokenHash }}&type=recovery, and type=recovery is what routes to "new password".
+    forgot: (email) => client.resetPasswordForEmail(email, { redirectTo }),
     setNewPassword: (password) => client.updateUser({ password }),
     logOut: () => client.signOut({ scope: 'local' }),   // default scope is 'global' (every device)
 

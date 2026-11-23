@@ -25,20 +25,21 @@ Run 2026-11-23 from a clean install, Node v22.23.5, @supabase/auth-js 2.119.2:
 ok 1 - Google: signInWithOAuth builds the provider URL on the project, with PKCE and our redirect
 ok 2 - log in: password grant, publishable key on the apikey header
 ok 3 - sign up: /signup with email redirect and PKCE challenge
-ok 4 - forgot password: /recover with our reset redirect
-ok 5 - log out: our button revokes only this session (scope=local)
-ok 6 - log out: the library default is GLOBAL scope (every device); we override it on purpose
-ok 7 - Console client: autoRefreshToken is on, so a token near expiry is refreshed without a request from the page
-ok 8 - ensureFresh(120): refreshes when less than 120 s are left (docs/04 4.1), and not otherwise
-ok 9 - email link with token_hash: verifyOtp POSTs /verify and needs no code verifier (works in any browser)
-ok 10 - email link: an unknown type is refused before any network call
-ok 11 - resend confirmation: POST /resend with type signup and our redirect
-ok 12 - OBSERVED: a PKCE ?code= opened in another browser (no stored verifier) fails locally with pkce_code_verifier_not_found
-# tests 12
-# pass 12
+ok 4 - forgot password: /recover with the one exact /console redirect (the token_hash link carries type=recovery)
+ok 5 - every redirect the client sends is the single allow-list entry, with no query or hash
+ok 6 - log out: our button revokes only this session (scope=local)
+ok 7 - log out: the library default is GLOBAL scope (every device); we override it on purpose
+ok 8 - Console client: autoRefreshToken is on, so a token near expiry is refreshed without a request from the page
+ok 9 - ensureFresh(120): refreshes when less than 120 s are left (docs/04 4.1), and not otherwise
+ok 10 - email link with token_hash: verifyOtp POSTs /verify and needs no code verifier (works in any browser)
+ok 11 - email link: an unknown type is refused before any network call
+ok 12 - resend confirmation: POST /resend with type signup and our redirect
+ok 13 - OBSERVED: a PKCE ?code= opened in another browser (no stored verifier) fails locally with pkce_code_verifier_not_found
+# tests 13
+# pass 13
 # fail 0
 ```
-- Tests 7–11 were written first and failed against the previous version.
+- Tests 4–5 (one exact `/console` redirect for every call, wave 3c) and 8–12 were written first and failed against the previous version.
 - A side probe showed that test 7's refresh comes from the ticker, not from `setSession`: the same setup with `autoRefreshToken: false` made 0 refresh calls; with `true` it made 1.
 
 ## Not verified

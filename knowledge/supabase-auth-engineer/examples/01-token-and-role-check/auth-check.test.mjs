@@ -108,6 +108,34 @@ test('PostgREST says 401 for the token -> 401', async () => {
   assert.deepEqual(view(await run(mockFetch({ restStatus: 401 }), sign(projectKey, goodClaims()))), [false, 401, 'profile_rejected_token']);
 });
 
+// ---- header pre-check (docs/04 4.1 step 1; on only after pre-launch test (f) confirms asymmetric keys) ----
+const pre = (f) => makeRequireSuperAdmin({ url: URL_, publishableKey: KEY, fetchImpl: f, headerPrecheck: true });
+const withHeader = (hdr) => { const [, p, s] = sign(projectKey, goodClaims()).split('.'); return `${typeof hdr === 'string' ? b64u(hdr) : b64u(JSON.stringify(hdr))}.${p}.${s}`; };
+for (const [why, hdr] of [
+  ['HS256', { alg: 'HS256', typ: 'JWT', kid: 'k' }],
+  ['alg none', { alg: 'none', typ: 'JWT' }],
+  ['ES256 without kid', { alg: 'ES256', typ: 'JWT' }],
+  ['empty kid', { alg: 'ES256', typ: 'JWT', kid: '' }],
+  ['kid not a string', { alg: 'ES256', typ: 'JWT', kid: 7 }],
+  ['header is a JSON array', ['ES256']],
+  ['header is not JSON', 'not json'],
+]) {
+  test(`pre-check on: ${why} -> 401 with no network call`, async () => {
+    const f = mockFetch();
+    assert.deepEqual(view(await pre(f)(req(withHeader(hdr)))), [false, 401, 'bad_header']);
+    assert.equal(f.calls.length, 0);
+  });
+}
+test('pre-check on: ES256 with a kid passes to getClaims; super_admin -> ok', async () => {
+  assert.equal((await pre(mockFetch())(req(sign(projectKey, goodClaims())))).ok, true);
+});
+test('pre-check off (default until test (f)): HS256 reaches getClaims, which asks GET /user', async () => {
+  const f = mockFetch();
+  const r = await run(f, withHeader({ alg: 'HS256', typ: 'JWT' }));
+  assert.equal(r.status, 401);
+  assert.ok(f.calls.includes('GET /auth/v1/user'));
+});
+
 // ---- 403: role ----
 test('role user -> 403', async () => {
   const r = await run(mockFetch({ profiles: { 'user-1': 'user' } }), sign(projectKey, goodClaims()));

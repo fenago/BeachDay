@@ -4,7 +4,20 @@
 // Uses @supabase/auth-js directly (ADR-0006: functions depend on auth-js, pinned exact), not supabase-js.
 import { AuthClient, isAuthRetryableFetchError } from '@supabase/auth-js';
 
-export function makeRequireSuperAdmin({ url, publishableKey, fetchImpl = fetch, timeoutMs = 5000 }) {
+const ALLOWED_ALGS = new Set(['ES256', 'RS256']);
+
+// docs/04 4.1 step 1 header pre-check. Verifies nothing (getClaims does); it only stops cheap forgeries
+// (HS*, none, no kid) before getClaims falls back to GET /auth/v1/user for them.
+export function headerLooksAsymmetric(token) {
+  let h;
+  try { h = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString('utf8')); } catch { return false; }
+  return !!h && typeof h === 'object' && !Array.isArray(h)
+    && ALLOWED_ALGS.has(h.alg) && typeof h.kid === 'string' && h.kid !== '';
+}
+
+// headerPrecheck: switch on ONLY after pre-launch test (f) shows the project signs with asymmetric keys.
+// With the legacy HS256 secret it would reject every real token.
+export function makeRequireSuperAdmin({ url, publishableKey, fetchImpl = fetch, timeoutMs = 5000, headerPrecheck = false }) {
   const issuer = `${url}/auth/v1`;
   const ref = new URL(url).hostname.split('.')[0];
   // One client per function instance: nothing stored, no timers, no URL parsing.
@@ -28,6 +41,7 @@ export function makeRequireSuperAdmin({ url, publishableKey, fetchImpl = fetch, 
     const m = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/.exec(header);
     if (!m) return deny(401, 'no_token');
     const token = m[1];
+    if (headerPrecheck && !headerLooksAsymmetric(token)) return deny(401, 'bad_header');   // no network call
 
     // 2. Signature + exp via getClaims (JWKS, local WebCrypto). Pass the token explicitly. Never allowExpired.
     //    auth-js RETURNS network/5xx failures as { error: AuthRetryableFetchError }; it does not throw them.

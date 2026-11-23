@@ -8,7 +8,7 @@
 - A `security definer set search_path = ''` trigger that creates the row.
 
 `promote-super-admin.sql` is the by-hand promotion, in two steps:
-1. **Look first.** One row for the email. `email_confirmed_at` is set. `last_sign_in_at` is his own recent sign-in. Every linked identity (`email`, `google`) is one he set up himself.
+1. **Look first.** One row for the email. `email_confirmed_at` is set. `last_sign_in_at` is his own recent sign-in. Every linked identity (`email`, `google`) is one he set up himself. Every MFA factor in `auth.mfa_factors` is one he enrolled; **a factor he did not enrol means stop**. The end of the file has the by-hand factor removal for a lost authenticator.
 2. **Promote.** The update also requires `email_confirmed_at is not null`. An unconfirmed account changes 0 rows.
 
 `profiles.test.mjs` runs both files in **pglite** (Postgres in WASM). It uses stand-ins for Supabase's `anon`/`authenticated` roles, `auth.users`, `auth.identities` and `auth.uid()`, and switches roles with `set role`, the way the API does.
@@ -32,14 +32,15 @@ ok 6 - role check constraint rejects unknown roles
 ok 7 - the trigger function is not executable by API roles
 ok 8 - promotion refuses a user whose email is not confirmed (0 rows changed)
 ok 9 - step 1 of the promotion file lists confirmation, last sign-in and every identity
-ok 10 - Dr. Lee by hand: a confirmed user is promoted (1 row); the user then sees super_admin
-ok 11 - promotion cannot be run by an API user (privilege denied)
-ok 12 - deleting the auth user cascades to the profile
-# tests 12
-# pass 12
+ok 10 - step 1 also lists every MFA factor, so a factor he did not enrol is visible before promotion
+ok 11 - Dr. Lee by hand: a confirmed user is promoted (1 row); the user then sees super_admin
+ok 12 - promotion cannot be run by an API user (privilege denied)
+ok 13 - deleting the auth user cascades to the profile
+# tests 13
+# pass 13
 # fail 0
 ```
-Tests 8–11 were written first and failed until `promote-super-admin.sql` existed.
+Tests 8–12 were written first (test 10, MFA factors, in wave 3c) and failed until `promote-super-admin.sql` existed.
 
 ## Why step 1 matters (pre-account takeover)
 Anyone can sign up with Dr. Lee's address and a password of their choosing. The account stays unconfirmed, but the confirmation email lands in **his** inbox.

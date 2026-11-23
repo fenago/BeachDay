@@ -42,11 +42,20 @@ test('sign up: /signup with email redirect and PKCE challenge', async () => {
   assert.equal(log[0].query.redirect_to, 'https://beachday.example/console');
   assert.ok(log[0].body.code_challenge);
 });
-test('forgot password: /recover with our reset redirect', async () => {
+test('forgot password: /recover with the one exact /console redirect (the token_hash link carries type=recovery)', async () => {
   const { auth, log } = setup();
   await auth.forgot('a@example.com');
   assert.equal(log[0].path, '/auth/v1/recover');
-  assert.equal(log[0].query.redirect_to, 'https://beachday.example/console?reset=1');
+  assert.equal(log[0].query.redirect_to, 'https://beachday.example/console');
+});
+test('every redirect the client sends is the single allow-list entry, with no query or hash', async () => {
+  const { auth, log } = setup();
+  await auth.signUp('a@example.com', 'correct horse battery');
+  await auth.forgot('a@example.com');
+  await auth.resendConfirmation('a@example.com');
+  const g = new URL((await auth.google()).data.url).searchParams.get('redirect_to');
+  const sent = [...log.map((c) => c.query.redirect_to), g];
+  assert.deepEqual([...new Set(sent)], ['https://beachday.example/console']);
 });
 test('log out: our button revokes only this session (scope=local)', async () => {
   const { auth, log } = setup();
