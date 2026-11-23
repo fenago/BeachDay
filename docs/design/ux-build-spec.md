@@ -80,7 +80,7 @@ The wireframes, steps and state matrix in example 01 stand. Changes for the buil
 |---|---|---|
 | 1 | The tab bar in example 01 S3/S4 is removed (see §1.1). "Beaches" is the picker sheet or `#/beaches`. | One navigation system |
 | 2 | S1 picker groups by county with [ui.county.*]: Miami-Dade (Miami Beach, Key Biscayne, Bill Baggs, Haulover), Broward (Hollywood, Fort Lauderdale, Deerfield), Palm Beach (Boca Raton, Delray, Palm Beach, Jupiter), Monroe (Key West, Bahia Honda). 13 beaches. | docs/01 §6 |
-| 3 | Favorites are a star on each picker row, with a "Favorites" group on top when any exist. Empty: [empty.favorites] only in the picker's favorites area, with [btn.pickBeach]. The star's name is [ui.favorite.add] or [ui.favorite.remove]. `aria-pressed` on the star. | HIG: blank screens give a next step |
+| 3 | Favorites are a star on each picker row, with a "Favorites" group on top when any exist. Empty: [empty.favorites] as text only, in the picker's favorites area (no button: the picker is already open). The star's name is [ui.favorite.add] or [ui.favorite.remove]. `aria-pressed` on the star. | HIG: blank screens give a next step |
 | 4 | The Today top bar has the beach name as the `h1`, [ui.choose.change] as a text button and Refresh (icon button, name [btn.refresh]). | Standalone mode has no browser chrome |
 | 5 | Key numbers are a small grid under the reasons: [ui.key.feels], [ui.key.wind], [ui.key.rain], [ui.key.waves], [ui.key.water], [ui.key.uv]. Waves and water show [status.waves.na] or [status.water.na] when missing. | docs/01 §5 |
 | 6 | The "Best hours" line is [ui.bestHours] with an en dash: "Best hours 10 am – 1 pm". | Example 01 |

@@ -329,10 +329,6 @@ export const DECK = deepFreeze({
       "text": "Change Beach"
     },
     {
-      "id": "btn.pickBeach",
-      "text": "Choose Beach"
-    },
-    {
       "id": "btn.nearest",
       "text": "Use Nearest Beach"
     },

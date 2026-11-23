@@ -145,7 +145,7 @@ async function load({ userForced = false } = {}) {
     if (mine !== state.loadId || state.forecast || state.route.name === "beaches") return;
     say(t("status.slow"));
     if (!els.view.querySelector("[data-testid=try-again]")) {
-      const b = tryAgainButton(() => { b.remove(); load({ userForced: true }); }, false);
+      const b = tryAgainButton(() => { b.remove(); els.title.focus(); load({ userForced: true }); }, false);
       els.view.append(b);
     }
   }, 10_000);
