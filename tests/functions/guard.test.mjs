@@ -91,6 +91,26 @@ describe("401: identity not proven", () => {
   it("garbage three-part token -> 401", async () => {
     expect(view(await guard(mockFetch()).check(req("Bearer not.a-jwt.at-all"), meta))).toEqual([false, 401, "unauthorized", "invalid_token"]);
   });
+  it("malformed three-part tokens (header or payload not a base64url JSON object) -> 401 invalid_token, no network call, whatever the pre-check setting", async () => {
+    const enc = (v) => b64u(typeof v === "string" ? v : JSON.stringify(v));
+    const okHead = enc({ alg: "ES256", typ: "JWT", kid: "k1" });
+    const cases = [
+      "aaaa.bbbb.cccc",                                // Tess's matrix case: auth-js THROWS on this header
+      `${enc("not json")}.${enc({ sub: "x" })}.sig`,
+      `${enc([1, 2])}.${enc({ sub: "x" })}.sig`,       // JSON, but not an object
+      `${enc("null")}.${enc({ sub: "x" })}.sig`,
+      `${okHead}.${enc("not json")}.sig`,              // header fine, payload not JSON
+      `${okHead}.${enc('"a string"')}.sig`,
+    ];
+    for (const precheck of [false, true]) {
+      for (const t of cases) {
+        const f = mockFetch();
+        const r = await createGuard({ url: URL_, publishableKey: KEY, fetchImpl: f, headerPrecheck: precheck }).check(req(`Bearer ${t}`), meta);
+        expect([t, precheck, r.status, r.code]).toEqual([t, precheck, 401, "unauthorized"]);
+        expect(f.calls ?? []).toEqual([]);
+      }
+    }
+  });
   it("expired token -> 401", async () => {
     const t = sign(projectKey, claims({ exp: now() - 5 }));
     expect(view(await guard(mockFetch()).check(req(bearer(t)), meta))).toEqual([false, 401, "unauthorized", "invalid_token"]);

@@ -15,13 +15,13 @@ const OM = ["https://api.open-meteo.com/**", "https://marine-api.open-meteo.com/
 const NEVER = [/^[^/]+\/sw\.js$/, /^[^/]+\/version\.json$/, /^[^/]+\/api\//, /^[^/]+\/console/, /^[^/]+\/vendor\//, /^[^/]+\/generated\//, /supabase\.co/, /^[^/]+\/js\/console\//];
 const fx = loadFixture("good-derived");
 
-let h;
+let h, om;
 test.beforeEach(async ({ baseURL, context, page }) => {
   h = harnessClient(baseURL);
   await h.reset();
   await h.harness.setVersion({ version: V1 });
   await guardHosts(context, { siteOrigin: baseURL });
-  await routeOpenMeteo(context, { forecast: fx.forecast, marine: fx.marine });
+  om = await routeOpenMeteo(context, { forecast: fx.forecast, marine: fx.marine });
   await page.addInitScript(() => { try { if (!localStorage.getItem("beachday:beach")) localStorage.setItem("beachday:beach", "miami-beach"); } catch { /* */ } });
 });
 
@@ -38,7 +38,12 @@ async function installed(page, url = "/?source=pwa") {
   await page.reload();
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await expect(page.getByTestId("verdict-card")).toBeVisible();
+  // The first load was not controlled and the reload used the saved forecast, so nothing went through the worker yet:
+  // one user-forced refresh does, and fills beachday-data-v1.
+  await page.getByTestId("refresh").click();
+  await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes("beachday-data-v1") && (await (await caches.open("beachday-data-v1")).keys()).length)).toBeGreaterThan(0);
 }
+const shiftDays = (obj, n) => JSON.parse(JSON.stringify(obj).replace(/(\d{4})-(\d{2})-(\d{2})/g, (_, y, m, d) => new Date(Date.UTC(+y, +m - 1, +d + n)).toISOString().slice(0, 10)));
 const caches_ = (page) => page.evaluate(async () => Object.fromEntries(await Promise.all((await caches.keys()).map(async (k) => [k, (await (await caches.open(k)).keys()).map((r) => { const u = new URL(r.url); return u.host + u.pathname; })]))));
 const forbidden = async (page) => Object.entries(await caches_(page)).flatMap(([c, ks]) => ks.filter((k) => NEVER.some((re) => re.test(k))).map((k) => `${c}: ${k}`));
 
@@ -71,7 +76,7 @@ test.describe("offline", () => {
     await goOffline(context);
     const res = await page.goto("/?source=pwa");
     expect(res.fromServiceWorker()).toBe(true);
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/Miami Beach/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/South Beach/);
     await expect(page.getByTestId("verdict-card")).toBeVisible();
     await expect(page.getByTestId("status")).toContainText(/Offline — showing .* forecast/);
     await expect(page.getByText(t("ui.safety.flags"))).toBeVisible();
@@ -98,19 +103,24 @@ test.describe("offline", () => {
     await expect(page.goto("/console.html")).rejects.toThrow(/ERR_INTERNET_DISCONNECTED/);
   });
 
-  test("observed trap: a fulfilling route keeps answering the SW while offline (so offline specs must abort the routes)", async ({ page, context }) => {
+  test("observed trap: while offline a FULFILLING route still answers the worker's fetch (so offline specs must abort the routes)", async ({ page, context }) => {
     await installed(page);
-    await context.setOffline(true); // routes still FULFIL: the SW's fetch is answered, so the page looks online
-    await page.goto("/?source=pwa");
-    await expect(page.getByTestId("status")).not.toContainText(/Offline/);
+    await context.setOffline(true);
+    const before = om.requests.length;
+    await page.getByTestId("refresh").click({ force: true }).catch(() => {}); // the app refuses to refresh offline: drive the worker directly
+    const fetched = await page.evaluate((u) => fetch(u).then((r) => r.headers.get("x-bd-source"), () => "network error"), om.requests.find((u) => u.startsWith("https://api.open-meteo.com/")));
+    expect(fetched, "the route answered the worker, so the page looked online to it").toBe("network");
+    expect(om.requests.length).toBeGreaterThan(before);
     await goOffline(context);
-    await page.goto("/?source=pwa");
-    await expect(page.getByTestId("status")).toContainText(/Offline — showing/);
+    const after = om.requests.length;
+    const cached = await page.evaluate((u) => fetch(u).then((r) => r.headers.get("x-bd-source"), () => "network error"), om.requests.find((u) => u.startsWith("https://api.open-meteo.com/")));
+    expect(cached).toBe("cache");
+    expect(om.requests.length, "aborted routes still see the request but cannot answer it").toBeGreaterThanOrEqual(after);
   });
 
   test("network-first has a 4 s timeout: a slow Open-Meteo answer falls back to the cached copy, stamped x-bd-source: cache", async ({ page, context }) => {
     await installed(page);
-    const url = (await page.evaluate(() => performance.getEntriesByType("resource").map((e) => e.name).find((n) => n.startsWith("https://api.open-meteo.com/")))) ?? null;
+    const url = om.requests.find((u) => u.startsWith("https://api.open-meteo.com/"));
     expect(url).toBeTruthy();
     await context.unroute(OM[0]);
     await context.route(OM[0], async (r) => { await new Promise((ok) => setTimeout(ok, 6000)); await r.fulfill({ json: fx.forecast }).catch(() => {}); });
@@ -208,6 +218,10 @@ test.describe("install hint, 14-day snooze (iPhone user agent; Chromium emulatio
     await page.evaluate(([k, v]) => localStorage.setItem(k, String(v)), [KEY, T0.getTime()]);
     for (const [label, offset, shown] of [["1 hour later", 3600_000, false], ["14 days minus 1 ms", 14 * DAY - 1, false], ["exactly 14 days", 14 * DAY, true]]) {
       await page.clock.setFixedTime(new Date(T0.getTime() + offset));
+      // Open-Meteo answers for the NEW date, or there would be no verdict and the hint (which waits for one) could not show
+      const days = Math.floor(offset / DAY);
+      om.setForecast(shiftDays(fx.forecast, days)); om.setMarine(shiftDays(fx.marine, days));
+      await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("beachday:forecast")) localStorage.removeItem(k); });
       await page.reload();
       await expect(page.getByTestId("verdict-card")).toBeVisible();
       if (shown) await expect(sheet(page), label).toBeVisible({ timeout: 6000 }); // return visit: 2 s delay
