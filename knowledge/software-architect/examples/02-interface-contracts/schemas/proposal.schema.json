@@ -62,7 +62,17 @@
       "type": "string",
       "minLength": 20,
       "maxLength": 2000,
-      "description": "What, why, how tested (change-proposal-protocol)"
+      "allOf": [
+        {
+          "pattern": "^[^\\u0000-\\u001f\\u007f\\u2028\\u2029]*$"
+        },
+        {
+          "not": {
+            "pattern": "[Bb][Ee][Aa][Cc][Hh]-[Dd][Aa][Yy]-[Pp][Rr][Oo][Pp][Oo][Ss][Aa][Ll]"
+          }
+        }
+      ],
+      "description": "What, why, how tested (change-proposal-protocol). ONE line: no control or line-break characters (incl. U+2028/2029) and no 'Beach-Day-Proposal' text in any case, so it can never forge the commit trailer the reconciler matches (docs/04 §6, §7)."
     },
     "files": {
       "type": "array",
@@ -78,8 +88,14 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Canonical list (docs/04 §6). ALLOW: public/** with a text extension (html, css, js, json, webmanifest, svg, txt, md), tests/**, docs/**, .claude/agents/*.md, .claude/skills/**/*.md. DENY wins: public/_headers, public/_redirects, public/sw.js, public/sw/**, public/vendor/**, public/generated/**, public/version.json, netlify/**, netlify.toml, .github/**, package*.json, scripts/**, .env*, .git/**, .gitmodules, .claude/settings*, *.pem, *.key. Case-insensitive matching is enforced server-side; JSON Schema regexes are case-sensitive.",
+            "description": "Canonical list (docs/04 §6). ALLOW: public/** with a text extension (html, css, js, json, webmanifest, svg, txt, md), tests/**, docs/**, .claude/agents/*.md, .claude/skills/**/*.md. DENY wins: public/_headers, public/_redirects, public/sw.js, public/sw/**, public/vendor/**, public/generated/**, public/version.json, netlify/**, netlify.toml, .github/**, package*.json, scripts/**, .env*, .git/**, .gitmodules, .claude/settings*, *.pem, *.key. Case-insensitive matching is enforced server-side; JSON Schema regexes are case-sensitive. Exact string sent to GitHub, never normalised: 1-200 chars of [A-Za-z0-9._/-], no leading '/', no empty, '.' or '..' segment, no segment ending in '.'. propose_change cannot delete files.",
             "allOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$"
+              },
               {
                 "type": "string",
                 "pattern": "^(public/[^\\\\]+\\.(html|css|js|json|webmanifest|svg|txt|md)|tests/[^\\\\]+|docs/[^\\\\]+|\\.claude/agents/[^/\\\\]+\\.md|\\.claude/skills/[^\\\\]+\\.md)$"
@@ -112,6 +128,12 @@
                 "not": {
                   "type": "string",
                   "pattern": "\\.(pem|key)$"
+                }
+              },
+              {
+                "not": {
+                  "type": "string",
+                  "pattern": "(^|/)\\.(/|$)|\\.(/|$)"
                 }
               }
             ]

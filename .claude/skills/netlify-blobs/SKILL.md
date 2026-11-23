@@ -24,7 +24,7 @@ IDs are `p_<ULID>` and `j_<ULID>` (ULID = 26 chars `[0-9A-Z]`). Validate with `^
 
 Proposal status: `pending` → `committing` → `committed` | `failed` | `stale`, or `pending` → `rejected`. Transitions always use CAS, and only the request that wins `pending` → `committing` calls GitHub.
 
-**Approve cap, site-wide (ADR-0008): at most 14 committed approvals in any rolling 31 days, and at most 5 per calendar day in America/New_York.** One record: store `ratelimit`, key `site:approvals`, value `{ "times": ["<ISO-8601 UTC>", ...] }`. Keep both windows in that one record (`knowledge/netlify-engineer/examples/03-cas-rate-limit-counter/`, 17 tests including the compute budget).
+**Approve cap, site-wide (ADR-0008): at most 14 committed approvals in any rolling 31 days, and at most 5 per calendar day in America/New_York.** One record: store `ratelimit`, key `site:approvals`, value `{ "times": ["<ISO-8601 UTC>", ...] }`. Keep both windows in that one record (`knowledge/netlify-engineer/examples/03-cas-rate-limit-counter/`, 18 tests including the compute budget).
 - Constants live in one place: `APPROVE_CAP = { per31Days: 14, perDay: 5 }`.
 - **Check** (read-only) inside the single approve lock, after auth, role and step-up and before any GitHub call. **Record** (CAS append, `onlyIfMatch`, or `onlyIfNew` the first time) only when the proposal reaches `committed`. `failed`, `stale` and `rejected` never count.
 - **Prune** the array to the last 31 days on every write, so there is no scheduler.

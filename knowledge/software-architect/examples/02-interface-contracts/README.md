@@ -43,6 +43,8 @@ cd /tmp/scratch/contracts && node validate.mjs
 
 ## Verified
 
+**Re-run 2026-11-23, wave 3c** (after security-engineer's gate): `proposal.schema.json` `summary` is one line with no `Beach-Day-Proposal` text (M1, trailer forgery), and `path` is the exact string sent to GitHub, 1–200 chars of `[A-Za-z0-9._/-]`, no `.`/`..`/empty segment or trailing dot (M2). +8 invalid samples. 72 sample checks plus fixture and SSE round trip, all PASS.
+
 **Re-run 2026-11-23, wave 3b** (same Node and Ajv): refusal rule settled (`done.stopReason` lost `refusal`; +1 valid `error{code:refusal}`, +1 invalid `done{stopReason:refusal}`) and new `approve-result.schema.json` (3 valid, 2 invalid). 64 sample checks plus the fixture and SSE round trip, all PASS (`ALL CONTRACT CHECKS PASSED`).
 
 **Re-run 2026-11-23, wave 3** (Node v22.23.5, ajv 8.20.0, ajv-formats 3.0.1), after docs/04 §2.1 gained the shared error table, `step_up_required`, `budget_exhausted` and the proposal payload for the Approve sheet. 16 new samples (7 api-error, 4 approvals, 4 proposal-view, 1 SSE `budget_exhausted`); 55 sample checks plus the fixture and SSE round trip, all PASS. Excerpt:

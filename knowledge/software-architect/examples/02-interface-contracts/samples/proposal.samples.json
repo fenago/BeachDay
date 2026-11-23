@@ -416,5 +416,205 @@
    ],
    "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
   }
+ },
+ {
+  "expect": "invalid",
+  "why": "summary forges a trailer on its own line (M1)",
+  "data": {
+   "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "agent": "open-meteo-integrator",
+   "status": "pending",
+   "createdAt": "2026-11-23T15:04:05Z",
+   "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+   "summary": "Fix null waves in score.js.\n\nBeach-Day-Proposal: p_01JDQ8Z5K3M7N2P4R6S8T0V9WY",
+   "files": [
+    {
+     "path": "public/js/score.js",
+     "content": "export function scoreHour() {}\n",
+     "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+    },
+    {
+     "path": "tests/fixtures/openmeteo/marine-nulls.json",
+     "content": "{}\n",
+     "readBlobSha": null
+    }
+   ],
+   "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "summary mentions the trailer even on one line, any case (M1)",
+  "data": {
+   "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "agent": "open-meteo-integrator",
+   "status": "pending",
+   "createdAt": "2026-11-23T15:04:05Z",
+   "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+   "summary": "Fix null waves; see beach-day-proposal: p_01JDQ8Z5K3M7N2P4R6S8T0V9WY",
+   "files": [
+    {
+     "path": "public/js/score.js",
+     "content": "export function scoreHour() {}\n",
+     "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+    },
+    {
+     "path": "tests/fixtures/openmeteo/marine-nulls.json",
+     "content": "{}\n",
+     "readBlobSha": null
+    }
+   ],
+   "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "summary with U+2028 line separator (M1)",
+  "data": {
+   "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "agent": "open-meteo-integrator",
+   "status": "pending",
+   "createdAt": "2026-11-23T15:04:05Z",
+   "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+   "summary": "Fix null waves in score.js adds three tests",
+   "files": [
+    {
+     "path": "public/js/score.js",
+     "content": "export function scoreHour() {}\n",
+     "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+    },
+    {
+     "path": "tests/fixtures/openmeteo/marine-nulls.json",
+     "content": "{}\n",
+     "readBlobSha": null
+    }
+   ],
+   "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "path needs normalising: ./ segment (M2)",
+  "data": {
+   "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "agent": "open-meteo-integrator",
+   "status": "pending",
+   "createdAt": "2026-11-23T15:04:05Z",
+   "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+   "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+   "files": [
+    {
+     "path": "docs/./notes.md",
+     "content": "export function scoreHour() {}\n",
+     "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+    },
+    {
+     "path": "tests/fixtures/openmeteo/marine-nulls.json",
+     "content": "{}\n",
+     "readBlobSha": null
+    }
+   ],
+   "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "path needs normalising: double slash (M2)",
+  "data": {
+   "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "agent": "open-meteo-integrator",
+   "status": "pending",
+   "createdAt": "2026-11-23T15:04:05Z",
+   "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+   "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+   "files": [
+    {
+     "path": "docs//notes.md",
+     "content": "export function scoreHour() {}\n",
+     "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+    },
+    {
+     "path": "tests/fixtures/openmeteo/marine-nulls.json",
+     "content": "{}\n",
+     "readBlobSha": null
+    }
+   ],
+   "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "path with percent-encoding (M2)",
+  "data": {
+   "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "agent": "open-meteo-integrator",
+   "status": "pending",
+   "createdAt": "2026-11-23T15:04:05Z",
+   "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+   "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+   "files": [
+    {
+     "path": "docs/%2e%2e/netlify.toml",
+     "content": "export function scoreHour() {}\n",
+     "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+    },
+    {
+     "path": "tests/fixtures/openmeteo/marine-nulls.json",
+     "content": "{}\n",
+     "readBlobSha": null
+    }
+   ],
+   "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "path segment ends in a dot (M2)",
+  "data": {
+   "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "agent": "open-meteo-integrator",
+   "status": "pending",
+   "createdAt": "2026-11-23T15:04:05Z",
+   "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+   "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+   "files": [
+    {
+     "path": "docs/notes.md.",
+     "content": "export function scoreHour() {}\n",
+     "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+    },
+    {
+     "path": "tests/fixtures/openmeteo/marine-nulls.json",
+     "content": "{}\n",
+     "readBlobSha": null
+    }
+   ],
+   "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "path with a space (M2)",
+  "data": {
+   "id": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "agent": "open-meteo-integrator",
+   "status": "pending",
+   "createdAt": "2026-11-23T15:04:05Z",
+   "baseSha": "3f786850e387550fdab836ed7e6dc881de23001b",
+   "summary": "Treat null wave_height as missing data; adds 3 Vitest cases (null, undefined, 0).",
+   "files": [
+    {
+     "path": "docs/my notes.md",
+     "content": "export function scoreHour() {}\n",
+     "readBlobSha": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+    },
+    {
+     "path": "tests/fixtures/openmeteo/marine-nulls.json",
+     "content": "{}\n",
+     "readBlobSha": null
+    }
+   ],
+   "contentHash": "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+  }
  }
 ]
