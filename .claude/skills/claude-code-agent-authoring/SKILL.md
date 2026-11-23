@@ -49,6 +49,7 @@ Instructions / reference. Keep under 500 lines; put detail in sibling files and 
 ## Beach Day conventions
 - **Agent names** match `docs/expert-roster.md` exactly. A skill name in `skills:` must match its folder name exactly.
 - **Every agent** preloads `beach-day-context` and `change-proposal-protocol`.
+- **Every agent** has a `knowledge/<agent-name>/` folder: `README.md` index, `docs/` with sourced notes from official documentation, and `examples/` with 2–3 small worked examples that were run. The agent file includes a `## Before you answer` section telling it to read that folder first and prefer it over memory.
 - **`model` aliases** map to API IDs for the Agent Console (docs/05 §3):
   - `opus` / `inherit` / missing → `claude-opus-5-5`
   - `sonnet` → `claude-sonnet-5-5`

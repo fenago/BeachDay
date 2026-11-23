@@ -32,6 +32,15 @@ The 11 project subagents are in `.claude/agents/`. Their 22 shared skills are in
 | `qa-engineer` | Tests and the release gate |
 | `netlify-engineer` | Netlify config, functions platform, env vars, deploys, credits |
 
+### Agent knowledge (`knowledge/<agent-name>/`)
+
+Each agent has its own knowledge folder:
+- `docs/` holds reference notes taken from the official documentation, each with its source link.
+- `examples/` holds small worked examples that were run, showing what good looks like.
+- `README.md` indexes the folder.
+
+Every agent file has a **Before you answer** section. It tells the agent to read its whole knowledge folder first and to prefer it over memory. When you add an agent, add its knowledge folder too.
+
 ### How the team works
 
 - **The orchestrator runs the experts in parallel.** It splits a goal into tasks and sends independent ones to several experts at once, in one message with multiple Agent calls. For example, Wren designs a flow while open-meteo-integrator builds the data layer and netlify-engineer prepares config. Dependent work runs in sequence: UX → UI → architect check → builders → QA → security → Netlify.
@@ -54,4 +63,4 @@ The 11 project subagents are in `.claude/agents/`. Their 22 shared skills are in
 - Never put secrets (`ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `CONSOLE_PASSWORD_HASH`, `SESSION_SECRET`) in the repo, the front end, logs or prompts.
 - Verdicts never depend on colour alone. Keep the Open-Meteo attribution on screen. Beach Day is not a safety service, so always point people to NWS rip-current risk and posted flags.
 - Every push to `main` is a production deploy and costs Netlify credits, so batch changes.
-- When you add or rename an agent or skill, update `.claude/agents/`, `.claude/skills/`, `docs/expert-roster.md`, the orchestrator's `Agent(...)` list and this file together.
+- When you add or rename an agent or skill, update `.claude/agents/`, `.claude/skills/`, `knowledge/`, `docs/expert-roster.md`, the orchestrator's `Agent(...)` list and this file together.
