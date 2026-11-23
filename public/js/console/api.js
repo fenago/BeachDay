@@ -199,7 +199,7 @@ export function createApi({ auth, fetchImpl = (...a) => globalThis.fetch(...a), 
     startJob: (body) => postJson("/api/jobs", body),
     job: (id) => getJson(`/api/jobs/${checkId(id, "j")}`),
     proposal: (id) => getJson(`/api/proposals/${checkId(id, "p")}`),
-    approve: (id, contentHash) => postJson(`/api/proposals/${checkId(id, "p")}/approve`, { contentHash }, { timeout: 30_000 }),
+    approve: (id, contentHash) => postJson(`/api/proposals/${checkId(id, "p")}/approve`, { contentHash }, { timeout: 65_000 }), // > server GitHub deadline (45 s) and the 60 s function limit (R15)
     reject: (id) => postJson(`/api/proposals/${checkId(id, "p")}/reject`, {}),
     get stopped() { return stopped; },
   };

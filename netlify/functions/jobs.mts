@@ -13,7 +13,7 @@ import { error, json } from "./lib/http.mts";
 import { loadAgentRegistry, type AgentRegistry } from "./lib/agents.mts";
 import { parseChatMessages, canResume } from "./lib/claude.mts";
 import { isJobId } from "./lib/ids.mts";
-import { launchJob, createStartJob, updateJob, type StartJob, type JobRecord } from "./lib/jobs.mts";
+import { launchJob, createStartJob, updateJob, continueClaimFree, type StartJob, type JobRecord } from "./lib/jobs.mts";
 import {
   authorize, methodNotAllowed, badRequest, readJson, isPlainObject, onlyKeys, unavailable, internal,
   MAX_JSON_BODY, type Ctx, type Settings,
@@ -51,7 +51,7 @@ export function createJobsHandler(deps: JobsDeps) {
         return unavailable();
       }
       if (!prev || prev.owner !== g.userId) return error(404, "not_found", "That job no longer exists."); // no existence oracle
-      if (prev.status !== "paused" || prev.continuedBy) return error(409, "conflict", "Only a paused job can be continued.");
+      if (prev.status !== "paused" || !continueClaimFree(prev.continuedBy, deps.now())) return error(409, "conflict", "Only a paused job can be continued.");
       agent = prev.agent;
       messages = Array.isArray(prev.messages) ? [...prev.messages] : [];
       if (messages.length === 0) return error(409, "conflict", "That job has nothing to continue.");
@@ -75,8 +75,9 @@ export function createJobsHandler(deps: JobsDeps) {
 
     // Continue claims the paused job once (CAS), so two clicks can't fork one conversation into two jobs.
     const from = typeof b.continueFrom === "string" ? b.continueFrom : null;
+    const claimMark = { pending: true as const, at: new Date(deps.now()).toISOString() };
     if (from) {
-      const claim = await updateJob(deps.stores.jobs, from, (j) => (j.status === "paused" && !j.continuedBy && j.owner === g.userId ? { ...j, continuedBy: "pending" } : null)).catch(() => null);
+      const claim = await updateJob(deps.stores.jobs, from, (j) => (j.status === "paused" && continueClaimFree(j.continuedBy, deps.now()) && j.owner === g.userId ? { ...j, continuedBy: claimMark } : null)).catch(() => null);
       if (!claim) return unavailable();
       if (!claim.ok) return error(409, "conflict", "Only a paused job can be continued.");
     }
@@ -86,7 +87,7 @@ export function createJobsHandler(deps: JobsDeps) {
     });
     if (from) {
       const mark = launched.ok ? launched.jobId : undefined;
-      await updateJob(deps.stores.jobs, from, (j) => (j.continuedBy === "pending" ? { ...j, continuedBy: mark } : null)).catch(() => {});
+      await updateJob(deps.stores.jobs, from, (j) => (typeof j.continuedBy === "object" && j.continuedBy?.at === claimMark.at ? { ...j, continuedBy: mark } : null)).catch(() => {});
     }
     if (launched.ok) return json(202, { jobId: launched.jobId });
     if (launched.code === "rate_limited") return error(429, "rate_limited", "You've reached today's job limit.", { retryAt: launched.retryAt });

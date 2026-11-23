@@ -75,6 +75,7 @@ export function buildDays(model, now) {
       isToday: dayIndex === 0,
       ...r,
       bestWindow: r.bestWindow ? { start: wall(r.bestWindow.start), end: wall(r.bestWindow.end), hours: r.bestWindow.hours } : null,
+      hourScores: r.hourScores.map((h) => ({ ...h, time: wall(h.time) })), // DST-correct wall clock "HH:MM"
       beachWindow: win ? { start: win.startLocal.slice(11), end: win.endLocal.slice(11) } : null,
       sunrise: d.sunrise ? wall(d.sunrise) : null,
       sunset: d.sunset ? wall(d.sunset) : null,

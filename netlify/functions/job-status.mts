@@ -10,7 +10,7 @@ import { authorize, methodNotAllowed, badRequest, unavailable, type Ctx } from "
 
 const ROUTE = "GET /api/jobs/:id";
 
-export interface JobStatusDeps { guard: Guard; stores: Stores }
+export interface JobStatusDeps { guard: Guard; stores: Stores; now?: () => number }
 
 export function createJobStatusHandler(deps: JobStatusDeps) {
   return async function jobStatus(req: Request, context: Ctx): Promise<Response> {
@@ -26,12 +26,12 @@ export function createJobStatusHandler(deps: JobStatusDeps) {
       return unavailable();
     }
     if (!job || job.owner !== g.userId) return error(404, "not_found", "That job no longer exists.");
-    return json(200, jobView(job));
+    return json(200, jobView(job, (deps.now ?? Date.now)()));
   };
 }
 
 export function realDeps(): JobStatusDeps {
-  return { guard: guardFromEnv(), stores: realStores() };
+  return { guard: guardFromEnv(), stores: realStores(), now: Date.now };
 }
 
 export default createJobStatusHandler(realDeps());

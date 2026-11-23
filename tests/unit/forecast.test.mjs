@@ -161,6 +161,33 @@ describe('today: only slots that have not ended', () => {
   });
 });
 
+describe('hourScores', () => {
+  it('carry a verdict (null when unscored) so the UI never re-derives bands, and wall-clock HH:MM times', async () => {
+    const f = await load('thunder-afternoon');
+    const hs = f.days[0].hourScores;
+    expect(hs[0]).toEqual({ time: '08:00', score: 100, verdict: 'great', hardStops: [] });
+    expect(hs.find((h) => h.time === '14:00')).toEqual({ time: '14:00', score: 0, verdict: 'skip', hardStops: ['thunderstorms'] });
+    expect(hs.find((h) => h.time === '15:00').hardStops).toEqual(['thunder_wait']);
+    const nv = (await load('no-verdict')).days[0].hourScores;
+    expect(nv.every((h) => h.score === null && h.verdict === null)).toBe(true);
+  });
+  it('DST 2027-03-14: rows labelled with the stale -05:00 offset start at 09:00 local', () => {
+    const rows = Array.from({ length: 24 }, (_, h) => ({
+      time: `2027-03-14T${String(h).padStart(2, '0')}:00`, tempF: 80, feelsF: 82, humidity: 50, rainChance: 0, rainIn: 0,
+      weatherCode: 1, cloudPct: 10, windMph: 6, gustMph: 9, uv: 3, cape: 0, waveFt: 1, seaTempF: 80,
+    }));
+    const model = {
+      timezone: 'America/New_York', utcOffsetSeconds: -18000, marine: { available: true, label: 'Offshore waves', snapKm: 1 },
+      hours: rows, days: [{ date: '2027-03-14', sunrise: '2027-03-14T06:25', sunset: '2027-03-14T18:30' }],
+    };
+    const d = buildDays(model, Date.parse('2027-03-13T17:00:00Z'))[0];
+    expect(d.hourScores[0].time).toBe('09:00');
+    expect(d.hourScores.at(-1).time).toBe('18:00');
+    expect(d.bestWindow.start).toBe('09:00');
+    expect(d.beachWindow).toEqual({ start: '08:25', end: '19:00' });
+  });
+});
+
 describe('marine fails soft', () => {
   it('marine 503: forecast still scores, partial.marine is true, advice says so, labelled "Waves unavailable"', async () => {
     const f = await load('marine-missing');

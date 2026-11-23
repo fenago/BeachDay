@@ -104,14 +104,16 @@ const emptyResult = (code, copyId) => ({
  *   bestWindow:{start:string,end:string,hours:number}|null, reasons:{code:string,copyId:string,params:object}[],
  *   advice:{code:string,copyId:string,params:object}[], confidence:'high'|'medium'|'low'|'outlook',
  *   seaTempMeanF:number|null, wavesMaxFt:number|null, marineAvailable:boolean, numbers:object|null,
- *   hourScores:{time:string,score:number|null,hardStops:string[]}[]}}
+ *   hourScores:{time:string,score:number|null,verdict:string|null,hardStops:string[]}[]}}
  */
 export function scoreDay({ hours, priorHour = null, dayIndex = 0, formatTime = defaultFormatTime }) {
   if (!hours || !hours.length) return emptyResult('no_beach_window', 'status.after.hours');
 
   let prior = priorHour ? isThunder(priorHour.weatherCode) : false;
   const res = hours.map((h) => { const r = scoreHour(h, { priorThunder: prior }); prior = r.thunder; return r; });
-  const hourScores = hours.map((h, i) => ({ time: h.time, score: res[i].score, hardStops: res[i].hardStops }));
+  const hourScores = hours.map((h, i) => ({
+    time: h.time, score: res[i].score, verdict: res[i].score === null ? null : verdictFor(res[i].score, C), hardStops: res[i].hardStops,
+  }));
   const usable = res.filter((r) => r.usable);
   if (!usable.length) return { ...emptyResult('data_unavailable', 'status.no.verdict'), hourScores };
 

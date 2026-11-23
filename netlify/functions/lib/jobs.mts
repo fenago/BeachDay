@@ -24,7 +24,7 @@ export interface JobRecord {
   createdAt: string;
   updatedAt: string;
   startedAt?: string;
-  continuedBy?: string;             // set (CAS) when a paused job is continued, so it is continued once
+  continuedBy?: string | { pending: true; at: string }; // CAS claim when a paused job is continued (once); a pending claim older than 60 s may be taken over
 }
 
 export const MAX_JOB_EVENTS = 500;  // job-view schema maxItems
@@ -62,15 +62,43 @@ export function appendEvents(events: SseEvent[], add: SseEvent[]): SseEvent[] {
   return out;
 }
 
-/** job-view (schema): never messages, owner, nonceHash, baseSha, readShas or usage. */
-export function jobView(j: JobRecord) {
-  return { id: j.id, agent: j.agent, status: j.status, events: j.events ?? [], proposalId: j.proposalId ?? null, createdAt: j.createdAt, updatedAt: j.updatedAt };
+export const CONTINUE_CLAIM_STALE_MS = 60_000;
+/** May this paused job be claimed for Continue now? A finished claim (a job id) never; a pending one after 60 s. */
+export function continueClaimFree(c: JobRecord["continuedBy"], nowMs: number): boolean {
+  if (c === undefined || c === null) return true;
+  if (typeof c === "object" && c.pending === true) {
+    const at = Date.parse(c.at);
+    return Number.isFinite(at) && nowMs - at > CONTINUE_CLAIM_STALE_MS; // malformed time counts as held
+  }
+  return false;
+}
+
+/** A job still `running` with no progress write for this long died (15 min background limit + margin). */
+export const JOB_STALE_RUNNING_MS = 16 * 60_000;
+
+/**
+ * job-view (schema): never messages, owner, nonceHash, baseSha, readShas or usage. Display only (R11, R13-2):
+ * a `running` job whose last write is over 16 min old is shown as failed with an internal error. Nothing is written.
+ */
+export function jobView(j: JobRecord, nowMs: number = Date.now()) {
+  const updated = Date.parse(j.updatedAt);
+  const dead = j.status === "running" && Number.isFinite(updated) && nowMs - updated > JOB_STALE_RUNNING_MS;
+  const events = j.events ?? [];
+  return {
+    id: j.id, agent: j.agent,
+    status: dead ? "failed" : j.status,
+    events: dead ? appendEvents(events, [{ type: "error", code: "internal", message: "The job stopped unexpectedly. Start it again.", retryable: true }]) : events,
+    proposalId: j.proposalId ?? null, createdAt: j.createdAt, updatedAt: j.updatedAt,
+  };
 }
 
 export type StartJob = (authorization: string, body: { jobId: string; nonce: string }, origin: string) => Promise<unknown>;
 
+/** A background function answers 202 at once; 3 s keeps the chat hand-off inside the 60 s streaming limit (R13-1). */
+export const START_JOB_TIMEOUT_MS = 3_000;
+
 /** Production startJob: POST <origin>/api/jobs-run with the caller's Authorization. A background function answers 202. */
-export function createStartJob(fetchImpl: typeof fetch = fetch, timeoutMs = 10_000): StartJob {
+export function createStartJob(fetchImpl: typeof fetch = fetch, timeoutMs = START_JOB_TIMEOUT_MS): StartJob {
   return async (authorization, body, origin) => {
     const res = await fetchImpl(`${origin}/api/jobs-run`, {
       method: "POST",

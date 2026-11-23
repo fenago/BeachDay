@@ -124,9 +124,10 @@
       "marineAvailable": true,
       "hourScores": [
         {
-          "time": "2026-11-23T11:00",
+          "time": "11:00",
           "score": 95,
-          "hardStops": []
+          "hardStops": [],
+          "verdict": "great"
         }
       ]
     }
@@ -1268,6 +1269,143 @@
       },
       "sunrise": "06:44",
       "sunset": "17:29"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "hourScores time as raw API time (DST weeks would be an hour off)",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "isToday": true,
+      "verdict": "great",
+      "score": 92,
+      "bestWindow": {
+        "start": "11:00",
+        "end": "14:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "clouds",
+          "copyId": "reason.cloudy.part",
+          "params": {},
+          "avgPoints": 5
+        },
+        {
+          "code": "water_temp",
+          "copyId": "reason.water.warm",
+          "params": {
+            "temp": 78
+          }
+        }
+      ],
+      "advice": [
+        {
+          "code": "uv_moderate",
+          "copyId": "advice.uv.moderate",
+          "params": {
+            "uv": 5.2,
+            "n": 5
+          }
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78,
+      "numbers": {
+        "feelsF": 78,
+        "tempF": 74,
+        "windMph": 5,
+        "gustMph": 9,
+        "rainChancePct": 0,
+        "rainIn": 0,
+        "uv": 5.2,
+        "cloudPct": 43,
+        "waveFt": 0.9,
+        "seaTempF": 78
+      },
+      "beachWindow": {
+        "start": "08:00",
+        "end": "16:59"
+      },
+      "sunrise": "06:44",
+      "sunset": "17:29",
+      "hourScores": [
+        {
+          "time": "2026-11-23T11:00",
+          "score": 95,
+          "hardStops": [],
+          "verdict": "great"
+        }
+      ]
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "hourScores item without verdict (UI would re-derive the band)",
+    "data": {
+      "date": "2026-11-23",
+      "dayIndex": 0,
+      "isToday": true,
+      "verdict": "great",
+      "score": 92,
+      "bestWindow": {
+        "start": "11:00",
+        "end": "14:00",
+        "hours": 3
+      },
+      "reasons": [
+        {
+          "code": "clouds",
+          "copyId": "reason.cloudy.part",
+          "params": {},
+          "avgPoints": 5
+        },
+        {
+          "code": "water_temp",
+          "copyId": "reason.water.warm",
+          "params": {
+            "temp": 78
+          }
+        }
+      ],
+      "advice": [
+        {
+          "code": "uv_moderate",
+          "copyId": "advice.uv.moderate",
+          "params": {
+            "uv": 5.2,
+            "n": 5
+          }
+        }
+      ],
+      "confidence": "high",
+      "seaTempMeanF": 78,
+      "numbers": {
+        "feelsF": 78,
+        "tempF": 74,
+        "windMph": 5,
+        "gustMph": 9,
+        "rainChancePct": 0,
+        "rainIn": 0,
+        "uv": 5.2,
+        "cloudPct": 43,
+        "waveFt": 0.9,
+        "seaTempF": 78
+      },
+      "beachWindow": {
+        "start": "08:00",
+        "end": "16:59"
+      },
+      "sunrise": "06:44",
+      "sunset": "17:29",
+      "hourScores": [
+        {
+          "time": "11:00",
+          "score": 95,
+          "hardStops": []
+        }
+      ]
     }
   }
 ]
