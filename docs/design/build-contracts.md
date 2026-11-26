@@ -1,6 +1,6 @@
 # Build contracts for Beach Day v1
 
-- Status: W1 contract, 2026-11-23. Owner: software-architect (Rowan). Yardstick for W1 reviews and W2 builders.
+- Status: W1 contract, 2026-11-23; §12 "Ask the team" added 2026-11-26. Owner: software-architect (Rowan). Yardstick for W1 reviews and W2 builders.
 - Sources: docs/01 §5, docs/03, docs/04 (§1, §2.1, §4, §7–§9, §11), docs/05 §3–6, ADR-0006/0007/0008 (ADR-0009 Proposed), build_plan §1, §2, §5.
 - Machine-checked: `tests/contracts/` (13 JSON Schemas, samples, real Open-Meteo captures, and live seam checks that run against the real modules once they exist). Run `npx vitest run tests/contracts`.
 - Rule of thumb: **the schema wins over this prose; docs/ wins over both** unless a ruling in §8 says otherwise. If you need to break a contract, say so in your HANDOFF. Don't drift quietly.
