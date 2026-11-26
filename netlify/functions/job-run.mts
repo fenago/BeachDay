@@ -31,6 +31,7 @@ const ROUTE = "POST /api/jobs-run";
  * A low-value START is dropped earlier (LOW_VALUE_START_CAP), so a read whose start was stored keeps room for its end
  * and never shows as unfinished.
  */
+export const FINAL_WRITE_RETRY_MS = 250;
 export const LOW_VALUE_EVENT_CAP = 400;
 export const LOW_VALUE_START_CAP = 380;
 export const isLowValue = (ev: SseEvent) => ev.type === "tool" && (ev.name === "read_file" || ev.name === "list_files");
@@ -122,6 +123,11 @@ export function createJobRunHandler(deps: JobRunDeps) {
       flushText();
       if (terminal) pending.push(terminal);
       await persist({ ...patch, status });
+      // The final write failed and its events were put back: retry it ONCE after a short wait (logged either way).
+      if (pending.length > 0) {
+        await new Promise((r) => setTimeout(r, FINAL_WRITE_RETRY_MS));
+        await persist({ ...patch, status });
+      }
     };
     const fail = (code: ErrorCode) => finish("failed", errorEvent(code));
 

@@ -241,14 +241,16 @@ Classes (Remy-B codes against these; copy ids are Wren's):
 <section class="team-card team-card--selected" aria-labelledby="tt">
   <div class="team-card__head"><h2 class="team-card__title" id="tt">Ask the team</h2><span class="team-card__badge">Default</span></div>
   <p class="team-card__sub">...</p></section>
-<ul class="expert-list"><li><h2 class="expert-list__heading">Or ask one expert</h2></li><li><article class="agent-card">...</article></li></ul>
+<h2 class="expert-list__heading" id="experts-heading">Or ask one expert</h2>
+<ul class="expert-list" aria-labelledby="experts-heading"><li><article class="agent-card">...</article></li></ul>
 <div class="msg msg--progress" data-state="asking|done|failed" aria-busy="true"><span class="msg__author">Progress</span><p class="msg__body"><svg class="icon" aria-hidden="true">...</svg>Asking Dewey</p></div>
 <div class="msg msg--agent"><span class="msg__author">Kai</span><div class="msg__body">...<p class="msg__asked">Asked: Dewey, Wren</p></div></div>
 ```
 - Selected is a 3 px accent frame plus the badge word ("Default"); never colour alone. Unselected uses the 1.5 px `--control-border` frame. All surfaces are solid, so no new blur surface; no new colour tokens.
-- `.msg--progress`: compact dotted line, the state is the words ("Asking", "answered", "couldn't answer"); `failed` adds a banner-error fill and border. The `.msg__author` is visually hidden but read. `aria-busy="true"` adds a static ellipsis (no animation). Announce start and end only (Wren's cadence).
+- `.msg--progress`: compact dotted line, the state is the words ("Asking", "answered", "couldn't answer"); `failed` adds a banner-error fill and border. The `.msg__author` is visually hidden but read. The "…" comes only from the copy; `aria-busy` adds no ellipsis here (`::after { content: none }`). Announce start and end only (Wren's cadence).
 - `.msg__asked` is a footnote under the answer; `.msg__proposal-by` is the "Drafted by" line above a proposal card.
-- `.expert-list__heading` is a solid pill so no text sits on the sky. Two columns from 40em.
+- `.expert-list__heading` is a standalone `h2` above the list, styled as a solid `fit-content` pill so no text sits on the sky. `.expert-list` holds only cards, two columns from 40em.
+- Compact account row: `.account-menu` puts the signed-in line on its own row, then Security, then `[data-signout]` as one flex row (Sign Out + Sign Out Everywhere) with the hint beneath (`display: contents` on its inner div). Team card top was y=353 at 390/412 px (was 440) and 441 at 320 px (was 528).
 - Fallbacks: `prefers-contrast: more` (solid dotted lines, full-strength text), `forced-colors` (Highlight frame, outlined badge), nothing animates so reduced-motion needs no rule.
 
 Contrast, not rounded (light / dark; script `tests/helpers/contrast-beachday.mjs` still 122/122; the pairs below were computed with the same formulas):

@@ -224,4 +224,25 @@ describe("(c) a failed progress write keeps its events for the next write", () =
       jobs.setJSON = real;
     }
   });
+  it("the FINAL write (status done) fails once, is retried once after a short wait, and lands", async () => {
+    const jobs = h.blobs.getStore("jobs");
+    const real = jobs.setJSON;
+    let finalFails = 0;
+    jobs.setJSON = async function (key, value, opts) {
+      if (key.startsWith("j_") && opts?.onlyIfMatch && value.status === "done" && finalFails++ === 0) throw new Error("blobs down");
+      return real.call(this, key, value, opts);
+    };
+    try {
+      h.anthropic.script(turns.text("Answer."));
+      const token = await t.token();
+      const { jobId } = await (await startJob(token, { agent: "open-meteo-integrator", messages: [{ role: "user", content: "Hi" }] })).json();
+      await t.settled();
+      expect(finalFails).toBe(2); // one failure, one successful retry
+      const rec = h.blobs.peek("jobs", jobId);
+      expect(rec.status).toBe("done");
+      expect(rec.events).toEqual([{ type: "text", delta: "Answer." }, { type: "done", stopReason: "end_turn" }]);
+    } finally {
+      jobs.setJSON = real;
+    }
+  });
 });
