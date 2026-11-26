@@ -44,6 +44,20 @@ async function watchStatus(page) {
 const announced = (page) => page.evaluate(() => window.__announced.slice());
 const countIn = (list, needle) => list.filter((x) => x.includes(needle)).length;
 
+/** Collect every /api/jobs/:id answer the page receives (the events live in the job view). */
+function captureJobJson(page) {
+  const seen = [];
+  page.on("response", async (r) => { if (/\/api\/jobs\/j_[0-9A-Z]{26}(\?|$)/.test(r.url())) { try { seen.push(await r.json()); } catch { /* not JSON */ } } });
+  return seen;
+}
+/** Every consult_expert tool event anywhere in the captured job views (deduped by phase+agent+ok). */
+function consultEvents(seen) {
+  const out = new Map();
+  const walk = (v) => { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === "object") { if (v.type === "tool" && v.name === "consult_expert") out.set(`${v.phase}|${v.agent}|${v.ok}`, v); Object.values(v).forEach(walk); } };
+  walk(seen);
+  return [...out.values()];
+}
+
 const consultTurn = (calls, text) => T.for(LEAD, T.consult(calls, { text }));
 const expertReport = (agent, text, startDelayMs = 3500) => T.for(agent, T.held(T.text([text]), startDelayMs));
 
@@ -87,6 +101,7 @@ test("Kai consults Dewey and Wren in ONE round: both requests overlap, progress 
   await loginAs(page, ADMIN);
   await expect(leadChat(page)).toBeVisible();
   await watchStatus(page);
+  const feed = captureJobJson(page);
   await sendMessage(page, "Is Saturday a good beach day at Hollywood Beach, and is our wind rule too strict for families? Ask whoever you need.");
 
   // R-1: a team turn is a background job, never /api/chat.
@@ -118,7 +133,15 @@ test("Kai consults Dewey and Wren in ONE round: both requests overlap, progress 
   expect(countIn(first, STRINGS["agents.team.working"]), "the working line is announced once").toBe(1);
   await page.waitForTimeout(6000); // more than two 2.5 s polls with nothing new
   expect(await announced(page), "later polls announce nothing").toEqual(first);
-  expect(await page.locator(SEL.progress).count(), "progress rows are never removed").toBeGreaterThanOrEqual(4);
+  // One row per consult: it changes state (asking -> done) and is never removed.
+  await expect(page.locator(SEL.progress)).toHaveCount(2);
+  for (const a of [DEWEY, WREN]) await expect(page.locator(`${SEL.progress}[data-agent="${a}"]`)).toHaveAttribute("data-state", "done");
+  await expect(page.locator(`${SEL.progress}[data-agent="${DEWEY}"]`)).toContainText(say("end", "Dewey")); // "Dewey answered"
+  await expect(page.locator(`${SEL.progress}[data-agent="${WREN}"]`)).toContainText(say("end", "Wren"));  // "Wren answered"
+  const ev = consultEvents(feed);
+  expect(ev.map((e) => `${e.phase}:${e.agent}`).sort(), "a start and an end per consult").toEqual([`end:${DEWEY}`, `end:${WREN}`, `start:${DEWEY}`, `start:${WREN}`]);
+  expect(ev.filter((e) => e.phase === "end").every((e) => e.ok === true)).toBe(true);
+  expect(ev.filter((e) => "summary" in e), "no consult event carries a summary (the expert's words stay server-side)").toEqual([]);
   // Nested expert text is NOT forwarded to the page (it goes to Kai only).
   await expect(page.getByText("Dewey: Saturday scores Good")).toHaveCount(0);
   await expect(page.getByText("Wren: the rule is fine")).toHaveCount(0);
@@ -237,10 +260,16 @@ test("an expert that fails is reported, not fatal: \"Wren couldn't answer\", and
     T.for(LEAD, T.text(["Only Dewey could answer: Saturday is Good."])),
   ] });
   await loginAs(page, ADMIN);
+  const feed = captureJobJson(page);
   await sendMessage(page, "Score Saturday and check the wording.");
   await expect(page.locator(SEL.progress).filter({ hasText: t("agents.chat.tool.consult_expert.error", { agent: "Wren" }) })).toBeVisible({ timeout: 45_000 });
   await expect(leadChat(page).getByTestId("msg-agent").last()).toContainText("Only Dewey could answer", { timeout: 30_000 });
   await expect(page.getByTestId("chat-alert")).toBeEmpty(); // the turn did not fail
+  await expect(page.locator(`${SEL.progress}[data-agent="${WREN}"]`)).toHaveAttribute("data-state", "failed");
+  const ev = consultEvents(feed);
+  expect(ev.find((e) => e.phase === "end" && e.agent === WREN)?.ok, "the end event says ok:false").toBe(false);
+  expect(ev.find((e) => e.phase === "end" && e.agent === DEWEY)?.ok).toBe(true);
+  expect(ev.filter((e) => "summary" in e), "no consult event carries a summary").toEqual([]);
 });
 
 test("axe: the landing view of Ask the team, and the same view while a team turn is running, have no violations", async ({ page }) => {

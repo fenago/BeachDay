@@ -321,6 +321,7 @@ sequenceDiagram
 | Time | One deadline for the job; every nested call gets its `signal`. A consult starts only with at least `minConsultMs` (90 s) left. Out of wall clock → `paused`, and Continue works |
 | Compute (D1) | `site:compute` measures **function wall time**. Nested calls run inside the one `job-run` invocation, so they are already counted, and parallel consults don't multiply billed time. Check and wall-clock cap unchanged |
 | Rate rules, Approve cap, allow-list, step-up | Unchanged. Approve is a separate route |
+| Continue (R13) | A Continue is a **new job**, so the consult (6), proposal (3) and token (1M) caps start fresh, as `maxToolRounds` and `maxTokens` already do for every job. Only `baseSha` and `readShas` carry over. Totals stay bounded by the existing limits: 20 jobs and 200 chat turns (one per consult) per user per day, the D1 compute budget, the Anthropic spend limit, and the ADR-0008 cap on what can be committed. Carrying the counts across would need new job-record fields for no extra protection |
 
 ### 12.4 Events and UI (R-4)
 
@@ -366,6 +367,6 @@ team: Object.freeze({ leadAgent: "orchestrator", maxConsultsPerTurn: 6, maxParal
 
 ### 12.8 Open questions
 
-1. **Compute budget (D1) burn.** A team turn is likely 2–8 minutes of `job-run` wall time, against 180 function-minutes per rolling 31 days for everything. That's roughly 25–90 team turns a month. Nell to confirm the estimate on the first real turns; Dr. Lee may want D1 revisited.
+1. **Compute budget (D1) burn.** Nell's estimate is about **4 minutes** of `job-run` wall time per team turn. Against 180 function-minutes per rolling 31 days for everything, that is roughly **45 team turns a month**. Check the estimate against the first real turns; Dr. Lee may want D1 revisited.
 2. **Every Kai message is a job.** Even "thanks" uses one of 20 daily jobs and needs 5 minutes of compute budget left. If that bites, the boring fix is a higher `perUserDaily.jobs`, not a second path through chat.
 3. **No streaming for Kai.** Kai's answer appears per finished block after polling, so it arrives all at once after the consults. Wren's working state covers the wait.

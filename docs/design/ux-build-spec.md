@@ -202,7 +202,7 @@ Or ask one expert                        h2 [agents.experts.heading]
 
 **The "Asked" footer.** A line under Kai's answer: "Asked: Dewey, Wren". The list is built from the consult events, not from the model: persona names (never agent ids), first-asked order, each expert once, joined with ", ". It includes an expert who couldn't answer, because they were asked; the progress row already says so. No consults, no footer. It is plain text in the same message, so a screen reader reads it with the answer. If the footer and Kai's own text both name the experts, that is fine.
 
-**"Drafted by".** The proposal card is unchanged (§3.3, approval spec): same heading, diff, Review and Approve, step-up and cap. One added line in the card header, before the file list: "Drafted by Wren", where the name is the expert named on the proposal event (never Kai: the lead cannot propose). Approve's accessible name stays "Approve proposal: {title}". The sheet's consequence copy is untouched.
+**"Drafted by".** The proposal card is unchanged (§3.3, approval spec): same heading, diff, Review and Approve, step-up and cap. One added line directly above the card (a sibling line, not inside it; Dr. Lee's ruling): "Drafted by Wren", where the name is the expert named on the proposal event (never Kai: the lead cannot propose). Approve's accessible name stays "Approve proposal: {title}". The sheet's consequence copy is untouched.
 
 **Errors and limits** (all existing ids; none is new):
 | What happened | Copy | Region |
@@ -210,17 +210,17 @@ Or ask one expert                        h2 [agents.experts.heading]
 | One expert fails, times out or is refused | Row "Sable couldn't answer". Kai says what it could not get, in its answer. The turn goes on | status |
 | An expert's proposal is refused by the allow-list | No card. Kai explains in its answer. The progress row is still "answered" | none extra |
 | Job paused at the time limit | [agents.chat.paused] and a [agents.chat.continue] button (44 px). Rows already shown stay | status; focus stays where it is |
-| Job failed | [agents.chat.jobfailed] and [btn.tryAgain]; the draft is kept ([agents.chat.draft.kept]) | alert |
+| Job failed | [agents.chat.jobfailed] only, no button. The job was accepted, so the sent message stays in the log and nothing is left in the composer to resend; the user types again | alert |
 | Too many requests or the usage limit | [agents.chat.ratelimited] or [agents.chat.ratelimited.nodate]; [console.error.budget] | alert |
 | Message too long | [agents.chat.toolong] (the 8,000-character question limit is Kai's, not the user's) | alert |
 | Session ended (401) | The §3.1 session screen; the draft and transcript are kept in memory | h1 focus |
 | `401 step_up_required` | The confirm sheet, never "session ended" | as today |
-| Network lost while polling | [auth.error.network] with [btn.tryAgain]; polling resumes on tap | alert |
+| Network lost while polling | Polling retries silently and the working line stays. (Later round: after many failed polls, show [auth.error.network] as a status.) | none |
 
-**Continue.** On a paused job, tap [agents.chat.continue]: the same job resumes, [agents.team.working] returns, and new rows are added under the old ones. Do not clear the log. Focus stays on the Continue button until it is replaced by the working line, then moves to nothing (the composer keeps focus if it had it). One Continue per pause; no auto-resume.
+**Continue.** On a paused job, tap [agents.chat.continue]: the same job resumes, [agents.team.working] returns, and new rows are added under the old ones. Do not clear the log. When Continue is removed, focus moves to the composer, so it never falls back to the page. One Continue per pause; no auto-resume.
 
 **Usability walk-through (desk check, iPhone 390 px and Pixel 412 px).**
-- Landing: the card, sub and composer show without scrolling at 390 px. The expert list is one scroll away. Pass.
+- Landing: the page bar (h1, sub, status line, account menu) is tall, so the card starts low at 390 and 412 px. Fix: hide the page-bar sub when a team lead exists (it repeats [agents.team.sub]) and put the account menu on the h1 row, so the card heading and composer sit near the first screen. The expert list is one scroll away. Unmeasured; Tess to check.
 - Wait: a team turn can run for minutes. The working line, the rows and the "few minutes" text set the expectation; no fake progress bar. The 2.5 s poll is silent.
 - Friction 1: a long transcript pushes "Or ask one expert" far down. Suggest Sable keeps the log in a bounded, scrollable region and adds a "skip to experts" link only if the heading is more than a screen away. Not blocking.
 - Friction 2: choosing an expert mid-turn. The job keeps running; coming back to the team card must show the same log (memory only). Remy-B to confirm.
