@@ -7,6 +7,13 @@ test.beforeEach(async ({ page, baseURL }) => { c = await consoleApp(page, baseUR
 test.afterEach(() => { c.guard.assertClean(); expect(c.csp, "CSP violations").toEqual([]); });
 const EXPERT = '[data-testid="agent-card"]:not([data-agent="orchestrator"])'; // the lead is the "Ask the team" card, not an expert card
 const firstExpert = (page) => page.locator(EXPERT).first();
+/** Open the first expert's chat and wait until THAT chat panel is on screen (the route re-renders; typing before it settles is lost). */
+async function openExpertChat(page) {
+  const name = await firstExpert(page).getAttribute("data-agent");
+  await firstExpert(page).getByTestId("agent-chat").click();
+  await expect(page.locator(`[data-testid="chat"][data-agent="${name}"]`)).toBeVisible();
+  return name;
+}
 async function reopenExpertChat(page, name) { // after signing in again the page may land on the default (Kai) view
   const chat = page.locator(`[data-testid="chat"][data-agent="${name}"]`);
   if (!(await chat.isVisible())) await page.locator(`[data-testid="agent-card"][data-agent="${name}"]`).getByTestId("agent-chat").click();
@@ -108,8 +115,7 @@ test("session ends while a chat draft is typed: S7 with 'Your draft and proposal
   const { turns } = await import("../helpers/e2e.mjs");
   await c.h.anthropic.script({ turns: [turns.text(["First answer."])] });
   await loginAs(page, ADMIN);
-  const expert = await firstExpert(page).getAttribute("data-agent");
-  await firstExpert(page).getByTestId("agent-chat").click();
+  const expert = await openExpertChat(page);
   await page.getByTestId("chat-input").fill("first question");
   await page.getByTestId("chat-send").click();
   await expect(page.getByTestId("msg-agent")).toContainText("First answer.");
@@ -151,7 +157,7 @@ test("deliberate Sign Out: no 'session ended' flash, and the chat transcript and
   const { turns } = await import("../helpers/e2e.mjs");
   await c.h.anthropic.script({ turns: [turns.text(["An answer to forget."])] });
   await loginAs(page, ADMIN);
-  await firstExpert(page).getByTestId("agent-chat").click();
+  await openExpertChat(page);
   await page.getByTestId("chat-input").fill("remember me?");
   await page.getByTestId("chat-send").click();
   await expect(page.getByTestId("msg-agent")).toContainText("An answer to forget.");
@@ -166,7 +172,7 @@ test("deliberate Sign Out: no 'session ended' flash, and the chat transcript and
   expect(seen, "S7 must never flash after a deliberate sign-out").toEqual([]);
   await signIn(page, ADMIN);
   await expect(page.getByTestId("agent-list")).toBeVisible();
-  await firstExpert(page).getByTestId("agent-chat").click();
+  await openExpertChat(page);
   await expect(page.getByTestId("msg-user")).toHaveCount(0);
   await expect(page.getByTestId("chat-input")).toHaveValue("");
 });
