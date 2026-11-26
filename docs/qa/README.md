@@ -86,3 +86,14 @@ The 4 failures of the whole-suite run:
 `a11y.spec` is in the whole-suite run: no axe violation was reported. The whole-suite run re-wrote some tracked screenshots in `docs/qa/screenshots/` (`screens.spec` takes them). `team-shots.spec.mjs` is skipped unless `TEAM_SHOTS=1`.
 
 Not run: WebKit, real devices, VoiceOver/TalkBack, post-deploy smoke, @prod specs, Lighthouse, Supabase pre-launch tests (a)-(i), the CI workflow (D11).
+
+## Ask the team follow-ups run (2026-11-26, tree 634b82e plus one spec assert)
+
+New in `team.spec.mjs`: in the proposal test, `proposal-by` comes before the proposal card, and the card comes before Kai's reply bubble (DOM order, even though Kai's reply started first).
+
+| Run | Result | Peak memory (largest single process / all) |
+|---|---|---|
+| `npx playwright test tests/e2e/team.spec.mjs tests/e2e/gate.spec.mjs tests/e2e/chat.spec.mjs tests/e2e/approve.spec.mjs tests/e2e/a11y.spec.mjs --project=pixel --project=iphone-chromium --trace off` | 134 passed, 0 failed, 0 skipped | 472 MB / 1.95 GB |
+| `TEAM_SHOTS=1 npx playwright test tests/e2e/team-shots.spec.mjs --project=pixel --project=iphone-chromium --trace off` | 2 passed; 8 team PNGs re-shot at deviceScaleFactor 2 | 422 MB / 1.62 GB |
+
+Looked at `pixel-team-progress.png`: both progress rows ("Asking Dewey...", "Asking Wren...") sit fully above the composer. `iphone-chromium-*` is Chromium emulating an iPhone 15, not WebKit. Not run this round: `screens.spec`, `focus-states.spec` (the known flaky "slow load" case), offline-sw, `npm test`, WebKit, real devices.
