@@ -101,12 +101,16 @@ export async function loginAs(page, user) {
   await signIn(page, user);
 }
 
-/** Open the chat for the first agent card; returns its persona. */
+/** The expert cards: every agent card except the team lead (Ask the team, "orchestrator"), whatever testid the team card carries. */
+export const EXPERT_CARDS = '[data-testid="agent-card"]:not([data-agent="orchestrator"])';
+
+/** Open the chat for the first EXPERT (single-expert /api/chat path). Kai's team chat is the default view and runs as a job. */
 export async function openFirstChat(page) {
-  const card = page.getByTestId("agent-card").first();
+  const card = page.locator(EXPERT_CARDS).first();
   await expect(card).toBeVisible();
+  const name = await card.getAttribute("data-agent");
   await card.getByTestId("agent-chat").click();
-  await expect(page.getByTestId("chat")).toBeVisible();
+  await expect(page.locator(`[data-testid="chat"][data-agent="${name}"]`)).toBeVisible();
 }
 
 export async function sendMessage(page, text) {

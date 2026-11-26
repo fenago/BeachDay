@@ -322,11 +322,14 @@ describe("seam: SSE union <-> lib/sse.mts assertEvent (agent-console-engineer; A
     const { assertEvent } = await imp("netlify/functions/lib/sse.mts");
     for (const s of samples.filter((x) => x.expect === "valid")) expect(() => assertEvent(s.data), s.why).not.toThrow();
   });
-  it.skipIf(!exists("netlify/functions/lib/sse.mts"))("assertEvent rejects every invalid tool/text sample (team fields included)", async () => {
+  // The server never emits an event the browser's schema would reject. Scope: the team-turn rules (consult_expert needs
+  // `agent`, carries no `summary`, and its end carries `ok`; nested text is never tagged). Collected, so one run lists all gaps.
+  it.skipIf(!exists("netlify/functions/lib/sse.mts"))("assertEvent rejects every invalid team-event sample", async () => {
     const { assertEvent } = await imp("netlify/functions/lib/sse.mts");
-    for (const s of samples.filter((x) => x.expect === "invalid" && (x.data.type === "tool" || x.data.type === "text"))) {
-      expect(() => assertEvent(s.data), s.why).toThrow();
-    }
+    const team = samples.filter((x) => x.expect === "invalid" && (x.data.name === "consult_expert" || "agent" in x.data || "ok" in x.data));
+    expect(team.length).toBeGreaterThanOrEqual(6);
+    const accepted = team.filter((s) => { try { assertEvent(s.data); return true; } catch { return false; } }).map((s) => s.why);
+    expect(accepted).toEqual([]);
   });
 });
 

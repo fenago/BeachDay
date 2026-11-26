@@ -11,9 +11,10 @@ import { checkOrigin } from "./lib/origin.mts";
 import { realStores, type Stores } from "./lib/blobs.mts";
 import { SETTINGS } from "./lib/settings.mts";
 import { loadAgentRegistry, type AgentRegistry } from "./lib/agents.mts";
-import { createAnthropicClient, createDeadline, runTurn, assertAllowedModel, type Usage } from "./lib/claude.mts";
+import { createAnthropicClient, createDeadline, runTurn, assertAllowedModel, type Usage, type TokenMeter, type ParallelTools } from "./lib/claude.mts";
 import { githubReadFromEnv, type GitHubRead } from "./lib/github-read.mts";
-import { createToolRunner } from "./lib/tools.mts";
+import { createToolRunner, TOOLS, type RunTool } from "./lib/tools.mts";
+import { createTeamRunner } from "./lib/team.mts";
 import { textEvents, errorEvent, type SseEvent, type ErrorCode } from "./lib/sse.mts";
 import { writeAudit } from "./lib/proposals.mts";
 import { checkComputeBudget, recordCompute } from "./lib/limits.mts";
@@ -99,7 +100,8 @@ export function createJobRunHandler(deps: JobRunDeps) {
     const fail = (code: ErrorCode) => finish("failed", errorEvent(code));
 
     try {
-      const agent = (await deps.registry()).get(claimed.agent);
+      const registry = await deps.registry();
+      const agent = registry.get(claimed.agent);
       if (!agent) return (await fail("internal"), accepted());
       try { assertAllowedModel(agent.model); } catch { return (await fail("internal"), accepted()); }
 
@@ -126,20 +128,33 @@ export function createJobRunHandler(deps: JobRunDeps) {
       const emit = (ev: SseEvent) => {
         if (ev.type === "text") { text += ev.delta; return; } // stored per finished block, not per token
         pending.push(ev);
-        if (ev.type === "tool" && ev.phase === "end") persist(); // progress after each tool call
+        // Progress after each tool call, and also when a consult STARTS, so "Asking Dewey…" shows within one poll.
+        if (ev.type === "tool" && (ev.phase === "end" || ev.name === "consult_expert")) persist();
       };
-      const runTool = createToolRunner({
-        reader, proposals: deps.stores.proposals, agent: agent.name, state, now: () => new Date(deps.now()),
-        policy: { denyConsoleUi: S.denyConsoleUi }, createdBy: g.userId,
-        emit: (ev) => { flushText(); emit(ev); },
-        onProposal: async (p) => {
-          proposalId = p.id;
-          await writeAudit(deps.stores.audit, { action: "proposed", actor: g.userId, proposalId: p.id, jobId, requestId }, new Date(deps.now())).catch(() => {});
-        },
-      });
+      const toolEmit = (ev: SseEvent) => { flushText(); emit(ev); };
+      const onProposal = async (p: { id: string }) => {
+        proposalId = p.id; // the last one; the UI uses the proposal events
+        await writeAudit(deps.stores.audit, { action: "proposed", actor: g.userId, proposalId: p.id, jobId, requestId }, new Date(deps.now())).catch(() => {});
+      };
       const usage: Usage = claimed.usage ?? { tokens: 0, rounds: 0 };
+      const meter: TokenMeter = { tokens: usage.tokens }; // ONE meter for the lead and every expert it consults (R-3)
+      const now = () => new Date(deps.now());
+      const policy = { denyConsoleUi: S.denyConsoleUi };
+      let runTool: RunTool;
+      let tools: ReadonlyArray<unknown> = TOOLS;
+      let parallel: ParallelTools | undefined;
+      if (agent.name === S.team.leadAgent) {
+        // The team lead: read tools + consult_expert, no propose_change; consults of one round run in parallel (R-2).
+        const team = createTeamRunner({
+          client, registry, lead: agent, reader, stores: deps.stores, state, meter, deadline, emit: toolEmit,
+          createdBy: g.userId, policy, settings: S, now, onProposal,
+        });
+        ({ runTool, tools, parallel } = team);
+      } else {
+        runTool = createToolRunner({ reader, proposals: deps.stores.proposals, agent: agent.name, state, now, policy, createdBy: g.userId, emit: toolEmit, onProposal });
+      }
       const r = await runTurn({
-        client, agent, messages: claimed.messages, runTool, emit, effort: "high", deadline, usage,
+        client, agent, messages: claimed.messages, runTool, emit, effort: "high", deadline, usage, meter, tools, parallel,
         maxRounds: S.perTurn.maxToolRounds, maxTokens: S.perTurn.maxTokens, maxToolCallsPerRound: S.perTurn.maxToolCallsPerRound,
       });
       const save = { messages: r.messages, usage: r.usage, readShas: state.readShas, baseSha: state.baseSha };

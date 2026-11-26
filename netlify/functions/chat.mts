@@ -62,6 +62,8 @@ export function createChatHandler(deps: ChatDeps) {
       return internal();
     }
     if (!agent) return badRequest("Unknown agent.");
+    // The team lead runs only as a background job (team_plan R-1): consult_expert exists only inside job-run.
+    if (agent.name === S.team.leadAgent) return badRequest("Ask the team runs as a background job. Start it with /api/jobs.");
     try {
       assertAllowedModel(agent.model);
     } catch {

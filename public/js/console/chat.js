@@ -34,7 +34,7 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
   let busy = false;
   let budgetUntil = 0;
 
-  const log = h("div", { class: "chat-log", role: "log", "aria-label": say("agents.chat.log"), "data-empty": say("agents.sub"), dataset: { testid: "chat-log" } });
+  const log = h("div", { class: "chat-log", role: "log", "aria-label": say("agents.chat.log"), "data-empty": team ? null : say("agents.sub"), dataset: { testid: "chat-log" } });
   const status = h("p", { class: "chat-status", role: "status", dataset: { testid: "chat-status" } });
   const alert = h("div", { role: "alert", dataset: { testid: "chat-alert" } });
   const inputId = `composer-${agent.name}`;
@@ -219,20 +219,25 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
         shown = events.length;
         const final = JOB_FINAL.has(job?.status);
         if (final && consults) said.push(...closeOpenConsults(consults));
-        if (said.length) announce(teamStatus, said.join(" ")); // one update per poll; a quiet poll says nothing
-        if (!final) continue;
+        if (!final) {
+          if (said.length) announce(teamStatus, said.join(" ")); // one update per poll; a quiet poll says nothing
+          continue;
+        }
         working?.remove();
         const err = events.find((e) => e.type === "error");
-        if (err?.code === "refusal") return endTurn(reply, err);
+        if (err?.code === "refusal") {
+          if (said.length) announce(teamStatus, said.join(" "));
+          return endTurn(reply, err);
+        }
         const asked = consults ? askedText(consults) : null;
         if (asked && reply.text) reply.body.append(h("p", { class: "msg__asked", dataset: { testid: "team-asked" } }, asked));
         else if (asked) log.append(h("div", { class: "msg msg--system" }, h("p", { class: "msg__asked", dataset: { testid: "team-asked" } }, asked)));
-        return finishJob(job, jobId, reply);
+        return finishJob(job, jobId, reply, said); // the last poll's lines go out with the reply, as one update
       }
     } finally { working?.remove(); }
   }
 
-  function finishJob(job, jobId, reply) {
+  function finishJob(job, jobId, reply, said = []) {
     finishReply(reply);
     if (reply.text) transcript.push({ role: "assistant", content: reply.text }); else transcript.pop();
     if (job.status === "failed") systemLine(say("agents.chat.jobfailed"), "error");
@@ -252,7 +257,8 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
       });
       log.append(h("div", { class: "msg msg--system" }, h("p", { class: "msg__body" }, say("agents.chat.paused")), h("div", { class: "chat-actions" }, btn)));
     }
-    announce(team ? teamStatus : status, say("agents.chat.reply", { agent: persona }));
+    if (team) announce(teamStatus, [...said, say("agents.chat.reply", { agent: persona })].join(" "));
+    else announce(status, say("agents.chat.reply", { agent: persona }));
   }
 
   /**
