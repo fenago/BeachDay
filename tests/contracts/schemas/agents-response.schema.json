@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://beachday.example/schemas/agents-response.schema.json",
   "title": "AgentsResponse",
-  "description": "200 body of GET /api/agents (agents.mts, from the bundled agents.json written by scripts/build-agents.mjs) -> Console Agents page (console/agents.js). Each element is the agents.json element WITHOUT systemPrompt (additionalProperties false makes a leaked prompt fail). Sorted by name. Contract: docs/design/build-contracts.md §4.",
+  "description": "200 body of GET /api/agents (agents.mts, from the bundled agents.json written by scripts/build-agents.mjs) -> Console Agents page (console/agents.js). Each element is the agents.json element WITHOUT systemPrompt (additionalProperties false makes a leaked prompt fail). Sorted by name. Contract: docs/design/build-contracts.md §4 and §12.",
   "type": "object",
   "additionalProperties": false,
   "required": ["agents"],
@@ -11,7 +11,11 @@
       "type": "array",
       "minItems": 1,
       "maxItems": 50,
-      "items": { "$ref": "#/$defs/agent" }
+      "items": { "$ref": "#/$defs/agent" },
+      "contains": { "type": "object", "required": ["teamLead"], "properties": { "teamLead": { "const": true } } },
+      "minContains": 0,
+      "maxContains": 1,
+      "description": "At most one agent carries teamLead (Ask the team, build-contracts §12). None is allowed: the UI then shows the plain list."
     }
   },
   "$defs": {
@@ -22,6 +26,7 @@
       "required": ["name", "persona", "description", "personality", "model", "modelLabel", "color", "skills", "knowledge"],
       "properties": {
         "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,63}$" },
+        "teamLead": { "const": true, "description": "Present (true) only on SETTINGS.team.leadAgent. The UI keys the 'Ask the team' card on this flag, never on the name. Never false: absent means expert" },
         "persona": { "type": "string", "minLength": 1, "maxLength": 40, "description": "First name; falls back to name" },
         "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
         "personality": { "type": "string", "minLength": 1, "maxLength": 2000, "description": "Falls back to description" },

@@ -45,7 +45,7 @@ export function createAnthropicClient(kind: "chat" | "job", apiKey: string | und
 export interface AgentForCall { model: string; systemPrompt: string }
 
 /** The exact request body. No temperature/top_p/top_k, no budget_tokens, no forced tool_choice. */
-export function buildParams(agent: AgentForCall, messages: unknown[], effort: Effort, maxTokens = STREAM_MAX_TOKENS) {
+export function buildParams(agent: AgentForCall, messages: unknown[], effort: Effort, maxTokens = STREAM_MAX_TOKENS, tools: ReadonlyArray<unknown> = TOOLS) {
   assertAllowedModel(agent.model);
   return {
     model: agent.model,
@@ -53,7 +53,7 @@ export function buildParams(agent: AgentForCall, messages: unknown[], effort: Ef
     thinking: { type: "adaptive" as const },
     output_config: { effort },
     system: [{ type: "text" as const, text: agent.systemPrompt, cache_control: { type: "ephemeral" as const } }],
-    tools: TOOLS as unknown as Anthropic.Tool[],
+    tools: tools as unknown as Anthropic.Tool[],
     tool_choice: { type: "auto" as const },
     messages: messages as Anthropic.MessageParam[],
   };
@@ -90,6 +90,10 @@ export function createDeadline(totalMs: number, startedAt: number, now: () => nu
 
 // ---- The loop ----
 export interface Usage { tokens: number; rounds: number }
+/** A token counter shared by a team turn: Kai and every expert it consults add to ONE meter (team_plan R-3). */
+export interface TokenMeter { tokens: number }
+/** Tools whose calls in one round run concurrently (consult_expert), at most `limit` at a time; others stay serial. */
+export interface ParallelTools { names: ReadonlySet<string>; limit: number }
 export type TurnOutcome =
   | { kind: "done"; stopReason: DoneReason }
   | { kind: "error"; code: ErrorCode }
@@ -110,6 +114,23 @@ export interface RunTurnDeps {
   maxTokens?: number;
   maxToolCallsPerRound?: number;     // R2-2: default SETTINGS.perTurn.maxToolCallsPerRound, else 10
   log?: (msg: string, data: object) => void;
+  tools?: ReadonlyArray<unknown>;    // this agent's tool definitions (default TOOLS; the team lead: lib/team.mts)
+  meter?: TokenMeter;                // shared token meter (team turns); default: this turn's own count
+  parallel?: ParallelTools;          // default: every tool runs serially
+}
+
+/** Run fn over items with at most `limit` in flight; results keep the input order. */
+export async function mapLimited<T, R>(items: readonly T[], limit: number, fn: (item: T, i: number) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, worker));
+  return out;
 }
 
 const sumUsage = (u: any): number =>
@@ -121,23 +142,26 @@ export async function runTurn(d: RunTurnDeps): Promise<TurnResult> {
   // Known limit (R2-S7): the token cap is checked between rounds, so a turn can overshoot by one round.
   const maxTokens = d.maxTokens ?? SETTINGS.perTurn.maxTokens;
   const maxCalls = d.maxToolCallsPerRound ?? SETTINGS.perTurn.maxToolCallsPerRound ?? DEFAULT_MAX_TOOL_CALLS_PER_ROUND;
-  const usage: Usage = { tokens: d.usage?.tokens ?? 0, rounds: d.usage?.rounds ?? 0 };
+  const rounds = { n: d.usage?.rounds ?? 0 };
+  // Tokens go to the shared meter when one is given (a team turn), else to this turn's own count.
+  const meter: TokenMeter = d.meter ?? { tokens: d.usage?.tokens ?? 0 };
+  const snapshot = (): Usage => ({ tokens: meter.tokens, rounds: rounds.n });
   const convo = [...d.messages];
   try {
     assertAllowedModel(d.agent.model);
   } catch {
     log("model_not_allowed", {});
-    return { outcome: { kind: "error", code: "internal" }, messages: convo, usage };
+    return { outcome: { kind: "error", code: "internal" }, messages: convo, usage: snapshot() };
   }
 
   for (;;) {
-    if (usage.rounds >= maxRounds) return { outcome: { kind: "done", stopReason: "tool_rounds_exhausted" }, messages: convo, usage };
-    if (usage.tokens >= maxTokens) return { outcome: { kind: "done", stopReason: "max_tokens" }, messages: convo, usage };
-    if (!d.deadline.canStartRound()) return { outcome: { kind: "handoff" }, messages: convo, usage };
+    if (rounds.n >= maxRounds) return { outcome: { kind: "done", stopReason: "tool_rounds_exhausted" }, messages: convo, usage: snapshot() };
+    if (meter.tokens >= maxTokens) return { outcome: { kind: "done", stopReason: "max_tokens" }, messages: convo, usage: snapshot() };
+    if (!d.deadline.canStartRound()) return { outcome: { kind: "handoff" }, messages: convo, usage: snapshot() };
 
     let final: any;
     try {
-      const stream = d.client.messages.stream(buildParams(d.agent, convo, d.effort), { signal: d.deadline.signal });
+      const stream = d.client.messages.stream(buildParams(d.agent, convo, d.effort, STREAM_MAX_TOKENS, d.tools ?? TOOLS), { signal: d.deadline.signal });
       for await (const ev of stream as AsyncIterable<any>) {
         if (ev?.type === "content_block_delta" && ev.delta?.type === "text_delta" && typeof ev.delta.text === "string") {
           d.emit({ type: "text", delta: ev.delta.text });
@@ -147,45 +171,52 @@ export async function runTurn(d: RunTurnDeps): Promise<TurnResult> {
       final = await stream.finalMessage();
     } catch (err: any) {
       if (d.deadline.signal.aborted) {
-        log("claude_deadline", { rounds: usage.rounds });
-        return { outcome: { kind: "error", code: "timeout" }, messages: convo, usage };
+        log("claude_deadline", { rounds: rounds.n });
+        return { outcome: { kind: "error", code: "timeout" }, messages: convo, usage: snapshot() };
       }
       // Log status, type and request id only; never prompts, bodies or keys.
       log("claude_failed", { status: err?.status ?? null, type: err?.error?.error?.type ?? err?.name ?? null, requestId: err?.requestID ?? err?.request_id ?? null });
-      return { outcome: { kind: "error", code: "upstream" }, messages: convo, usage };
+      return { outcome: { kind: "error", code: "upstream" }, messages: convo, usage: snapshot() };
     }
 
-    usage.tokens += sumUsage(final?.usage);
+    meter.tokens += sumUsage(final?.usage);
     const stop = final?.stop_reason;
     const content = Array.isArray(final?.content) ? final.content : [];
 
     if (stop === "refusal") {
       // Discard this round; the caller resets the turn. Category is logged, never shown.
       log("claude_refusal", { category: final?.stop_details?.category ?? null });
-      return { outcome: { kind: "error", code: "refusal" }, messages: convo, usage };
+      return { outcome: { kind: "error", code: "refusal" }, messages: convo, usage: snapshot() };
     }
     if (stop === "tool_use") {
       convo.push({ role: "assistant", content }); // unchanged, thinking blocks included
       const calls = content.filter((b: any) => b?.type === "tool_use") as ToolUseBlock[];
-      const results = [];
-      for (let i = 0; i < calls.length; i++) {
-        const call = calls[i];
-        // Every tool_use still gets exactly one tool_result; capped or late calls never reach GitHub.
-        if (i >= maxCalls) results.push(toolError(call.id, `too many tool calls in one round (at most ${maxCalls}); ask again for the rest`));
-        else if (!d.deadline.canStartRound()) results.push(toolError(call.id, "out of time for this turn; not run"));
-        else results.push(await d.runTool(call)); // serial (GitHub)
-      }
-      convo.push({ role: "user", content: results }); // all results, one message, results only
-      usage.rounds += 1;
+      // Every tool_use still gets exactly one tool_result; capped or late calls never reach GitHub or Claude.
+      const runOne = async (call: ToolUseBlock, i: number) => {
+        if (i >= maxCalls) return toolError(call.id, `too many tool calls in one round (at most ${maxCalls}); ask again for the rest`);
+        if (!d.deadline.canStartRound()) return toolError(call.id, "out of time for this turn; not run");
+        return d.runTool(call);
+      };
+      const results: unknown[] = new Array(calls.length);
+      const par = d.parallel;
+      const isPar = (c: ToolUseBlock) => !!par && par.names.has(c.name);
+      const parIdx = calls.map((c, i) => i).filter((i) => isPar(calls[i]));
+      const serial = (async () => {
+        for (let i = 0; i < calls.length; i++) if (!isPar(calls[i])) results[i] = await runOne(calls[i], i); // serial (GitHub)
+      })();
+      const parallel = mapLimited(parIdx, par?.limit ?? 1, async (i) => { results[i] = await runOne(calls[i], i); });
+      await Promise.all([serial, parallel]);
+      convo.push({ role: "user", content: results }); // all results in tool_use order, one message, results only
+      rounds.n += 1;
       continue;
     }
     convo.push({ role: "assistant", content });
     if (stop === "max_tokens" || stop === "model_context_window_exceeded") {
       // A tool_use cut off here may be truncated: it is never run.
-      return { outcome: { kind: "done", stopReason: "max_tokens" }, messages: convo, usage };
+      return { outcome: { kind: "done", stopReason: "max_tokens" }, messages: convo, usage: snapshot() };
     }
-    if (usage.tokens > maxTokens) return { outcome: { kind: "done", stopReason: "max_tokens" }, messages: convo, usage };
-    return { outcome: { kind: "done", stopReason: "end_turn" }, messages: convo, usage };
+    if (meter.tokens > maxTokens) return { outcome: { kind: "done", stopReason: "max_tokens" }, messages: convo, usage: snapshot() };
+    return { outcome: { kind: "done", stopReason: "end_turn" }, messages: convo, usage: snapshot() };
   }
 }
 

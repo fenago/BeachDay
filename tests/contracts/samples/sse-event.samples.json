@@ -230,5 +230,144 @@
    "type": "done",
    "stopReason": "refusal"
   }
+ },
+ {
+  "expect": "valid",
+  "why": "team: consult start names the expert, no summary (build-contracts §12)",
+  "data": {
+   "type": "tool",
+   "name": "consult_expert",
+   "phase": "start",
+   "agent": "open-meteo-integrator"
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "team: consult end, expert answered",
+  "data": {
+   "type": "tool",
+   "name": "consult_expert",
+   "phase": "end",
+   "agent": "open-meteo-integrator",
+   "ok": true
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "team: consult end, expert couldn't answer (refusal, timeout, cap)",
+  "data": {
+   "type": "tool",
+   "name": "consult_expert",
+   "phase": "end",
+   "agent": "ux-designer-apple-hig",
+   "ok": false
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "team: an expert's nested read carries agent",
+  "data": {
+   "type": "tool",
+   "name": "read_file",
+   "phase": "end",
+   "agent": "open-meteo-integrator",
+   "summary": "Read public/js/score-config.js"
+  }
+ },
+ {
+  "expect": "valid",
+  "why": "team: proposal drafted by an expert carries agent",
+  "data": {
+   "type": "proposal",
+   "proposalId": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+   "agent": "ux-designer-apple-hig",
+   "summary": "Clarify the Fair verdict line in the UX spec.",
+   "files": [
+    {
+     "path": "docs/design/ux-build-spec.md",
+     "bytes": 20480
+    }
+   ]
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "team: consult_expert without agent",
+  "data": {
+   "type": "tool",
+   "name": "consult_expert",
+   "phase": "start"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "team: consult_expert echoes the question as summary",
+  "data": {
+   "type": "tool",
+   "name": "consult_expert",
+   "phase": "start",
+   "agent": "open-meteo-integrator",
+   "summary": "Is Saturday good at Hollywood Beach?"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "team: consult_expert end without ok (UI can't tell answered from failed)",
+  "data": {
+   "type": "tool",
+   "name": "consult_expert",
+   "phase": "end",
+   "agent": "open-meteo-integrator"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "ok only on a consult_expert end (not on other tools)",
+  "data": {
+   "type": "tool",
+   "name": "read_file",
+   "phase": "end",
+   "agent": "open-meteo-integrator",
+   "ok": true
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "agent is a registry name, not a persona",
+  "data": {
+   "type": "tool",
+   "name": "consult_expert",
+   "phase": "start",
+   "agent": "Dewey"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "unknown tool name (no Agent tool in the Console)",
+  "data": {
+   "type": "tool",
+   "name": "Agent",
+   "phase": "start"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "nested expert text is never forwarded: text has no agent field",
+  "data": {
+   "type": "text",
+   "delta": "Dewey's draft",
+   "agent": "open-meteo-integrator"
+  }
+ },
+ {
+  "expect": "invalid",
+  "why": "ok on a consult_expert start event",
+  "data": {
+   "type": "tool",
+   "name": "consult_expert",
+   "phase": "start",
+   "agent": "open-meteo-integrator",
+   "ok": true
+  }
  }
 ]

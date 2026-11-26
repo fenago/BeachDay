@@ -1,5 +1,6 @@
 // Agents page boot and hash router (build-contracts §4; docs/04 §1).
-// Routes: #/console (list) · #/console/agent/:name (chat) · #/console/proposal/:id · #/console/security (Cass's S12).
+// Routes: #/console (list; with a teamLead:true agent, the "Ask the team" card and its chat are the selected default
+// above the experts) · #/console/agent/:name (chat with one expert; the lead's own name redirects to #/console) · #/console/proposal/:id · #/console/security (Cass's S12).
 // - No session → Cass's auth screens (mountAuthScreens). With a session → GET /api/agents is the access check.
 // - 403 → S6 (no more /api calls). 503 → "Couldn't check your access" with Try Again, never S6.
 // - 401 mid-session → S7 in a separate host; the app host (chat transcripts, drafts) is hidden, not destroyed.
@@ -9,7 +10,7 @@ import * as copy from "../copy/copy-deck.js";
 import { createAuth } from "./auth.js";
 import { createApi } from "./api.js";
 import { h, icon, say, clear, focusHeading, banner } from "./dom.js";
-import { agentList, skeletonList } from "./agents.js";
+import { agentList, skeletonList, teamCard, findTeamLead } from "./agents.js";
 import { createChatView } from "./chat.js";
 import { proposalCard } from "./proposal.js";
 import { openApproveSheet, takeStepUpProposal } from "./approve-sheet.js";
@@ -172,13 +173,20 @@ async function boot() {
         h("button", { class: "btn btn--primary", type: "button", onclick: () => checkAccess() }, say("btn.tryAgain"))));
       return;
     }
+    const lead = findTeamLead(agents);
+    const onChat = (a) => { location.hash = `#/console/agent/${a.name}`; };
+    // The lead's chat view is cached in `chats` like any other, so its transcript survives a trip to an expert and back.
     clear(appHost, pageBar(say("agents.title"), say("agents.sub")),
-      agentList(agents, { onChat: (a) => { location.hash = `#/console/agent/${a.name}`; } }));
+      lead ? teamCard(lead, chatFor(lead).el) : null,
+      agentList(agents, { onChat, lead }));
   }
+
+  const personaOf = (name) => agents.find((a) => a.name === name)?.persona || name;
 
   function chatFor(agent) {
     if (!chats.has(agent.name)) {
-      chats.set(agent.name, createChatView({ agent, api, renderProposal: (id, ph) => loadProposalInto(id, ph) }));
+      const team = agent.teamLead === true ? { personaOf } : null;
+      chats.set(agent.name, createChatView({ agent, api, team, renderProposal: (id, ph) => loadProposalInto(id, ph) }));
     }
     return chats.get(agent.name);
   }
@@ -186,6 +194,10 @@ async function boot() {
   function renderChat(name) {
     const agent = agents.find((a) => a.name === name);
     if (!agent) return renderList();
+    if (agent.teamLead === true) { // the lead lives on the default view; POST /api/chat refuses it (R-1)
+      history.replaceState(history.state, "", "/console#/console");
+      return renderList();
+    }
     const view = chatFor(agent);
     clear(appHost, h("div", { class: "chat-head" }, backLink(), h("h1", { tabindex: "-1" }, agent.persona || agent.name),
       h("span", { class: "model-badge" }, h("span", { class: "visually-hidden" }, `${say("agents.model")}: `), agent.modelLabel),

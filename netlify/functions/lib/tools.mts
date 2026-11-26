@@ -7,7 +7,7 @@ import { ReadRefused } from "./github-read.mts";
 import { createProposal, ProposalRejected, type ProposalRecord } from "./proposals.mts";
 import type { BlobStore } from "./blobs.mts";
 import { contentWarnings, type PolicyOptions } from "./allowlist.mts";
-import type { SseEvent, ToolName } from "./sse.mts";
+import type { SseEvent } from "./sse.mts";
 
 const str = (description: string) => ({ type: "string", description });
 
@@ -63,6 +63,9 @@ export const TOOLS = Object.freeze([
 ]);
 
 export const TOOL_NAMES: ReadonlySet<string> = new Set(TOOLS.map((t) => t.name));
+/** The read tools only. The team lead gets these plus consult_expert (lib/team.mts), never propose_change (R-2). */
+export const READ_TOOLS = Object.freeze(TOOLS.filter((t) => t.name === "read_file" || t.name === "list_files"));
+type BaseToolName = "read_file" | "list_files" | "propose_change";
 export const MAX_TOOL_RESULT_CHARS = 210_000;
 
 /** Per-turn (or per-job) state. Serialisable, so a handoff can store it in the job record. */
@@ -82,6 +85,9 @@ export interface ToolRunnerDeps {
   now?: () => Date;
   policy?: PolicyOptions;     // deps.settings.denyConsoleUi from the handler (D6), never the import
   createdBy?: string;         // Supabase user id (sub) of the chat or job owner
+  allowedTools?: ReadonlyArray<string>; // this agent's tool set (default: all three); anything else is "unknown tool"
+  pin?: () => Promise<string>;          // shared pin for a team turn: one SHA before the fan-out (ADR-0007)
+  proposalLimit?: { used: number; max: number }; // shared by a team turn's experts (SETTINGS.team.maxProposalsPerTurn)
 }
 
 class ToolInputError extends Error {}
@@ -107,12 +113,14 @@ function requireString(input: any, key: string): string {
 export function createToolRunner(deps: ToolRunnerDeps) {
   const { reader, state } = deps;
 
-  async function pin(): Promise<string> {
+  const allowed: ReadonlySet<string> = new Set((deps.allowedTools ?? [...TOOL_NAMES]).filter((n) => TOOL_NAMES.has(n)));
+  async function ownPin(): Promise<string> {
     state.baseSha ??= await reader.getMainSha(); // one SHA per turn/job (ADR-0007)
     return state.baseSha;
   }
+  const pin = deps.pin ?? ownPin;
 
-  const impl: Record<ToolName, (input: any) => Promise<string>> = {
+  const impl: Record<BaseToolName, (input: any) => Promise<string>> = {
     async read_file(input) {
       const path = requireString(input, "path");
       const sha = await pin();
@@ -132,17 +140,26 @@ export function createToolRunner(deps: ToolRunnerDeps) {
       if (!input || typeof input !== "object" || Array.isArray(input)) throw new ToolInputError("input must be an object");
       const extra = Object.keys(input).filter((k) => k !== "summary" && k !== "files");
       if (extra.length) throw new ToolInputError("unexpected input fields");
-      const sha = await pin();
-      const record = await createProposal(deps.proposals, {
-        agent: deps.agent,
-        summary: input.summary,
-        files: Array.isArray(input.files) ? input.files.map((f: any) => (f && typeof f === "object" ? { path: f.path, content: f.content } : f)) : input.files,
-        baseSha: sha,
-        readShas: state.readShas,
-        now: deps.now,
-        policy: deps.policy,
-        createdBy: deps.createdBy,
-      });
+      const lim = deps.proposalLimit;
+      if (lim && lim.used >= lim.max) throw new ToolInputError(`at most ${lim.max} proposals per team turn; this one was not stored`);
+      if (lim) lim.used += 1; // reserved before any await, so parallel experts can't overshoot
+      let record: ProposalRecord;
+      try {
+        const sha = await pin();
+        record = await createProposal(deps.proposals, {
+          agent: deps.agent,
+          summary: input.summary,
+          files: Array.isArray(input.files) ? input.files.map((f: any) => (f && typeof f === "object" ? { path: f.path, content: f.content } : f)) : input.files,
+          baseSha: sha,
+          readShas: state.readShas,
+          now: deps.now,
+          policy: deps.policy,
+          createdBy: deps.createdBy,
+        });
+      } catch (e) {
+        if (lim) lim.used -= 1; // a refused proposal doesn't use a slot
+        throw e;
+      }
       deps.emit?.({
         type: "proposal",
         proposalId: record.id,
@@ -160,8 +177,8 @@ export function createToolRunner(deps: ToolRunnerDeps) {
 
   /** Run one tool_use block. Always returns a tool_result (is_error on any failure); never throws. */
   return async function runTool(block: ToolUseBlock): Promise<ToolResultBlock> {
-    const name = block.name as ToolName;
-    if (!TOOL_NAMES.has(name)) return { type: "tool_result", tool_use_id: block.id, content: `unknown tool: ${clip(String(block.name), 60)}`, is_error: true };
+    const name = block.name as BaseToolName;
+    if (!allowed.has(name)) return { type: "tool_result", tool_use_id: block.id, content: `unknown tool: ${clip(String(block.name), 60)}`, is_error: true };
     deps.emit?.({ type: "tool", name, phase: "start", summary: toolSummary(name, block.input) });
     let result: ToolResultBlock;
     try {

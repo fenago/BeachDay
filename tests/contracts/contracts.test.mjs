@@ -315,3 +315,31 @@ describe("seam: agents.json -> GET /api/agents (netlify-engineer -> agent-consol
     expect(view.agents.map((a) => a.name)).toEqual([...view.agents.map((a) => a.name)].sort());
   });
 });
+
+describe("seam: SSE union <-> lib/sse.mts assertEvent (agent-console-engineer; Ask the team, build-contracts §12)", () => {
+  const samples = load("samples/sse-event.samples.json");
+  it.skipIf(!exists("netlify/functions/lib/sse.mts"))("assertEvent accepts every valid sample", async () => {
+    const { assertEvent } = await imp("netlify/functions/lib/sse.mts");
+    for (const s of samples.filter((x) => x.expect === "valid")) expect(() => assertEvent(s.data), s.why).not.toThrow();
+  });
+  it.skipIf(!exists("netlify/functions/lib/sse.mts"))("assertEvent rejects every invalid tool/text sample (team fields included)", async () => {
+    const { assertEvent } = await imp("netlify/functions/lib/sse.mts");
+    for (const s of samples.filter((x) => x.expect === "invalid" && (x.data.type === "tool" || x.data.type === "text"))) {
+      expect(() => assertEvent(s.data), s.why).toThrow();
+    }
+  });
+});
+
+describe("seam: SETTINGS.team (Ask the team, build-contracts §12)", () => {
+  it.skipIf(!exists("netlify/functions/lib/settings.mts"))("has the §12 keys, and the lead is a registry name", async () => {
+    const { SETTINGS } = await imp("netlify/functions/lib/settings.mts");
+    if (!SETTINGS.team) return; // added in this wave by netlify-engineer; the settings unit test pins the values
+    for (const k of ["leadAgent", "maxConsultsPerTurn", "maxParallelConsults", "maxQuestionChars", "maxReportChars", "expertMaxRounds", "expertEffort", "minConsultMs", "minConsultTokens", "maxProposalsPerTurn"]) {
+      expect(SETTINGS.team, k).toHaveProperty(k);
+    }
+    expect(SETTINGS.team.leadAgent).toMatch(/^[a-z][a-z0-9-]{1,63}$/);
+    expect(SETTINGS.team.maxParallelConsults).toBeLessThanOrEqual(SETTINGS.team.maxConsultsPerTurn);
+    expect(SETTINGS.approveEnabled).toBe(false); // D10 unchanged by this feature
+    expect(SETTINGS.denyConsoleUi).toBe(true); // D6 unchanged by this feature
+  });
+});

@@ -179,5 +179,110 @@
       "createdAt": "2026-11-23T15:00:00Z",
       "updatedAt": "2026-11-23T15:00:09Z"
     }
+  },
+  {
+    "expect": "valid",
+    "why": "team: Kai job with two parallel consults, a nested proposal and Kai's answer",
+    "data": {
+      "id": "j_01JDQ8Z9AB3CDE4FGH5JKM6NPQ",
+      "agent": "orchestrator",
+      "status": "done",
+      "events": [
+        {
+          "type": "tool",
+          "name": "consult_expert",
+          "phase": "start",
+          "agent": "open-meteo-integrator"
+        },
+        {
+          "type": "tool",
+          "name": "consult_expert",
+          "phase": "start",
+          "agent": "ux-designer-apple-hig"
+        },
+        {
+          "type": "tool",
+          "name": "read_file",
+          "phase": "start",
+          "agent": "ux-designer-apple-hig",
+          "summary": "Read docs/design/ux-build-spec.md"
+        },
+        {
+          "type": "tool",
+          "name": "read_file",
+          "phase": "end",
+          "agent": "ux-designer-apple-hig",
+          "summary": "Read docs/design/ux-build-spec.md"
+        },
+        {
+          "type": "tool",
+          "name": "propose_change",
+          "phase": "start",
+          "agent": "ux-designer-apple-hig"
+        },
+        {
+          "type": "proposal",
+          "proposalId": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+          "agent": "ux-designer-apple-hig",
+          "summary": "Clarify the Fair verdict line in the UX spec.",
+          "files": [
+            {
+              "path": "docs/design/ux-build-spec.md",
+              "bytes": 20480
+            }
+          ]
+        },
+        {
+          "type": "tool",
+          "name": "propose_change",
+          "phase": "end",
+          "agent": "ux-designer-apple-hig"
+        },
+        {
+          "type": "tool",
+          "name": "consult_expert",
+          "phase": "end",
+          "agent": "open-meteo-integrator",
+          "ok": true
+        },
+        {
+          "type": "tool",
+          "name": "consult_expert",
+          "phase": "end",
+          "agent": "ux-designer-apple-hig",
+          "ok": true
+        },
+        {
+          "type": "text",
+          "delta": "Saturday looks Good at Hollywood Beach. Wren drafted a clearer Fair line for you to review. Asked: Dewey, Wren."
+        },
+        {
+          "type": "done",
+          "stopReason": "end_turn"
+        }
+      ],
+      "proposalId": "p_01JDQ8Z5K3M7N2P4R6S8T0V9WX",
+      "createdAt": "2026-11-26T15:00:00Z",
+      "updatedAt": "2026-11-26T15:03:10Z"
+    }
+  },
+  {
+    "expect": "invalid",
+    "why": "team: a consult event without the expert's name",
+    "data": {
+      "id": "j_01JDQ8Z9AB3CDE4FGH5JKM6NPQ",
+      "agent": "orchestrator",
+      "status": "running",
+      "events": [
+        {
+          "type": "tool",
+          "name": "consult_expert",
+          "phase": "start"
+        }
+      ],
+      "proposalId": null,
+      "createdAt": "2026-11-26T15:00:00Z",
+      "updatedAt": "2026-11-26T15:00:03Z"
+    }
   }
 ]

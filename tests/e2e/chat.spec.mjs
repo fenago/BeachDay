@@ -1,6 +1,16 @@
 // Chat with a scripted fake Anthropic stream through the REAL chat handler (SSE), plus canned pre-stream failures.
 import { test, expect } from "@playwright/test";
-import { consoleApp, seedUsers, loginAs, openFirstChat, sendMessage, STRINGS, t, ADMIN, turns as T } from "../helpers/e2e.mjs";
+import { consoleApp, seedUsers, loginAs, sendMessage, STRINGS, t, ADMIN, turns as T } from "../helpers/e2e.mjs";
+
+// "Ask the team" (Kai) is the default view and runs as a job (team.spec.mjs). These specs cover the single-expert /api/chat path,
+// so they open the first EXPERT's chat, never the lead's.
+async function openFirstChat(page) {
+  const card = page.locator('[data-testid="agent-card"]:not([data-agent="orchestrator"])').first();
+  await expect(card).toBeVisible();
+  const name = await card.getAttribute("data-agent");
+  await card.getByTestId("agent-chat").click();
+  await expect(page.locator(`[data-testid="chat"][data-agent="${name}"]`)).toBeVisible();
+}
 
 let c;
 test.beforeEach(async ({ page, baseURL }) => { c = await consoleApp(page, baseURL); await seedUsers(c.h); await loginAs(page, ADMIN); });

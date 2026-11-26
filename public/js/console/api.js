@@ -198,8 +198,17 @@ export function createApi({ auth, fetchImpl = (...a) => globalThis.fetch(...a), 
       return handoff ?? { type: "error", code: "upstream", interrupted: true };
     },
 
-    /** POST /api/jobs with a transcript, or {continueFrom: jobId}. Returns {jobId}. */
-    startJob: (body) => postJson("/api/jobs", body),
+    /**
+     * POST /api/jobs with {agent, messages} (a team-lead turn, R-1) or {continueFrom: jobId}. Returns {jobId}.
+     * A transcript is fitted to the 64 KB body like chat; the agent name is checked before any request.
+     */
+    startJob(body) {
+      if (body && "messages" in body) {
+        if (!AGENT_RE.test(body.agent ?? "") || !Array.isArray(body.messages)) throw new ApiError({ status: 400, code: "invalid_request" });
+        return postJson("/api/jobs", { agent: body.agent, messages: fitMessages(body.agent, body.messages) });
+      }
+      return postJson("/api/jobs", body);
+    },
     job: (id) => getJson(`/api/jobs/${checkId(id, "j")}`),
     proposal: (id) => getJson(`/api/proposals/${checkId(id, "p")}`),
     approve: (id, contentHash) => postJson(`/api/proposals/${checkId(id, "p")}/approve`, { contentHash }, { timeout: 65_000 }), // > server GitHub deadline (45 s) and the 60 s function limit (R15)
