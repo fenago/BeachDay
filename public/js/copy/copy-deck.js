@@ -2,6 +2,7 @@
 // Source of truth for the app. Derived from knowledge/ux-designer-apple-hig/examples/02-copy-deck/copy-deck.json
 // plus the new groups below. Deliberate text differences from that JSON (Dr. Lee: open sign-up, "Agents", "Sign in"):
 //   reason.short (usable hours), advice.confidence.medium, auth.signin.title, auth.signin.sub, auth.signup.title, auth.signout.done, console.error.budget(.nodate).
+//   Ask the team (2026-11-26): agents.team.*, agents.experts.heading, agents.chat.tool.consult_expert.* (ids fixed by team_plan §2).
 // Verdict and reason wording changes need open-meteo-integrator review (scoring wording gate).
 // Placeholders such as {time} are filled by t(). Use textContent only; never innerHTML.
 
@@ -1297,6 +1298,46 @@ export const DECK = deepFreeze({
     {
       "id": "agents.chat.tool.propose_change",
       "text": "Writing a proposal"
+    },
+    {
+      "id": "agents.team.title",
+      "text": "Ask the team"
+    },
+    {
+      "id": "agents.team.sub",
+      "text": "Ask in plain words. The team lead picks the experts and writes one answer."
+    },
+    {
+      "id": "agents.team.badge",
+      "text": "Default"
+    },
+    {
+      "id": "agents.experts.heading",
+      "text": "Or ask one expert"
+    },
+    {
+      "id": "agents.chat.tool.consult_expert.start",
+      "text": "Asking {agent}…"
+    },
+    {
+      "id": "agents.chat.tool.consult_expert.end",
+      "text": "{agent} answered"
+    },
+    {
+      "id": "agents.chat.tool.consult_expert.error",
+      "text": "{agent} couldn't answer"
+    },
+    {
+      "id": "agents.team.asked",
+      "text": "Asked: {list}"
+    },
+    {
+      "id": "agents.team.working",
+      "text": "The team is working on it. This can take a few minutes."
+    },
+    {
+      "id": "agents.team.proposalBy",
+      "text": "Drafted by {agent}"
     },
     {
       "id": "agents.chat.background",

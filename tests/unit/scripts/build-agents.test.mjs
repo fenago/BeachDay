@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { buildAgents, parseFrontmatter, resolveModel, MAX_PROMPT_BYTES } from "../../../scripts/build-agents.mjs";
+import { buildAgents, parseFrontmatter, resolveModel, MAX_PROMPT_BYTES, LEAD_AGENT } from "../../../scripts/build-agents.mjs";
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const script = join(repo, "scripts", "build-agents.mjs");
@@ -22,12 +22,13 @@ function fixture(over = {}) {
     w(`knowledge/${n}/docs/02-b.md`, "# Doc B\nb\n"); w(`knowledge/${n}/docs/01-a.md`, "# Doc A\na\n");
     w(`knowledge/${n}/examples/01-x/README.md`, "# Example X\n");
   }
+  if (!over.noAddendum) w("scripts/console/team-lead.md", over.addendum ?? "You are the team lead.\nUse consult_expert.\n");
   return root;
 }
 const withRoot = (over, fn) => { const root = fixture(over); try { return fn(root); } finally { rmSync(root, { recursive: true, force: true }); } };
 
 test("shape: sorted by name, persona/personality fallbacks, model resolved, knowledge listing", () => withRoot({}, (root) => {
-  const { agents } = buildAgents({ root });
+  const { agents } = buildAgents({ root, leadAgent: "ann" });
   expect(agents.map((a) => a.name)).toEqual(["ann", "zed"]);
   const [ann, zed] = agents;
   expect([ann.persona, ann.personality, ann.model, ann.modelLabel]).toEqual(["ann", "Ann", "claude-opus-5-5", "Opus"]);
@@ -38,27 +39,27 @@ test("shape: sorted by name, persona/personality fallbacks, model resolved, know
 }));
 
 test("systemPrompt order: body, skills in listed order, knowledge README then sorted docs, examples list; no timestamp", () => withRoot({}, (root) => {
-  const p = buildAgents({ root }).agents[1].systemPrompt;
+  const p = buildAgents({ root, leadAgent: "ann" }).agents[1].systemPrompt;
   const at = (s) => { const i = p.indexOf(s); expect(i, s).toBeGreaterThan(-1); return i; };
   const order = [at("## Body"), at("# Skill: alpha"), at("ALPHA"), at("# Skill: beta"), at("BETA"), at("# Knowledge: knowledge/zed/"), at("index"), at("docs/01-a.md"), at("docs/02-b.md"), at("Read them with read_file from main"), at("knowledge/zed/examples/01-x/")];
   expect(order).toEqual([...order].sort((a, b) => a - b));
-  expect(buildAgents({ root }).agents[1].systemPrompt).toBe(p); // deterministic
+  expect(buildAgents({ root, leadAgent: "ann" }).agents[1].systemPrompt).toBe(p); // deterministic
   expect(p).not.toMatch(/20\d\d-\d\d-\d\dT\d\d:/);
 }));
 
 test("fails: missing skill folder, missing knowledge README, bad model, bad YAML, unsafe names, oversize prompt", () => {
-  withRoot({ noSkills: true }, (root) => expect(() => buildAgents({ root })).toThrow(/skill folder missing for alpha/));
-  withRoot({ noReadme: "zed" }, (root) => expect(() => buildAgents({ root })).toThrow(/missing knowledge\/zed\/README.md/));
+  withRoot({ noSkills: true }, (root) => expect(() => buildAgents({ root, leadAgent: "ann" })).toThrow(/skill folder missing for alpha/));
+  withRoot({ noReadme: "zed" }, (root) => expect(() => buildAgents({ root, leadAgent: "ann" })).toThrow(/missing knowledge\/zed\/README.md/));
   for (const bad of ["fable", "claude-opus-5-5", "Opus"]) {
-    withRoot({ frontmatter: `name: zed\ndescription: d\nmodel: ${bad}` }, (root) => expect(() => buildAgents({ root }), bad).toThrow(/model must be/));
+    withRoot({ frontmatter: `name: zed\ndescription: d\nmodel: ${bad}` }, (root) => expect(() => buildAgents({ root, leadAgent: "ann" }), bad).toThrow(/model must be/));
   }
-  withRoot({ frontmatter: "name: zed\ndescription: d\n  nested: thing" }, (root) => expect(() => buildAgents({ root })).toThrow(/list item without a key|invalid frontmatter/));
-  withRoot({ frontmatter: "name: zed\nname: again\ndescription: d" }, (root) => expect(() => buildAgents({ root })).toThrow(/duplicate key/));
-  withRoot({ frontmatter: "name: ../zed\ndescription: d" }, (root) => expect(() => buildAgents({ root })).toThrow(/safe slug/));
-  withRoot({ frontmatter: "name: zed\ndescription: d\nskills:\n  - ../../etc" }, (root) => expect(() => buildAgents({ root })).toThrow(/safe slug/));
+  withRoot({ frontmatter: "name: zed\ndescription: d\n  nested: thing" }, (root) => expect(() => buildAgents({ root, leadAgent: "ann" })).toThrow(/list item without a key|invalid frontmatter/));
+  withRoot({ frontmatter: "name: zed\nname: again\ndescription: d" }, (root) => expect(() => buildAgents({ root, leadAgent: "ann" })).toThrow(/duplicate key/));
+  withRoot({ frontmatter: "name: ../zed\ndescription: d" }, (root) => expect(() => buildAgents({ root, leadAgent: "ann" })).toThrow(/safe slug/));
+  withRoot({ frontmatter: "name: zed\ndescription: d\nskills:\n  - ../../etc" }, (root) => expect(() => buildAgents({ root, leadAgent: "ann" })).toThrow(/safe slug/));
   withRoot({}, (root) => {
     writeFileSync(join(root, "knowledge/zed/docs/03-big.md"), "# Big\n" + "x".repeat(MAX_PROMPT_BYTES));
-    expect(() => buildAgents({ root })).toThrow(/over the \d+ limit/);
+    expect(() => buildAgents({ root, leadAgent: "ann" })).toThrow(/over the \d+ limit/);
   });
   expect(() => parseFrontmatter("no frontmatter", "f")).toThrow(/must start with/);
   expect(() => parseFrontmatter("---\nname: a\n", "f")).toThrow(/not closed/);
@@ -73,7 +74,7 @@ test("model aliases: opus, inherit and missing give Opus; sonnet; haiku", () => 
 
 test("agent files are data: an agent body containing code is never executed", () => withRoot({}, (root) => {
   writeFileSync(join(root, ".claude/agents/ann.md"), "---\nname: ann\ndescription: Ann\n---\n```js\nprocess.exit(7); throw new Error('ran')\n```\n");
-  expect(buildAgents({ root }).agents[0].systemPrompt).toContain("process.exit(7)");
+  expect(buildAgents({ root, leadAgent: "ann" }).agents[0].systemPrompt).toContain("process.exit(7)");
 }));
 
 test("CLI on the REAL repo: 12 agents, writes agents.json, one summary line, never prints env", () => {
@@ -100,3 +101,37 @@ test("CLI failure exits 1 and writes nothing", () => withRoot({ noSkills: true }
   expect(r.status).toBe(1);
   expect(existsSync(out)).toBe(false);
 }));
+
+test("team lead addendum: appended after the knowledge, only for the lead, with a roster of the others; deterministic", () => withRoot({}, (root) => {
+  const { agents } = buildAgents({ root, leadAgent: "ann" });
+  const [ann, zed] = agents;
+  const p = ann.systemPrompt;
+  const i = (s) => { const n = p.indexOf(s); expect(n, s).toBeGreaterThan(-1); return n; };
+  expect([i("Ann body"), i("# Knowledge: knowledge/ann/"), i("\n\n# Console mode (Agents page)\nYou are the team lead."), i("## Expert roster")]).toEqual(
+    [i("Ann body"), i("# Knowledge: knowledge/ann/"), i("# Console mode"), i("## Expert roster")].sort((a, b) => a - b));
+  expect(p).toContain("- zed (Zed, Sonnet): Zed does things: with a colon");
+  expect(p).not.toContain("- ann (");
+  expect(p.endsWith("\n")).toBe(true);
+  expect(zed.systemPrompt).not.toContain("Console mode");
+  expect(zed.systemPrompt).not.toContain("team lead");
+  expect(buildAgents({ root, leadAgent: "ann" }).agents[0].systemPrompt).toBe(p);
+  expect(p).not.toMatch(/20\d\d-\d\d-\d\dT\d\d:/);
+}));
+
+test("team lead addendum is data (never executed) and its failures stop the build", () => {
+  withRoot({ addendum: "```js\nprocess.exit(9)\n```\n" }, (root) => expect(buildAgents({ root, leadAgent: "ann" }).agents[0].systemPrompt).toContain("process.exit(9)"));
+  withRoot({ noAddendum: true }, (root) => expect(() => buildAgents({ root, leadAgent: "ann" })).toThrow(/missing scripts\/console\/team-lead.md/));
+  withRoot({ addendum: "  \n" }, (root) => expect(() => buildAgents({ root, leadAgent: "ann" })).toThrow(/is empty/));
+  withRoot({}, (root) => expect(() => buildAgents({ root, leadAgent: "nobody" })).toThrow(/team lead agent nobody not found/));
+  withRoot({ addendum: "x".repeat(MAX_PROMPT_BYTES) }, (root) => expect(() => buildAgents({ root, leadAgent: "ann" })).toThrow(/ann\.md: system prompt is \d+ bytes, over the \d+ limit/));
+});
+
+test("the real lead is orchestrator, and its prompt carries the addendum and the 11-expert roster", () => {
+  const { agents } = buildAgents({ root: repo });
+  const lead = agents.find((a) => a.name === LEAD_AGENT);
+  expect(lead.systemPrompt).toContain("\n\n# Console mode (Agents page)\n");
+  expect(lead.systemPrompt).toContain("## Expert roster");
+  expect((lead.systemPrompt.split("## Expert roster")[1].match(/^- /gm) ?? [])).toHaveLength(11);
+  expect(lead.systemPrompt.split("## Expert roster")[1]).not.toContain("- orchestrator (");
+  for (const a of agents.filter((x) => x.name !== LEAD_AGENT)) expect(a.systemPrompt).not.toContain("# Console mode (Agents page)");
+});
