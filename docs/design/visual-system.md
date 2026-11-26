@@ -251,6 +251,7 @@ Classes (Remy-B codes against these; copy ids are Wren's):
 - `.msg__asked` is a footnote under the answer; `.msg__proposal-by` is the "Drafted by" line above a proposal card.
 - `.expert-list__heading` is a standalone `h2` above the list, styled as a solid `fit-content` pill so no text sits on the sky. `.expert-list` holds only cards, two columns from 40em.
 - Compact account row: `.account-menu` puts the signed-in line on its own row, then Security, then `[data-signout]` as one flex row (Sign Out + Sign Out Everywhere) with the hint beneath (`display: contents` on its inner div). Team card top was y=353 at 390/412 px (was 440) and 441 at 320 px (was 528).
+- Scroll clearance: the page scrolls, not the log, so only `.chat-log > .msg { scroll-margin-block-end: calc(6.5rem + safe-area) }` plus the html `scroll-padding-block` (base.css) keep a row scrolled into view above the sticky composer. A `scroll-padding` on `.chat-log` would do nothing and was removed. Remy-B's `scrollIntoView({block:"nearest"})` and his scrollBy correction complete it.
 - Fallbacks: `prefers-contrast: more` (solid dotted lines, full-strength text), `forced-colors` (Highlight frame, outlined badge), nothing animates so reduced-motion needs no rule.
 
 Contrast, not rounded (light / dark; script `tests/helpers/contrast-beachday.mjs` still 122/122; the pairs below were computed with the same formulas):

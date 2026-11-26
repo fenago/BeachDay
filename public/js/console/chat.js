@@ -66,32 +66,48 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
     if (!author) return;
     let label;
     try { label = say(`agents.chat.tool.${ev.name}`); } catch { return; }
-    const pinned = pinnedToEnd();
     const { m } = bubble("tool", author, ev.summary ? `${label}: ${ev.summary}` : label);
     place(m, reply);
-    if (team) keepInView(m, pinned);
   };
-  /** True when the newest log content is on screen (log scrolled to its end, or the page shows its last row). */
+  /**
+   * True when the reader is at the end of the log: a scrollable log is scrolled to its end, or (the page scrolls) the
+   * top of the insertion anchor is on screen. The anchor is Kai's open answer in team mode (rows go above it),
+   * else the last row. A reader who scrolled up a screen or more is not at the end.
+   */
   function pinnedToEnd() {
     if (log.scrollHeight > log.clientHeight + 1) return log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
-    const last = log.lastElementChild;
-    return !last || last.getBoundingClientRect().bottom <= (globalThis.innerHeight || 0) + 8;
+    const answer = log.querySelector(':scope > [data-testid="msg-agent"][aria-busy="true"]');
+    const anchor = (team && answer) || log.lastElementChild;
+    return !anchor || anchor.getBoundingClientRect().top <= (globalThis.innerHeight || 0);
   }
-  /** Keep a newly added row visible above the sticky composer, but only if the reader was already at the end. */
+  /**
+   * Keep a newly added row visible above the sticky composer, but only if the reader was already at the end.
+   * `newest` is re-pinned when the log resizes later (a proposal card replacing its placeholder, a page-height clamp),
+   * as long as the reader is still following: `follow` changes only when the reader scrolls.
+   */
+  let newest = null;
+  let follow = true;
   function keepInView(row, pinned) {
+    newest = row;
     if (!pinned || !row?.isConnected || typeof row.scrollIntoView !== "function") return;
     row.scrollIntoView({ block: "nearest" });
     const hidden = row.getBoundingClientRect().bottom - form.getBoundingClientRect().top; // > 0: under the composer
     if (hidden > 0) globalThis.scrollBy?.(0, hidden + 8);
   }
+  if (team) {
+    globalThis.addEventListener?.("scroll", () => { if (log.isConnected) follow = pinnedToEnd(); }, { passive: true });
+    if (typeof ResizeObserver === "function") {
+      new ResizeObserver(() => { if (follow && newest?.isConnected) keepInView(newest, true); }).observe(log);
+    }
+  }
   /**
    * Team turns: everything but the answer goes ABOVE Kai's reply bubble once it is open, so the log always reads
    * user, progress rows / tool lines / "Drafted by" + card (in arrival order), then the answer with "Asked:" last.
    */
+  let lastPlaced = null;
   function place(node, reply) {
-    const pinned = pinnedToEnd();
     if (team && reply?.m?.parentNode === log) log.insertBefore(node, reply.m); else log.append(node);
-    return pinned;
+    lastPlaced = node;
   }
   const showAlert = (text) => { alert.replaceChildren(text ? h("p", { class: "form-error" }, icon("alert"), text) : ""); };
 
@@ -129,12 +145,10 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
       const row = h("div", { class: "msg msg--progress", dataset: { testid: "msg-progress", agent: ev.agent } },
         h("span", { class: "msg__author" }, persona), body);
       // Rows sit above Kai's answer: progress, then the answer, then "Asked:" (Sable R5).
-      const pinned = place(row, consults.reply);
+      place(row, consults.reply);
       const c = { agent: ev.agent, persona: who, row, body, state: "asking" };
       consults.push(c);
-      const said = setRow(c, "asking");
-      keepInView(row, pinned);
-      return said;
+      return setRow(c, "asking");
     }
     if (ev.phase === "end") {
       const c = consults.find((x) => x.agent === ev.agent && x.state === "asking"); // FIFO per expert
@@ -247,7 +261,11 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
         }
         const events = Array.isArray(job?.events) ? job.events : [];
         const said = [];
+        // One "at the end?" reading per poll, before anything is added; then keep the newest added row in view.
+        const pinned = team ? pinnedToEnd() : false;
+        lastPlaced = null;
         for (const ev of events.slice(shown)) { const t = applyEvent(ev, reply, consults); if (t) said.push(t); }
+        if (team && lastPlaced) keepInView(lastPlaced, pinned);
         shown = events.length;
         const final = JOB_FINAL.has(job?.status);
         if (final && consults) said.push(...closeOpenConsults(consults));
@@ -266,7 +284,7 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
         else if (asked) log.append(h("div", { class: "msg msg--system" }, h("p", { class: "msg__asked", dataset: { testid: "team-asked" } }, asked)));
         return finishJob(job, jobId, reply, said); // the last poll's lines go out with the reply, as one update
       }
-    } finally { working?.remove(); }
+    } finally { working?.remove(); newest = null; }
   }
 
   function finishJob(job, jobId, reply, said = []) {

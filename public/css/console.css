@@ -99,7 +99,6 @@
 /* The page scrolls and the composer is sticky at the bottom: a row brought into view
    (scrollIntoView block:"nearest") must stop above it, never behind it. */
 .chat-log > .msg { scroll-margin-block-end: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
-.chat-log { scroll-padding-block-end: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
 
 /* "Asked: Dewey, Wren" under the combined answer. */
 .msg__asked { margin: var(--space-2) 0 0; padding-block-start: var(--space-2); border-block-start: 1px solid var(--border); font-size: var(--fs-footnote); color: var(--text-2); overflow-wrap: anywhere; white-space: normal; }
