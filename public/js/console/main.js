@@ -176,7 +176,8 @@ async function boot() {
     const lead = findTeamLead(agents);
     const onChat = (a) => { location.hash = `#/console/agent/${a.name}`; };
     // The lead's chat view is cached in `chats` like any other, so its transcript survives a trip to an expert and back.
-    clear(appHost, pageBar(say("agents.title"), say("agents.sub")),
+    // With a team lead the page-bar sub is left out: the team card's own sub says it, and the card moves up the fold.
+    clear(appHost, pageBar(say("agents.title"), lead ? null : say("agents.sub")),
       lead ? teamCard(lead, chatFor(lead).el) : null,
       agentList(agents, { onChat, lead }));
   }

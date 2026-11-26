@@ -78,14 +78,16 @@ export function teamCard(lead, chatEl) {
 
 /**
  * The whole list, in the order served (sorted by name on the server). With a team lead, the lead is left out here
- * (its card sits above) and the list is ul.expert-list: the first li holds the "Or ask one expert" h2, so the expert
- * names are h3.
+ * (its card sits above): the "Or ask one expert" h2.expert-list__heading sits above ul.expert-list (which it labels),
+ * so the expert names are h3. Returns an array of nodes in that case.
  */
 export function agentList(agents, { onChat, lead = null }) {
   const experts = lead ? agents.filter((a) => a !== lead) : agents;
   if (lead && !experts.length) return null; // §3.4: heading and list hidden when no other agent exists
   if (!lead) return h("ul", { class: "agent-grid", dataset: { testid: "agent-list" } }, agents.map((a) => agentCard(a, { onChat })));
-  return h("ul", { class: "expert-list", "aria-labelledby": "experts-heading", dataset: { testid: "agent-list" } },
-    h("li", {}, h("h2", { class: "expert-list__heading", id: "experts-heading" }, say("agents.experts.heading"))),
-    experts.map((a) => agentCard(a, { onChat, level: 3 })));
+  return [
+    h("h2", { class: "expert-list__heading", id: "experts-heading", dataset: { testid: "experts-heading" } }, say("agents.experts.heading")),
+    h("ul", { class: "expert-list", "aria-labelledby": "experts-heading", dataset: { testid: "agent-list" } },
+      experts.map((a) => agentCard(a, { onChat, level: 3 }))),
+  ];
 }

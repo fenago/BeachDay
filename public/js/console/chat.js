@@ -16,6 +16,8 @@ const JOB_POLL_MS = 2500;
 const JOB_FINAL = new Set(["done", "failed", "paused"]);
 const AGENT_RE = /^[a-z][a-z0-9-]{1,63}$/;
 const PROGRESS_ICON = { asking: "clock", done: "check-circle", failed: "x-circle" };
+/** Join announcement parts as sentences: "Wren couldn't answer. Kai replied." / "Asking Dewey… Asking Wren…". */
+export const joinSay = (parts) => parts.filter(Boolean).map((p) => (/[.…!?]$/.test(p) ? p : `${p}.`)).join(" ");
 const PROGRESS_COPY = { asking: "agents.chat.tool.consult_expert.start", done: "agents.chat.tool.consult_expert.end",
   failed: "agents.chat.tool.consult_expert.error" };
 
@@ -101,7 +103,9 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
       const body = h("p", { class: "msg__body" });
       const row = h("div", { class: "msg msg--progress", dataset: { testid: "msg-progress", agent: ev.agent } },
         h("span", { class: "msg__author" }, persona), body);
-      log.append(row);
+      // Rows sit above Kai's answer: progress, then the answer, then "Asked:" (Sable R5).
+      const reply = consults.reply;
+      if (reply?.m?.parentNode === log) log.insertBefore(row, reply.m); else log.append(row);
       const c = { agent: ev.agent, persona: who, row, body, state: "asking" };
       consults.push(c);
       return setRow(c, "asking");
@@ -203,7 +207,7 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
   async function pollJob(jobId, reply) {
     const working = team ? showWorking() : null;
     if (!team) announce(status, say("agents.chat.background"));
-    const consults = team ? [] : null;
+    const consults = team ? Object.assign([], { reply }) : null;
     let shown = 0;
     try {
       for (;;) {
@@ -220,13 +224,13 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
         const final = JOB_FINAL.has(job?.status);
         if (final && consults) said.push(...closeOpenConsults(consults));
         if (!final) {
-          if (said.length) announce(teamStatus, said.join(" ")); // one update per poll; a quiet poll says nothing
+          if (said.length) announce(teamStatus, joinSay(said)); // one update per poll; a quiet poll says nothing
           continue;
         }
         working?.remove();
         const err = events.find((e) => e.type === "error");
         if (err?.code === "refusal") {
-          if (said.length) announce(teamStatus, said.join(" "));
+          if (said.length) announce(teamStatus, joinSay(said));
           return endTurn(reply, err);
         }
         const asked = consults ? askedText(consults) : null;
@@ -248,6 +252,7 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
         try {
           const r = await api.startJob({ continueFrom: jobId });
           btn.closest(".msg")?.remove();
+          input.focus(); // the Continue row is gone: focus goes back to the composer (Wren R4)
           transcript.push({ role: "user", content: say("agents.chat.continue") }); // placeholder turn, replaced by the job's reply
           const next = newReply();
           setBusy(true);
@@ -257,7 +262,7 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
       });
       log.append(h("div", { class: "msg msg--system" }, h("p", { class: "msg__body" }, say("agents.chat.paused")), h("div", { class: "chat-actions" }, btn)));
     }
-    if (team) announce(teamStatus, [...said, say("agents.chat.reply", { agent: persona })].join(" "));
+    if (team) announce(teamStatus, joinSay([...said, say("agents.chat.reply", { agent: persona })]));
     else announce(status, say("agents.chat.reply", { agent: persona }));
   }
 

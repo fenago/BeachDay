@@ -102,12 +102,13 @@ export function createJobRunHandler(deps: JobRunDeps) {
     };
     const persist = (patch: Partial<JobRecord> = {}) => {
       flushText();
-      const add = pending;
-      pending = [];
-      // A failed write (refused, conflict, missing or a throw) is logged, and its events go back to `pending` so the
-      // next write carries them.
+      // The batch is taken when the write RUNS (not when it is queued), so events put back by a failed earlier write
+      // ride on the next one. A failed write (conflict, missing or a throw) is logged and its events go back first.
+      let add: SseEvent[] = [];
       const putBack = () => { logLine({ msg: "job_progress_write_failed", route: ROUTE, requestId, jobId }); pending = [...add, ...pending]; };
       queue = queue.then(async () => {
+        add = pending;
+        pending = [];
         const res = await updateJob(jobs, jobId, (j) => ({ ...j, ...patch, proposalId, events: appendProgress(j.events ?? [], add), updatedAt: iso() }));
         if (!res.ok) return putBack();
         storedEvents = res.job.events.length;

@@ -12,6 +12,9 @@
 /* Account menu: signed-in line + Security + Sign Out, as plain buttons (no popup). */
 .account-menu { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); }
 .account-menu .btn { padding-inline: var(--space-3); }   /* Sign Out + Sign Out Everywhere share one compact row */
+.account-menu [data-signout] { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); }   /* Sign Out + Sign Out Everywhere in one row, hint below */
+.account-menu [data-signout] > div { display: contents; }
+.account-menu [data-signout] .field__hint { flex: 1 1 100%; order: 2; margin: 0; }
 .account-menu__who { flex: 1 1 100%; font-size: var(--fs-footnote); color: var(--text-2); overflow-wrap: anywhere; }
 
 /* ----- Auth screens (centered solid card) ---------------------------------- */
