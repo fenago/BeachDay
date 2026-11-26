@@ -1,16 +1,19 @@
 // "Ask the team" (team_plan, 2026-11-26): Kai is the default entry on the Agents page, consults experts server-side
 // (consult_expert, several in parallel), and gives one combined answer. Real function code, fake Supabase/Anthropic/GitHub.
-// Written against the team_plan §1-2 shapes BEFORE the UI/server landed (W1): the selectors in SEL are the ones the plan fixes
-// (classes) plus the data-testids we ASSUME; adjust them in this one block if Remy-B's HANDOFF names others.
+// Selectors are Remy-B's data-testids (aligned 2026-11-26). They all live in the SEL block.
 import { test, expect } from "@playwright/test";
 import { consoleApp, seedUsers, loginAs, sendMessage, axe, STRINGS, t, ADMIN, PLAIN, turns as T, projectLabel } from "../helpers/e2e.mjs";
 
 const LEAD = "orchestrator", DEWEY = "open-meteo-integrator", WREN = "ux-designer-apple-hig";
 const SEL = {
-  team: '[data-testid="team-card"], .team-card',                         // the "Ask the team" card (class fixed by team_plan §2)
-  expertCards: '[data-testid="agent-card"]:not([data-agent="orchestrator"])', // experts only: Kai is not repeated in the list
-  progress: ".msg--progress",                                            // one line per consult event (class fixed by team_plan §2)
-  asked: ".msg__asked",                                                  // the deterministic "Asked: ..." footer (class fixed by team_plan §2)
+  team: '[data-testid="team-card"]',                                      // the "Ask the team" card (data-agent, data-selected)
+  badge: '[data-testid="team-card-badge"]',
+  expertCards: '[data-testid="agent-card"]',                             // experts only: the lead is the team card
+  progress: '[data-testid="msg-progress"]',                              // one row per consult event (data-agent, data-state)
+  asked: '[data-testid="team-asked"]',                                   // the deterministic "Asked: ..." footer
+  working: '[data-testid="team-working"]',                               // the visible working line (the hidden status region repeats its text)
+  status: '[data-testid="team-status"]',
+  proposalBy: '[data-testid="proposal-by"]',                             // "Drafted by X": sits ABOVE the proposal card
 };
 
 let c, h, BASE;
@@ -49,7 +52,9 @@ test("landing on /console as super_admin: 'Ask the team' is selected and its cha
   const team = teamCard(page);
   await expect(team).toBeVisible();
   await expect(team).toContainText(STRINGS["agents.team.title"]);
-  await expect(team).toContainText(STRINGS["agents.team.badge"]); // "Default": selection is text, not colour alone
+  await expect(team.locator(SEL.badge)).toHaveText(STRINGS["agents.team.badge"]); // "Default": selection is text, not colour alone
+  await expect(team).toHaveAttribute("data-selected", "true");
+  await expect(team).toHaveAttribute("data-agent", LEAD);
   await expect(team, "selected state is a class/attribute, not just paint").toHaveClass(/team-card--selected/);
   await expect(team, "ux-build-spec 3.4: aria-current on the card").toHaveAttribute("aria-current", "true");
   await expect(page.getByRole("heading", { level: 1 }), "focus goes to the h1 on a route change").toBeFocused();
@@ -87,7 +92,7 @@ test("Kai consults Dewey and Wren in ONE round: both requests overlap, progress 
   // R-1: a team turn is a background job, never /api/chat.
   await expect.poll(jobStarts, { timeout: 10_000 }).toHaveLength(1);
   expect(chatApiCalls(), "Kai never goes through /api/chat").toEqual([]);
-  await expect(page.getByText(STRINGS["agents.team.working"])).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(SEL.working)).toHaveText(STRINGS["agents.team.working"], { timeout: 10_000 });
 
   // R-4: "Asking {persona}…" for both, together (the consults are 3.5 s long, the poll is 2.5 s).
   const asking = (p) => t("agents.chat.tool.consult_expert.start", { agent: p });
@@ -101,7 +106,7 @@ test("Kai consults Dewey and Wren in ONE round: both requests overlap, progress 
   await expect(answer).toContainText("Saturday is a Good beach day.", { timeout: 30_000 });
   await expect(answer).toContainText("reword it as 'gusty'");
   await expect(leadChat(page).locator(SEL.asked)).toHaveText(t("agents.team.asked", { list: "Dewey, Wren" }));
-  await expect(page.getByText(STRINGS["agents.team.working"])).toHaveCount(0);
+  await expect(page.locator(SEL.working)).toHaveCount(0);
   // role=status cadence (ux-build-spec 3.4): each start and end announced ONCE, same-poll starts joined, no re-announcement on later polls.
   const say = (k, p) => t(`agents.chat.tool.consult_expert.${k}`, { agent: p });
   const first = await announced(page);
@@ -143,7 +148,8 @@ test("an expert drafts a proposal through Kai: the card says 'Drafted by Wren', 
   const card = page.getByTestId("proposal-card").first();
   await expect(card).toBeVisible({ timeout: 45_000 });
   await expect(card.getByTestId("proposal-review")).toBeVisible({ timeout: 15_000 });
-  await expect(card).toContainText(t("agents.team.proposalBy", { agent: "Wren" }));
+  await expect(page.locator(SEL.proposalBy).first()).toHaveText(t("agents.team.proposalBy", { agent: "Wren" }));
+  await expect(page.locator(SEL.proposalBy).first()).toHaveAttribute("data-agent", WREN);
   await expect(card).toContainText("docs/fair-verdict.md");
   const diff = card.getByTestId("proposal-diff").first();
   await diff.locator("summary").click();
@@ -181,7 +187,8 @@ test("default build (approveEnabled false, D10): the team proposal card shows 'A
   await sendMessage(page, "Have Wren draft a note.");
   const card = page.getByTestId("proposal-card").first();
   await expect(card).toBeVisible({ timeout: 45_000 });
-  await expect(card).toContainText(t("agents.team.proposalBy", { agent: "Wren" }));
+  await expect(page.locator(SEL.proposalBy).first()).toHaveText(t("agents.team.proposalBy", { agent: "Wren" }));
+  await expect(page.locator(SEL.proposalBy).first()).toHaveAttribute("data-agent", WREN);
   await expect(page.getByTestId("approve-off")).toContainText(STRINGS["console.approve.disabled"], { timeout: 15_000 });
   await expect(card.getByTestId("proposal-review")).toHaveAttribute("aria-disabled", "true");
   expect(approveRequests()).toHaveLength(0);
