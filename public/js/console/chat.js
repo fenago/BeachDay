@@ -59,15 +59,40 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
     return { m, body };
   };
   const systemLine = (text, kind = "system") => bubble(kind, kind === "error" ? persona : "", text).m;
-  const toolLine = (ev) => {
+  const toolLine = (ev, reply) => {
     if (ev.phase !== "start") return;
     // A nested expert's tool (team turns) is shown under the expert's name; a bad agent field drops the line.
     const author = ev.agent === undefined ? persona : personaOf(ev.agent);
     if (!author) return;
     let label;
     try { label = say(`agents.chat.tool.${ev.name}`); } catch { return; }
-    bubble("tool", author, ev.summary ? `${label}: ${ev.summary}` : label);
+    const pinned = pinnedToEnd();
+    const { m } = bubble("tool", author, ev.summary ? `${label}: ${ev.summary}` : label);
+    place(m, reply);
+    if (team) keepInView(m, pinned);
   };
+  /** True when the newest log content is on screen (log scrolled to its end, or the page shows its last row). */
+  function pinnedToEnd() {
+    if (log.scrollHeight > log.clientHeight + 1) return log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
+    const last = log.lastElementChild;
+    return !last || last.getBoundingClientRect().bottom <= (globalThis.innerHeight || 0) + 8;
+  }
+  /** Keep a newly added row visible above the sticky composer, but only if the reader was already at the end. */
+  function keepInView(row, pinned) {
+    if (!pinned || !row?.isConnected || typeof row.scrollIntoView !== "function") return;
+    row.scrollIntoView({ block: "nearest" });
+    const hidden = row.getBoundingClientRect().bottom - form.getBoundingClientRect().top; // > 0: under the composer
+    if (hidden > 0) globalThis.scrollBy?.(0, hidden + 8);
+  }
+  /**
+   * Team turns: everything but the answer goes ABOVE Kai's reply bubble once it is open, so the log always reads
+   * user, progress rows / tool lines / "Drafted by" + card (in arrival order), then the answer with "Asked:" last.
+   */
+  function place(node, reply) {
+    const pinned = pinnedToEnd();
+    if (team && reply?.m?.parentNode === log) log.insertBefore(node, reply.m); else log.append(node);
+    return pinned;
+  }
   const showAlert = (text) => { alert.replaceChildren(text ? h("p", { class: "form-error" }, icon("alert"), text) : ""); };
 
   function setBusy(on) {
@@ -76,12 +101,12 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
     if (on && !team) announce(status, say("agents.chat.thinking", { agent: persona }));
   }
 
-  async function addProposal(ev) {
+  async function addProposal(ev, reply) {
     const ph = proposalPlaceholder(ev);
-    // Team turns: "Drafted by {persona}" sits above the card; the card itself is unchanged.
+    // Team turns: "Drafted by {persona}" sits above the card; the card itself is unchanged. Both go above Kai's answer.
     const by = team && ev.agent !== undefined ? personaOf(ev.agent) : null;
-    if (by) log.append(h("p", { class: "msg__proposal-by", dataset: { testid: "proposal-by", agent: ev.agent } }, say("agents.team.proposalBy", { agent: by })));
-    log.append(ph);
+    if (by) place(h("p", { class: "msg__proposal-by", dataset: { testid: "proposal-by", agent: ev.agent } }, say("agents.team.proposalBy", { agent: by })), reply);
+    place(ph, reply);
     announce(status, say("console.status.ready"));
     await renderProposal(ev.proposalId, ph);
   }
@@ -104,11 +129,12 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
       const row = h("div", { class: "msg msg--progress", dataset: { testid: "msg-progress", agent: ev.agent } },
         h("span", { class: "msg__author" }, persona), body);
       // Rows sit above Kai's answer: progress, then the answer, then "Asked:" (Sable R5).
-      const reply = consults.reply;
-      if (reply?.m?.parentNode === log) log.insertBefore(row, reply.m); else log.append(row);
+      const pinned = place(row, consults.reply);
       const c = { agent: ev.agent, persona: who, row, body, state: "asking" };
       consults.push(c);
-      return setRow(c, "asking");
+      const said = setRow(c, "asking");
+      keepInView(row, pinned);
+      return said;
     }
     if (ev.phase === "end") {
       const c = consults.find((x) => x.agent === ev.agent && x.state === "asking"); // FIFO per expert
@@ -129,8 +155,8 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
   function applyEvent(ev, reply, consults = null) {
     if (ev.type === "text" && typeof ev.delta === "string") { openReply(reply); reply.text += ev.delta; reply.node.appendData(ev.delta); }
     else if (ev.type === "tool" && ev.name === "consult_expert") return consults ? consultEvent(ev, consults) : null;
-    else if (ev.type === "tool") toolLine(ev);
-    else if (ev.type === "proposal") addProposal(ev);
+    else if (ev.type === "tool") toolLine(ev, reply);
+    else if (ev.type === "proposal") addProposal(ev, reply);
     return null;
   }
 
@@ -198,7 +224,9 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
 
   /** Team mode: the "working" line stays under the user's message until the job ends. */
   function showWorking() {
+    const pinned = pinnedToEnd();
     const line = systemLine(say("agents.team.working"));
+    keepInView(line, pinned);
     line.dataset.testid = "team-working";
     announce(teamStatus, say("agents.team.working"));
     return line;
