@@ -17,7 +17,8 @@ export interface Agent {
   knowledge: AgentKnowledge;
   systemPrompt: string;
 }
-export type PublicAgent = Omit<Agent, "systemPrompt">;
+/** `teamLead: true` only on SETTINGS.team.leadAgent ("Ask the team", team_plan R-4); the UI keys on it, not the name. */
+export type PublicAgent = Omit<Agent, "systemPrompt"> & { teamLead?: true };
 
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const LABEL: Readonly<Record<string, Agent["modelLabel"]>> = Object.freeze({
@@ -57,9 +58,9 @@ export function validateAgent(a: any): Agent {
   };
 }
 
-export function publicAgent(a: Agent): PublicAgent {
+export function publicAgent(a: Agent, leadAgent: string = SETTINGS.team.leadAgent): PublicAgent {
   const { systemPrompt: _omit, ...rest } = a;
-  return rest;
+  return a.name === leadAgent ? { ...rest, teamLead: true } : rest;
 }
 
 export interface AgentRegistry {
@@ -68,13 +69,13 @@ export interface AgentRegistry {
   names(): string[];
 }
 
-export function createAgentRegistry(raw: unknown): AgentRegistry {
+export function createAgentRegistry(raw: unknown, { leadAgent = SETTINGS.team.leadAgent }: { leadAgent?: string } = {}): AgentRegistry {
   if (!Array.isArray(raw)) throw new Error("agents.json: not an array");
   const agents = raw.map(validateAgent).sort((x, y) => (x.name < y.name ? -1 : 1));
   const byName = new Map(agents.map((a) => [a.name, a]));
   if (byName.size !== agents.length) throw new Error("agents.json: duplicate agent name");
   return {
-    list: () => agents.map(publicAgent),
+    list: () => agents.map((a) => publicAgent(a, leadAgent)),
     get: (name) => (typeof name === "string" ? byName.get(name) : undefined),
     names: () => agents.map((a) => a.name),
   };

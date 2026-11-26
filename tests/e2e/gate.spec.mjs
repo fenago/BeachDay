@@ -5,6 +5,20 @@ import { consoleApp, seedUsers, loginAs, signIn, STRINGS, t, ADMIN, PLAIN } from
 let c;
 test.beforeEach(async ({ page, baseURL }) => { c = await consoleApp(page, baseURL); await seedUsers(c.h); });
 test.afterEach(() => { c.guard.assertClean(); expect(c.csp, "CSP violations").toEqual([]); });
+const EXPERT = '[data-testid="agent-card"]:not([data-agent="orchestrator"])'; // the lead is the "Ask the team" card, not an expert card
+const firstExpert = (page) => page.locator(EXPERT).first();
+/** Open the first expert's chat and wait until THAT chat panel is on screen (the route re-renders; typing before it settles is lost). */
+async function openExpertChat(page) {
+  const name = await firstExpert(page).getAttribute("data-agent");
+  await firstExpert(page).getByTestId("agent-chat").click();
+  await expect(page.locator(`[data-testid="chat"][data-agent="${name}"]`)).toBeVisible();
+  return name;
+}
+async function reopenExpertChat(page, name) { // after signing in again the page may land on the default (Kai) view
+  const chat = page.locator(`[data-testid="chat"][data-agent="${name}"]`);
+  if (!(await chat.isVisible())) await page.locator(`[data-testid="agent-card"][data-agent="${name}"]`).getByTestId("agent-chat").click();
+  await expect(chat).toBeVisible();
+}
 const h1 = (page) => page.getByRole("heading", { level: 1 });
 
 test("signed out: S1 sign in, and no /api call is made", async ({ page }) => {
@@ -32,10 +46,11 @@ test("a user with no profiles row is refused the same way", async ({ page }) => 
   await expect(page.getByTestId("no-access")).toBeVisible();
 });
 
-test("super_admin: 12 agent cards with name, personality, model label as text and a knowledge disclosure; no system prompt reaches the page", async ({ page }) => {
+test("super_admin: 'Ask the team' on top plus 11 expert cards (12 agents), each with name, personality, model label as text and a knowledge disclosure; no system prompt reaches the page", async ({ page }) => {
   await loginAs(page, ADMIN);
-  const cards = page.getByTestId("agent-card");
-  await expect(cards).toHaveCount(12);
+  const cards = page.locator(EXPERT);
+  await expect(cards).toHaveCount(11);
+  await expect(page.locator('[data-testid="team-card"], .team-card').first()).toBeVisible();
   await expect(h1(page)).toHaveText(STRINGS["agents.title"]);
   const first = cards.first();
   await expect(first.locator("h2, h3").first()).not.toBeEmpty();
@@ -49,9 +64,11 @@ test("super_admin: 12 agent cards with name, personality, model label as text an
   const res = await page.request.get("/api/agents"); // unauthenticated: refused, and the console response shape below carries no prompts
   expect(res.status()).toBe(401);
   expect(await page.content()).not.toMatch(/Before you answer|systemPrompt/);
-  // every persona is unique and every card names its model
+  // every persona is unique: 11 experts + the team lead's card = 12
   const personas = await cards.locator("h2, h3").allInnerTexts();
-  expect(new Set(personas).size).toBe(12);
+  expect(new Set(personas).size).toBe(11);
+  const lead = await page.locator('[data-testid="team-card"], .team-card').first().locator("h2, h3").first().innerText();
+  expect(new Set([...personas, lead]).size, "the team card is not an expert's card repeated").toBe(12);
 });
 
 test("503 from the access check is 'Couldn't check your access', never the no-access screen; Try Again recovers", async ({ page }) => {
@@ -98,7 +115,7 @@ test("session ends while a chat draft is typed: S7 with 'Your draft and proposal
   const { turns } = await import("../helpers/e2e.mjs");
   await c.h.anthropic.script({ turns: [turns.text(["First answer."])] });
   await loginAs(page, ADMIN);
-  await page.getByTestId("agent-card").first().getByTestId("agent-chat").click();
+  const expert = await openExpertChat(page);
   await page.getByTestId("chat-input").fill("first question");
   await page.getByTestId("chat-send").click();
   await expect(page.getByTestId("msg-agent")).toContainText("First answer.");
@@ -111,7 +128,7 @@ test("session ends while a chat draft is typed: S7 with 'Your draft and proposal
   await page.unroute("**/api/chat");
   await signIn(page, ADMIN);
   await expect(page.getByTestId("agent-list").or(page.getByTestId("chat"))).toBeVisible();
-  if (!(await page.getByTestId("chat").isVisible())) await page.getByTestId("agent-card").first().getByTestId("agent-chat").click();
+  await reopenExpertChat(page, expert);
   await expect(page.getByTestId("msg-user").first()).toContainText("first question");
   await expect(page.getByTestId("msg-agent").first()).toContainText("First answer.");
   await expect(page.getByTestId("chat-input")).toHaveValue("a half-written second question");
@@ -140,7 +157,7 @@ test("deliberate Sign Out: no 'session ended' flash, and the chat transcript and
   const { turns } = await import("../helpers/e2e.mjs");
   await c.h.anthropic.script({ turns: [turns.text(["An answer to forget."])] });
   await loginAs(page, ADMIN);
-  await page.getByTestId("agent-card").first().getByTestId("agent-chat").click();
+  await openExpertChat(page);
   await page.getByTestId("chat-input").fill("remember me?");
   await page.getByTestId("chat-send").click();
   await expect(page.getByTestId("msg-agent")).toContainText("An answer to forget.");
@@ -155,7 +172,7 @@ test("deliberate Sign Out: no 'session ended' flash, and the chat transcript and
   expect(seen, "S7 must never flash after a deliberate sign-out").toEqual([]);
   await signIn(page, ADMIN);
   await expect(page.getByTestId("agent-list")).toBeVisible();
-  await page.getByTestId("agent-card").first().getByTestId("agent-chat").click();
+  await openExpertChat(page);
   await expect(page.getByTestId("msg-user")).toHaveCount(0);
   await expect(page.getByTestId("chat-input")).toHaveValue("");
 });
@@ -181,4 +198,5 @@ test("S7 hides the app host: no second h1 and no app content is reachable behind
   await expect(page.locator("h1:visible")).toHaveCount(1);
   await expect(page.getByTestId("app-host")).toBeHidden();
   await expect(page.getByTestId("agent-card")).toHaveCount(0);
+  await expect(page.locator('[data-testid="team-card"], .team-card')).toHaveCount(0);
 });

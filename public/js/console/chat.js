@@ -4,26 +4,39 @@
 // - Model output is plain text: Text nodes and white-space: pre-wrap. Never innerHTML.
 // - Refusal: remove the partial bubble, show a plain message, and drop the turn that triggered it.
 // - Handoff: poll GET /api/jobs/:id every 2.5 s and render its events from the index already shown.
+// - Team mode (team_plan R-1, R-4; ux-build-spec §3.4): the lead's turn ALWAYS runs as a background job
+//   (POST /api/jobs {agent, messages}, then the same pollJob). consult_expert events become progress rows; one hidden
+//   role="status" region announces each consult's start and end once (starts in one poll joined); the "Asked:" footer
+//   is built from the events, never from the model; proposals get a "Drafted by {persona}" line above the card.
 import { h, icon, say, announce, formatWhen, utf8Bytes } from "./dom.js";
 import { MAX_USER_MESSAGE_BYTES } from "./api.js";
 import { proposalPlaceholder } from "./proposal.js";
 
 const JOB_POLL_MS = 2500;
 const JOB_FINAL = new Set(["done", "failed", "paused"]);
+const AGENT_RE = /^[a-z][a-z0-9-]{1,63}$/;
+const PROGRESS_ICON = { asking: "clock", done: "check-circle", failed: "x-circle" };
+/** Join announcement parts as sentences: "Wren couldn't answer. Kai replied." / "Asking Dewey… Asking Wren…". */
+export const joinSay = (parts) => parts.filter(Boolean).map((p) => (/[.…!?]$/.test(p) ? p : `${p}.`)).join(" ");
+const PROGRESS_COPY = { asking: "agents.chat.tool.consult_expert.start", done: "agents.chat.tool.consult_expert.end",
+  failed: "agents.chat.tool.consult_expert.error" };
 
 /**
  * @param {{agent: object, api: object, renderProposal: (proposalId: string, placeholder: HTMLElement) => Promise<void>,
- *          setTimer?: typeof setTimeout}} deps
+ *          setTimer?: typeof setTimeout, team?: {personaOf: (name: string) => string} | null}} deps
+ *   team: set for the team lead (GET /api/agents teamLead:true). personaOf maps a registry name to its persona.
  * @returns {{el: HTMLElement, focus: () => void, hasDraft: () => boolean}}
  */
-export function createChatView({ agent, api, renderProposal, setTimer = setTimeout }) {
+export function createChatView({ agent, api, renderProposal, setTimer = setTimeout, team = null }) {
   const persona = agent.persona || agent.name;
+  /** Persona for an event's agent field; null for a missing or malformed name (the row is then skipped). */
+  const personaOf = (name) => (typeof name === "string" && AGENT_RE.test(name) ? (team?.personaOf?.(name) || name) : null);
   /** @type {{role: "user"|"assistant", content: string}[]} memory only */
   const transcript = [];
   let busy = false;
   let budgetUntil = 0;
 
-  const log = h("div", { class: "chat-log", role: "log", "aria-label": say("agents.chat.log"), "data-empty": say("agents.sub"), dataset: { testid: "chat-log" } });
+  const log = h("div", { class: "chat-log", role: "log", "aria-label": say("agents.chat.log"), "data-empty": team ? null : say("agents.sub"), dataset: { testid: "chat-log" } });
   const status = h("p", { class: "chat-status", role: "status", dataset: { testid: "chat-status" } });
   const alert = h("div", { role: "alert", dataset: { testid: "chat-alert" } });
   const inputId = `composer-${agent.name}`;
@@ -33,8 +46,11 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
   const form = h("form", { class: "composer", dataset: { testid: "chat-form" } },
     h("label", { class: "visually-hidden", for: inputId }, say("agents.chat.label", { agent: persona })), input, send);
 
+  // Team mode: one persistent, visually hidden status region that exists before the first change (ux-build-spec §3.4).
+  const teamStatus = team ? h("p", { class: "visually-hidden", role: "status", dataset: { testid: "team-status" } }) : null;
+
   const el = h("section", { class: "chat", "aria-label": say("agents.chat.with", { agent: persona }), dataset: { testid: "chat", agent: agent.name } },
-    log, status, alert, form);
+    log, status, teamStatus, alert, form);
 
   const bubble = (kind, author, text = "") => {
     const body = h("p", { class: "msg__body" }, text);
@@ -45,47 +61,108 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
   const systemLine = (text, kind = "system") => bubble(kind, kind === "error" ? persona : "", text).m;
   const toolLine = (ev) => {
     if (ev.phase !== "start") return;
+    // A nested expert's tool (team turns) is shown under the expert's name; a bad agent field drops the line.
+    const author = ev.agent === undefined ? persona : personaOf(ev.agent);
+    if (!author) return;
     let label;
     try { label = say(`agents.chat.tool.${ev.name}`); } catch { return; }
-    bubble("tool", persona, ev.summary ? `${label}: ${ev.summary}` : label);
+    bubble("tool", author, ev.summary ? `${label}: ${ev.summary}` : label);
   };
   const showAlert = (text) => { alert.replaceChildren(text ? h("p", { class: "form-error" }, icon("alert"), text) : ""); };
 
   function setBusy(on) {
     busy = on;
     send.setAttribute("aria-disabled", String(on || Date.now() < budgetUntil));
-    if (on) announce(status, say("agents.chat.thinking", { agent: persona }));
+    if (on && !team) announce(status, say("agents.chat.thinking", { agent: persona }));
   }
 
   async function addProposal(ev) {
     const ph = proposalPlaceholder(ev);
+    // Team turns: "Drafted by {persona}" sits above the card; the card itself is unchanged.
+    const by = team && ev.agent !== undefined ? personaOf(ev.agent) : null;
+    if (by) log.append(h("p", { class: "msg__proposal-by", dataset: { testid: "proposal-by", agent: ev.agent } }, say("agents.team.proposalBy", { agent: by })));
     log.append(ph);
     announce(status, say("console.status.ready"));
     await renderProposal(ev.proposalId, ph);
   }
 
-  /** Render one job/stream event into an agent bubble. Returns false for a terminal event. */
-  function applyEvent(ev, reply) {
-    if (ev.type === "text" && typeof ev.delta === "string") { reply.text += ev.delta; reply.node.appendData(ev.delta); }
-    else if (ev.type === "tool") toolLine(ev);
-    else if (ev.type === "proposal") addProposal(ev);
+  // ---- team progress (consult_expert) ----
+  /** One consult row. state: asking | done | failed. The words carry the state; the icon only helps. */
+  function setRow(c, state) {
+    c.state = state;
+    c.row.dataset.state = state;
+    if (state === "asking") c.row.setAttribute("aria-busy", "true"); else c.row.removeAttribute("aria-busy");
+    c.body.replaceChildren(icon(PROGRESS_ICON[state]), say(PROGRESS_COPY[state], { agent: c.persona }));
+    return c.body.textContent;
+  }
+  /** Returns the text to announce, or null when the event changes nothing. */
+  function consultEvent(ev, consults) {
+    const who = personaOf(ev.agent);
+    if (!who) return null;
+    if (ev.phase === "start") {
+      const body = h("p", { class: "msg__body" });
+      const row = h("div", { class: "msg msg--progress", dataset: { testid: "msg-progress", agent: ev.agent } },
+        h("span", { class: "msg__author" }, persona), body);
+      // Rows sit above Kai's answer: progress, then the answer, then "Asked:" (Sable R5).
+      const reply = consults.reply;
+      if (reply?.m?.parentNode === log) log.insertBefore(row, reply.m); else log.append(row);
+      const c = { agent: ev.agent, persona: who, row, body, state: "asking" };
+      consults.push(c);
+      return setRow(c, "asking");
+    }
+    if (ev.phase === "end") {
+      const c = consults.find((x) => x.agent === ev.agent && x.state === "asking"); // FIFO per expert
+      if (!c) return null;
+      return setRow(c, ev.ok === true ? "done" : "failed"); // ok is required on consult end; anything else is a failure
+    }
+    return null;
+  }
+  /** A job that ends with a consult still open: that expert couldn't answer (ux-build-spec §3.4 open item 2). */
+  const closeOpenConsults = (consults) => consults.filter((c) => c.state === "asking").map((c) => setRow(c, "failed"));
+  /** "Asked: Dewey, Wren": personas in first-asked order, each once, failures included. null when nobody was asked. */
+  function askedText(consults) {
+    const names = [...new Set(consults.map((c) => c.persona))];
+    return names.length ? say("agents.team.asked", { list: names.join(", ") }) : null;
   }
 
-  function newReply() {
-    const { m, body } = bubble("agent", persona);
-    m.setAttribute("aria-busy", "true");
-    const node = document.createTextNode("");
-    body.append(node);
-    return { m, node, text: "" };
+  /** Render one job/stream event into an agent bubble. Returns announcement text (team progress) or null. */
+  function applyEvent(ev, reply, consults = null) {
+    if (ev.type === "text" && typeof ev.delta === "string") { openReply(reply); reply.text += ev.delta; reply.node.appendData(ev.delta); }
+    else if (ev.type === "tool" && ev.name === "consult_expert") return consults ? consultEvent(ev, consults) : null;
+    else if (ev.type === "tool") toolLine(ev);
+    else if (ev.type === "proposal") addProposal(ev);
+    return null;
   }
+
+  /**
+   * The agent's reply bubble. In team mode it opens lazily at the first text delta, so the progress rows stay above
+   * the combined answer; its body is a div so the "Asked:" <p> can sit inside it.
+   */
+  function newReply() {
+    const reply = { m: null, node: null, body: null, text: "" };
+    if (!team) openReply(reply);
+    return reply;
+  }
+  function openReply(reply) {
+    if (reply.m) return;
+    const body = h(team ? "div" : "p", { class: "msg__body" });
+    reply.m = h("div", { class: "msg msg--agent", dataset: { testid: "msg-agent" } }, h("span", { class: "msg__author" }, persona), body);
+    reply.m.setAttribute("aria-busy", "true");
+    reply.node = document.createTextNode("");
+    body.append(reply.node);
+    reply.body = body;
+    log.append(reply.m);
+  }
+  const dropReply = (reply) => { reply.m?.remove(); };
   function finishReply(reply) {
+    if (!reply.m) return;
     reply.m.setAttribute("aria-busy", "false");
     if (!reply.text) reply.m.remove();
   }
 
   function endTurn(reply, terminal) {
     if (terminal.type === "error" && terminal.code === "refusal") {
-      reply.m.remove();                    // discard the partial reply (docs/04 §2.1)
+      dropReply(reply);                    // discard the partial reply (docs/04 §2.1)
       transcript.pop();                    // reset the context: drop the triggering user turn (docs 02)
       systemLine(say("agents.chat.refusal"), "error");
       return;
@@ -119,44 +196,96 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
     return say("agents.chat.failed");
   }
 
+  /** Team mode: the "working" line stays under the user's message until the job ends. */
+  function showWorking() {
+    const line = systemLine(say("agents.team.working"));
+    line.dataset.testid = "team-working";
+    announce(teamStatus, say("agents.team.working"));
+    return line;
+  }
+
   async function pollJob(jobId, reply) {
-    announce(status, say("agents.chat.background"));
+    const working = team ? showWorking() : null;
+    if (!team) announce(status, say("agents.chat.background"));
+    const consults = team ? Object.assign([], { reply }) : null;
     let shown = 0;
-    for (;;) {
-      await new Promise((r) => setTimer(r, JOB_POLL_MS));
-      let job;
-      try { job = await api.job(jobId); } catch (err) {
-        if (err?.code === "unauthorized" || err?.code === "forbidden") return;
-        continue; // a blip: keep polling
+    try {
+      for (;;) {
+        await new Promise((r) => setTimer(r, JOB_POLL_MS));
+        let job;
+        try { job = await api.job(jobId); } catch (err) {
+          if (err?.code === "unauthorized" || err?.code === "forbidden") return;
+          continue; // a blip: keep polling
+        }
+        const events = Array.isArray(job?.events) ? job.events : [];
+        const said = [];
+        for (const ev of events.slice(shown)) { const t = applyEvent(ev, reply, consults); if (t) said.push(t); }
+        shown = events.length;
+        const final = JOB_FINAL.has(job?.status);
+        if (final && consults) said.push(...closeOpenConsults(consults));
+        if (!final) {
+          if (said.length) announce(teamStatus, joinSay(said)); // one update per poll; a quiet poll says nothing
+          continue;
+        }
+        working?.remove();
+        const err = events.find((e) => e.type === "error");
+        if (err?.code === "refusal") {
+          if (said.length) announce(teamStatus, joinSay(said));
+          return endTurn(reply, err);
+        }
+        const asked = consults ? askedText(consults) : null;
+        if (asked && reply.text) reply.body.append(h("p", { class: "msg__asked", dataset: { testid: "team-asked" } }, asked));
+        else if (asked) log.append(h("div", { class: "msg msg--system" }, h("p", { class: "msg__asked", dataset: { testid: "team-asked" } }, asked)));
+        return finishJob(job, jobId, reply, said); // the last poll's lines go out with the reply, as one update
       }
-      const events = Array.isArray(job?.events) ? job.events : [];
-      for (const ev of events.slice(shown)) applyEvent(ev, reply);
-      shown = events.length;
-      if (!JOB_FINAL.has(job?.status)) continue;
-      const err = events.find((e) => e.type === "error");
-      if (err?.code === "refusal") return endTurn(reply, err);
-      finishReply(reply);
-      if (reply.text) transcript.push({ role: "assistant", content: reply.text }); else transcript.pop();
-      if (job.status === "failed") systemLine(say("agents.chat.jobfailed"), "error");
-      if (job.status === "paused") {
-        const btn = h("button", { class: "btn btn--secondary", type: "button", dataset: { testid: "job-continue" } }, say("agents.chat.continue"));
-        btn.addEventListener("click", async () => {
-          btn.setAttribute("aria-disabled", "true");
-          try {
-            const r = await api.startJob({ continueFrom: jobId });
-            btn.closest(".msg")?.remove();
-            transcript.push({ role: "user", content: say("agents.chat.continue") }); // placeholder turn, replaced by the job's reply
-            const next = newReply();
-            setBusy(true);
-            await pollJob(r.jobId, next);
-            setBusy(false);
-          } catch (e2) { btn.removeAttribute("aria-disabled"); showAlert(preStreamError(e2)); }
-        });
-        log.append(h("div", { class: "msg msg--system" }, h("p", { class: "msg__body" }, say("agents.chat.paused")), h("div", { class: "chat-actions" }, btn)));
-      }
-      announce(status, say("agents.chat.reply", { agent: persona }));
+    } finally { working?.remove(); }
+  }
+
+  function finishJob(job, jobId, reply, said = []) {
+    finishReply(reply);
+    if (reply.text) transcript.push({ role: "assistant", content: reply.text }); else transcript.pop();
+    if (job.status === "failed") systemLine(say("agents.chat.jobfailed"), "error");
+    if (job.status === "paused") {
+      const btn = h("button", { class: "btn btn--secondary", type: "button", dataset: { testid: "job-continue" } }, say("agents.chat.continue"));
+      btn.addEventListener("click", async () => {
+        btn.setAttribute("aria-disabled", "true");
+        try {
+          const r = await api.startJob({ continueFrom: jobId });
+          btn.closest(".msg")?.remove();
+          input.focus(); // the Continue row is gone: focus goes back to the composer (Wren R4)
+          transcript.push({ role: "user", content: say("agents.chat.continue") }); // placeholder turn, replaced by the job's reply
+          const next = newReply();
+          setBusy(true);
+          await pollJob(r.jobId, next);
+          setBusy(false);
+        } catch (e2) { btn.removeAttribute("aria-disabled"); showAlert(preStreamError(e2)); }
+      });
+      log.append(h("div", { class: "msg msg--system" }, h("p", { class: "msg__body" }, say("agents.chat.paused")), h("div", { class: "chat-actions" }, btn)));
+    }
+    if (team) announce(teamStatus, joinSay([...said, say("agents.chat.reply", { agent: persona })]));
+    else announce(status, say("agents.chat.reply", { agent: persona }));
+  }
+
+  /**
+   * A team-lead turn (R-1): always a background job. Send stays aria-disabled while it runs; the composer stays
+   * editable, so a new draft typed meanwhile is kept. A refused start keeps the sent text in the composer.
+   */
+  async function teamTurn(text, userMsg) {
+    let started;
+    try {
+      started = await api.startJob({ agent: agent.name, messages: transcript.slice() });
+      if (!started || typeof started.jobId !== "string") throw Object.assign(new Error("upstream"), { code: "upstream" });
+    } catch (err) {
+      userMsg.remove();
+      transcript.pop();
+      const msg = preStreamError(err);
+      setBusy(false);
+      if (msg) showAlert(msg);
+      input.focus();
       return;
     }
+    if (input.value.trim() === text) input.value = ""; // the sent text leaves the composer once the job is accepted
+    try { await pollJob(started.jobId, newReply()); } finally { setBusy(false); }
   }
 
   form.addEventListener("submit", async (e) => {
@@ -170,6 +299,7 @@ export function createChatView({ agent, api, renderProposal, setTimer = setTimeo
     const userMsg = bubble("user", say("agents.you"), text).m;
     transcript.push({ role: "user", content: text });
     setBusy(true);
+    if (team) return teamTurn(text, userMsg);
     const reply = newReply();
     let opened = false;
     let terminal;

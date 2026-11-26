@@ -122,6 +122,18 @@ for (const [scheme, t] of [['light', light], ['dark', dark]]) {
   check(scheme, '--error-text on --banner-error-bg', c('--error-text'), c('--banner-error-bg'), 4.5);
   check(scheme, '--text on --surface-solid (.beach-group__title chip)', c('--text'), c('--surface-solid'), 4.5);
   check(scheme, '--text on --verdict-none (surface-2)', c('--text'), c('--surface-2'), 4.5);
+  // ---- Ask the team (visual-system.md §10): all pairs use existing tokens on solid surfaces ----
+  check(scheme, '--text on --surface-solid (team title)', c('--text'), c('--surface-solid'), 4.5);
+  check(scheme, '--text-2 on --surface-solid (team sub, Asked, Drafted by)', c('--text-2'), c('--surface-solid'), 4.5);
+  check(scheme, '--text on --surface-2 (progress in a bubble)', c('--text'), c('--surface-2'), 4.5);
+  check(scheme, '--text-2 on --surface-2 (Asked footer in the Kai bubble)', c('--text-2'), c('--surface-2'), 4.5);
+  check(scheme, '--on-accent on --accent (Default badge)', c('--on-accent'), c('--accent'), 4.5);
+  check(scheme, '--accent frame vs --surface-solid (selected team card) [1.4.11]', c('--accent'), c('--surface-solid'), 3);
+  check(scheme, '--control-border vs --surface-solid (team frame, dotted progress) [1.4.11]', c('--control-border'), c('--surface-solid'), 3);
+  check(scheme, '--text-2 vs --surface-solid (progress icon) [1.4.11]', c('--text-2'), c('--surface-solid'), 3);
+  check(scheme, '--banner-ok-icon vs --surface-solid (progress done icon) [1.4.11]', c('--banner-ok-icon'), c('--surface-solid'), 3);
+  check(scheme, '--text on --banner-error-bg (failed progress)', c('--text'), c('--banner-error-bg'), 4.5);
+  check(scheme, '--banner-error-icon vs --banner-error-bg (failed icon/border) [1.4.11]', c('--banner-error-icon'), c('--banner-error-bg'), 3);
 }
 
 // Sky stops: text directly on the condition gradient. Informational (not counted). It shows why NO text may sit on

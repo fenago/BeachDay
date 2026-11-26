@@ -65,3 +65,24 @@ Screenshots unchanged (32 PNGs, 5.7 MB). Still not run: WebKit, real devices and
 | `npx playwright test --project=offline-sw --trace off` | 14 passed |
 
 No spec assumed an empty reasons list on a Great day, and none proposed a Console file. The first run rewrote every screenshot; the visible changes are Today Great, next days and day detail. New: `pixel-today-great-320.png` and `iphone-chromium-today-great-320.png`. At 320 px the Great card lists Low chance of rain, Mostly sunny, Comfortable (feels like 82 °F), Light wind (6 mph), then the UV line, with no overflow.
+
+## Ask the team gate run (2026-11-26, tree 9798b45 plus two spec edits)
+
+Peak memory came from a `ps` sampler (`/usr/bin/time` is not installed). Each run was alone, in this order.
+
+| Run | Result | Peak memory (largest single process / all processes) |
+|---|---|---|
+| `npm test` | 52 files, 1577 passed, 1 skipped, 0 failed | 586 MB / 1.68 GB |
+| `npx playwright test --project=pixel --project=iphone-chromium --trace off` (whole suite, incl. `team.spec`) | 287 passed, 1 skipped, 4 failed on the first run (below) | 431 MB / 1.96 GB |
+| `npx playwright test --project=offline-sw --trace off` | 14 passed, 0 failed | 420 MB / 1.60 GB |
+| `TEAM_SHOTS=1 npx playwright test tests/e2e/team-shots.spec.mjs --project=pixel --project=iphone-chromium --trace off` | 2 passed; 8 PNGs `docs/qa/screenshots/{pixel,iphone-chromium}-team-{landing,progress,answer,proposal}.png` at deviceScaleFactor 2 | 421 MB / 1.62 GB |
+
+Memory: no run went near 2 GB for a single process, so the earlier 13 GB `node` (pid 4363) was not reproduced. The biggest single process in every run was the agent session itself. The harness stayed near 135 MB. The earlier ECONNREFUSED crashes were the kernel OOM killer on the shared memory limit, not a leak in `lib/team.mts` or `job-run`. Not proven: which process was the 13 GB one.
+
+The 4 failures of the whole-suite run:
+- `gate.spec.mjs:107` (pixel and iphone-chromium) and `gate.spec.mjs:150` (iphone-chromium). They failed again alone, so they were real. The cause was my spec: it typed into the expert chat before the route had re-rendered, so the message was lost. Fixed with `openExpertChat`, which waits for that expert's chat panel. Re-run: `gate.spec.mjs` 14/14 on pixel and 14/14 on iphone-chromium.
+- `focus-states.spec.mjs:36` ("slow load ... Try Again", pixel): failed alone twice, then passed alone once. 5 of 6 passed in a repeat on both projects. The same test at the old commit 1287b2a also failed 3 of 8 repeats (pixel and iphone-chromium). So it is flaky and pre-existing, not caused by Ask the team. Playwright reports "Try Again ... element is not visible" on click. Owner: pwa-mobile-engineer (Pip). Not fixed here.
+
+`a11y.spec` is in the whole-suite run: no axe violation was reported. The whole-suite run re-wrote some tracked screenshots in `docs/qa/screenshots/` (`screens.spec` takes them). `team-shots.spec.mjs` is skipped unless `TEAM_SHOTS=1`.
+
+Not run: WebKit, real devices, VoiceOver/TalkBack, post-deploy smoke, @prod specs, Lighthouse, Supabase pre-launch tests (a)-(i), the CI workflow (D11).

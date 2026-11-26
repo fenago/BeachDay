@@ -32,6 +32,17 @@ export const turns = {
   // The SDK retries 429/5xx (chat: 1 retry, job: 2), so one failure is not visible. times = how many attempts fail (default 3).
   httpError: (status, type = "api_error", { times = 3, retryAfter = "0" } = {}) => ({ httpError: { status, type, times, retryAfter } }),
   slow: (text, delayMs = 2000) => ({ blocks: [{ type: "text", chunks: [text] }], stop: "end_turn", eventDelayMs: delayMs }),
+  // ---- Ask the team (team_plan R-2): scripting BY AGENT. A tagged turn goes to that agent's own FIFO queue, so parallel
+  // consults are deterministic. Untagged turns keep going to the default queue (existing specs are unchanged).
+  /** Tag a turn for one agent (registry name, e.g. "open-meteo-integrator"). Survives JSON, so it works through the harness ctl channel. */
+  for: (agent, turn) => ({ ...turn, agent }),
+  /** Hold the response for ms BEFORE the first event: two such turns overlap in time only if the server really ran them in parallel. */
+  held: (turn, startDelayMs = 700) => ({ ...turn, startDelayMs }),
+  /** One lead turn that asks several experts in the same round (parallel consults): tool_use blocks named consult_expert. */
+  consult: (calls, { text } = {}) => ({
+    blocks: [...(text ? [{ type: "text", chunks: [text] }] : []), ...calls.map(({ agent, question, id }) => ({ type: "tool_use", name: "consult_expert", input: { agent, question }, id }))],
+    stop: "tool_use",
+  }),
 };
 
 function validateMessagesRequest(body, headers) {
@@ -43,38 +54,65 @@ function validateMessagesRequest(body, headers) {
   return remyViolations(body); // sampling params, thinking.type, forced tool_choice, strict schemas, prefill, tool_result order
 }
 
+/** Which agent sent this request? Every Console system prompt carries the build's "# Knowledge: knowledge/<name>/" heading (build_plan §5). null = unknown. */
+export function agentOfRequest(body) {
+  const sys = typeof body?.system === "string" ? body.system : Array.isArray(body?.system) ? body.system.map((b) => b?.text ?? "").join("\n") : "";
+  let last = null;
+  for (const m of sys.matchAll(/^# Knowledge: knowledge\/([a-z][a-z0-9-]*)\/$/gm)) last = m[1];
+  return last;
+}
+
 export function createFakeAnthropic() {
-  const requests = []; // { body, headers, error }
-  let queue = [];
-  let n = 0;
+  const requests = []; // { body, headers, error, agent, t0, t1 }  t0/t1 = ms since epoch when the fake began / finished answering
+  let queue = []; // default queue (untagged turns)
+  const byAgent = new Map(); // agent -> FIFO of tagged turns
+  let n = 0, inflight = 0;
+  const pendingCount = () => queue.length + [...byAgent.values()].reduce((a, q) => a + q.length, 0);
   const api = {
     requests,
-    script(...ts) { queue.push(...ts); return api; },
-    get pending() { return queue.length; },
+    script(...ts) { for (const t of ts) { if (t.agent) { if (!byAgent.has(t.agent)) byAgent.set(t.agent, []); byAgent.get(t.agent).push(t); } else queue.push(t); } return api; },
+    get pending() { return pendingCount(); },
+    pendingFor(agent) { return byAgent.get(agent)?.length ?? 0; },
     unscripted: 0,
-    reset() { queue = []; requests.length = 0; n = 0; api.unscripted = 0; },
+    maxConcurrent: 0, // the most requests ever in flight at once (1 = strictly sequential)
+    reset() { queue = []; byAgent.clear(); requests.length = 0; n = 0; inflight = 0; api.unscripted = 0; api.maxConcurrent = 0; },
     get lastBody() { return requests.at(-1)?.body; },
+    /** Requests of one agent, in arrival order. */
+    requestsOf(agent) { return requests.filter((r) => r.agent === agent); },
+    /** True if two requests overlapped in time (a started before b finished and b started before a finished). */
+    overlapped(a, b) { return a.t0 < b.t1 && b.t0 < a.t1; },
     /** MSW resolver for POST /v1/messages */
     async handle(request) {
       let body = {};
       try { body = await request.clone().json(); } catch { /* validated below */ }
       const problem = validateMessagesRequest(body, request.headers);
-      requests.push({ body, headers: Object.fromEntries(request.headers), error: problem });
-      if (problem) return HttpResponse.json({ type: "error", error: { type: "invalid_request_error", message: problem }, request_id: "req_fake_400" }, { status: 400 });
-      if (queue.length === 0) api.unscripted += 1; // an empty queue is visible: assert unscripted === 0 when the test scripted everything
-      const turn = queue[0] ?? turns.text("Hollywood Beach looks great today.");
+      const agent = agentOfRequest(body);
+      const entry = { body, headers: Object.fromEntries(request.headers), error: problem, agent, t0: Date.now(), t1: 0 };
+      requests.push(entry);
+      inflight += 1; api.maxConcurrent = Math.max(api.maxConcurrent, inflight);
+      const done = () => { if (!entry.t1) { entry.t1 = Date.now(); inflight -= 1; } };
+      request.signal?.addEventListener("abort", done, { once: true });
+      if (problem) { done(); return HttpResponse.json({ type: "error", error: { type: "invalid_request_error", message: problem }, request_id: "req_fake_400" }, { status: 400 }); }
+      // A tagged queue wins for its agent; otherwise the default queue (so old single-queue specs keep working).
+      const own = agent ? byAgent.get(agent) : null;
+      const queueOf = own?.length ? own : queue;
+      if (queueOf.length === 0) api.unscripted += 1; // an empty queue is visible: assert unscripted === 0 when the test scripted everything
+      const turn = queueOf[0] ?? turns.text("Hollywood Beach looks great today.");
+      if (turn.startDelayMs) await sleep(turn.startDelayMs, request.signal);
       if (turn.httpError) {
         turn.httpError.left = (turn.httpError.left ?? turn.httpError.times) - 1;
-        if (turn.httpError.left <= 0) queue.shift();
+        if (turn.httpError.left <= 0) queueOf.shift();
+        done();
         return HttpResponse.json({ type: "error", error: { type: turn.httpError.type, message: "fake upstream error" }, request_id: "req_fake_err" }, { status: turn.httpError.status, headers: { "retry-after": String(turn.httpError.retryAfter) } });
       }
-      queue.shift();
+      queueOf.shift();
       const id = `msg_fake_${++n}`;
       const thinking = { type: "thinking", thinking: "", signature: `sig_fake_${n}` }; // adaptive thinking, display omitted: always first
       const content = [thinking, ...turn.blocks.map((b, i) => (b.type === "text" ? { type: "text", text: b.chunks.join("") } : { type: "tool_use", id: b.id ?? `toolu_fake_${n}_${i}`, name: b.name, input: b.input }))];
       const stopReason = turn.stop ?? "end_turn";
       const usage = { input_tokens: 100, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
       if (body.stream !== true) {
+        done();
         return HttpResponse.json({ id, type: "message", role: "assistant", model: body.model, content, stop_reason: stopReason, stop_sequence: null, stop_details: null, usage });
       }
       const sig = request.signal;
@@ -107,6 +145,7 @@ export function createFakeAnthropic() {
             await send("message_delta", { type: "message_delta", delta, usage: { output_tokens: 20 } });
             await send("message_stop", { type: "message_stop" });
           }
+          done();
           controller.close();
         },
       });

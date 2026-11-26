@@ -11,9 +11,10 @@ import { checkOrigin } from "./lib/origin.mts";
 import { realStores, type Stores } from "./lib/blobs.mts";
 import { SETTINGS } from "./lib/settings.mts";
 import { loadAgentRegistry, type AgentRegistry } from "./lib/agents.mts";
-import { createAnthropicClient, createDeadline, runTurn, assertAllowedModel, type Usage } from "./lib/claude.mts";
+import { createAnthropicClient, createDeadline, runTurn, assertAllowedModel, type Usage, type ParallelTools } from "./lib/claude.mts";
 import { githubReadFromEnv, type GitHubRead } from "./lib/github-read.mts";
-import { createToolRunner } from "./lib/tools.mts";
+import { createToolRunner, TOOLS, type RunTool } from "./lib/tools.mts";
+import { createTeamRunner } from "./lib/team.mts";
 import { textEvents, errorEvent, type SseEvent, type ErrorCode } from "./lib/sse.mts";
 import { writeAudit } from "./lib/proposals.mts";
 import { checkComputeBudget, recordCompute } from "./lib/limits.mts";
@@ -22,6 +23,26 @@ import { updateJob, appendEvents, nonceMatches, type JobRecord, type JobStatus }
 import { isProduction, readJson, isPlainObject, onlyKeys, logLine, MAX_SMALL_BODY, type Ctx, type Settings, safe } from "./lib/handler.mts";
 
 const ROUTE = "POST /api/jobs-run";
+
+/**
+ * T2 (build-contracts §12.6): low-value events go first. read_file/list_files tool events (the lead's or an expert's)
+ * are stored only while the job holds fewer than LOW_VALUE_EVENT_CAP events, so consult, propose_change, proposal,
+ * text, error and done events keep the rest of the 500 (appendEvents still keeps the terminal slot).
+ * A low-value START is dropped earlier (LOW_VALUE_START_CAP), so a read whose start was stored keeps room for its end
+ * and never shows as unfinished.
+ */
+export const FINAL_WRITE_RETRY_MS = 250;
+export const LOW_VALUE_EVENT_CAP = 400;
+export const LOW_VALUE_START_CAP = 380;
+export const isLowValue = (ev: SseEvent) => ev.type === "tool" && (ev.name === "read_file" || ev.name === "list_files");
+export function appendProgress(events: SseEvent[], add: SseEvent[]): SseEvent[] {
+  const kept: SseEvent[] = [];
+  for (const ev of add) {
+    const cap = ev.type === "tool" && ev.phase === "start" ? LOW_VALUE_START_CAP : LOW_VALUE_EVENT_CAP;
+    if (!isLowValue(ev) || events.length + kept.length < cap) kept.push(ev);
+  }
+  return appendEvents(events, kept);
+}
 const accepted = (): Response => new Response(null, { status: 202, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } });
 
 export interface JobRunDeps {
@@ -71,6 +92,7 @@ export function createJobRunHandler(deps: JobRunDeps) {
     let text = "";
     let proposalId: string | null = claimed.proposalId ?? null;
     let lastComputeAt = startedAt;
+    let storedEvents = claimed.events?.length ?? 0; // from the last successful progress write
     let queue: Promise<unknown> = Promise.resolve();
     const flushText = () => { if (text) { pending.push(...textEvents(text)); text = ""; } };
     const recordElapsed = async () => {
@@ -81,12 +103,18 @@ export function createJobRunHandler(deps: JobRunDeps) {
     };
     const persist = (patch: Partial<JobRecord> = {}) => {
       flushText();
-      const add = pending;
-      pending = [];
+      // The batch is taken when the write RUNS (not when it is queued), so events put back by a failed earlier write
+      // ride on the next one. A failed write (conflict, missing or a throw) is logged and its events go back first.
+      let add: SseEvent[] = [];
+      const putBack = () => { logLine({ msg: "job_progress_write_failed", route: ROUTE, requestId, jobId }); pending = [...add, ...pending]; };
       queue = queue.then(async () => {
-        await updateJob(jobs, jobId, (j) => ({ ...j, ...patch, proposalId, events: appendEvents(j.events ?? [], add), updatedAt: iso() }));
+        add = pending;
+        pending = [];
+        const res = await updateJob(jobs, jobId, (j) => ({ ...j, ...patch, proposalId, events: appendProgress(j.events ?? [], add), updatedAt: iso() }));
+        if (!res.ok) return putBack();
+        storedEvents = res.job.events.length;
         await recordElapsed(); // compute is recorded at each progress write, new milliseconds only
-      }).catch(() => logLine({ msg: "job_progress_write_failed", route: ROUTE, requestId, jobId }));
+      }).catch(putBack);
       return queue;
     };
     const finish = async (status: JobStatus, terminal: SseEvent | null, patch: Partial<JobRecord> = {}) => {
@@ -95,11 +123,17 @@ export function createJobRunHandler(deps: JobRunDeps) {
       flushText();
       if (terminal) pending.push(terminal);
       await persist({ ...patch, status });
+      // The final write failed and its events were put back: retry it ONCE after a short wait (logged either way).
+      if (pending.length > 0) {
+        await new Promise((r) => setTimeout(r, FINAL_WRITE_RETRY_MS));
+        await persist({ ...patch, status });
+      }
     };
     const fail = (code: ErrorCode) => finish("failed", errorEvent(code));
 
     try {
-      const agent = (await deps.registry()).get(claimed.agent);
+      const registry = await deps.registry();
+      const agent = registry.get(claimed.agent);
       if (!agent) return (await fail("internal"), accepted());
       try { assertAllowedModel(agent.model); } catch { return (await fail("internal"), accepted()); }
 
@@ -126,20 +160,34 @@ export function createJobRunHandler(deps: JobRunDeps) {
       const emit = (ev: SseEvent) => {
         if (ev.type === "text") { text += ev.delta; return; } // stored per finished block, not per token
         pending.push(ev);
-        if (ev.type === "tool" && ev.phase === "end") persist(); // progress after each tool call
+        // Progress after each tool call, and also when a consult STARTS, so "Asking Dewey…" shows within one poll.
+        // A read/list event at or past the T2 cap would be dropped anyway: no write for it.
+        if (ev.type === "tool" && (ev.phase === "end" || ev.name === "consult_expert") && !(isLowValue(ev) && storedEvents >= LOW_VALUE_EVENT_CAP)) persist();
       };
-      const runTool = createToolRunner({
-        reader, proposals: deps.stores.proposals, agent: agent.name, state, now: () => new Date(deps.now()),
-        policy: { denyConsoleUi: S.denyConsoleUi }, createdBy: g.userId,
-        emit: (ev) => { flushText(); emit(ev); },
-        onProposal: async (p) => {
-          proposalId = p.id;
-          await writeAudit(deps.stores.audit, { action: "proposed", actor: g.userId, proposalId: p.id, jobId, requestId }, new Date(deps.now())).catch(() => {});
-        },
-      });
-      const usage: Usage = claimed.usage ?? { tokens: 0, rounds: 0 };
+      const toolEmit = (ev: SseEvent) => { flushText(); emit(ev); };
+      const onProposal = async (p: { id: string }) => {
+        proposalId = p.id; // the last one; the UI uses the proposal events
+        await writeAudit(deps.stores.audit, { action: "proposed", actor: g.userId, proposalId: p.id, jobId, requestId }, new Date(deps.now())).catch(() => {});
+      };
+      // ONE Usage, passed BY REFERENCE to the lead's runTurn and to every expert it consults (R-3).
+      const usage: Usage = { tokens: claimed.usage?.tokens ?? 0, rounds: claimed.usage?.rounds ?? 0 };
+      const now = () => new Date(deps.now());
+      const policy = { denyConsoleUi: S.denyConsoleUi };
+      let runTool: RunTool;
+      let tools: ReadonlyArray<unknown> = TOOLS;
+      let parallel: ParallelTools | undefined;
+      if (agent.name === S.team.leadAgent) {
+        // The team lead: read tools + consult_expert, no propose_change; consults of one round run in parallel (R-2).
+        const team = createTeamRunner({
+          client, registry, lead: agent, reader, stores: deps.stores, state, usage, deadline, emit: toolEmit,
+          createdBy: g.userId, policy, settings: S, now, onProposal,
+        });
+        ({ runTool, tools, parallel } = team);
+      } else {
+        runTool = createToolRunner({ reader, proposals: deps.stores.proposals, agent: agent.name, state, now, policy, createdBy: g.userId, emit: toolEmit, onProposal });
+      }
       const r = await runTurn({
-        client, agent, messages: claimed.messages, runTool, emit, effort: "high", deadline, usage,
+        client, agent, messages: claimed.messages, runTool, emit, effort: "high", deadline, usage, tools, parallel,
         maxRounds: S.perTurn.maxToolRounds, maxTokens: S.perTurn.maxTokens, maxToolCallsPerRound: S.perTurn.maxToolCallsPerRound,
       });
       const save = { messages: r.messages, usage: r.usage, readShas: state.readShas, baseSha: state.baseSha };

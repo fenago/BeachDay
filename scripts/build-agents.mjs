@@ -10,6 +10,8 @@
 //   2. "\n\n# Skill: <name>\n" + each SKILL.md, in `skills:` order
 //   3. "\n\n# Knowledge: knowledge/<name>/\n" + README.md, then each docs/*.md (sorted)
 //   4. a list of example folders, with a line saying to read them with read_file from main
+//   5. ONLY for the team lead (orchestrator): "\n\n# Console mode (Agents page)\n" + scripts/console/team-lead.md
+//      + a generated roster (name, persona, model label, description of every other agent). Missing file = build fails.
 //
 // Safety:
 //  * Agent files are DATA. They are parsed here with a small frontmatter reader, never imported or evaled.
@@ -99,7 +101,23 @@ function knowledgeFor(root, name) {
   return { readmeText, docs, examples, title: firstHeading(readmeText, `${name} knowledge`) };
 }
 
-export function buildAgents({ root }) {
+// The Console team lead (team_plan R-5). Must equal SETTINGS.team.leadAgent (tests/unit/settings.test.mjs pins the pair).
+export const LEAD_AGENT = "orchestrator";
+export const TEAM_ADDENDUM_PATH = join("scripts", "console", "team-lead.md");
+
+// Console-only addendum for the lead: "# Console mode (Agents page)" + team-lead.md + a generated roster.
+// scripts/** is deny-listed to agents, so no Console proposal can rewrite the routing or injection rules.
+function leadAddendum(root, leadName, agents) {
+  const file = join(root, TEAM_ADDENDUM_PATH);
+  if (!existsSync(file)) throw new Error(`${leadName}: missing ${TEAM_ADDENDUM_PATH.replaceAll("\\", "/")}`);
+  const text = readText(file, leadName).replace(/\s+$/, "");
+  if (text === "") throw new Error(`${leadName}: ${TEAM_ADDENDUM_PATH.replaceAll("\\", "/")} is empty`);
+  const roster = agents.filter((a) => a.name !== leadName).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    .map((a) => `- ${a.name} (${a.persona}, ${a.modelLabel}): ${a.description}`).join("\n");
+  return `\n\n# Console mode (Agents page)\n${text}\n\n## Expert roster (use these names with consult_expert)\n${roster}\n`;
+}
+
+export function buildAgents({ root, leadAgent = LEAD_AGENT }) {
   const agentsDir = join(root, ".claude", "agents");
   const files = readdirSync(agentsDir).filter((f) => f.endsWith(".md")).sort();
   if (files.length === 0) throw new Error("no agent files found");
@@ -131,9 +149,6 @@ export function buildAgents({ root }) {
         k.examples.map((e) => `- knowledge/${name}/examples/${e.dir}/ : ${e.title}`).join("\n");
     }
     prompt += "\n";
-    const bytes = Buffer.byteLength(prompt, "utf8");
-    if (bytes > MAX_PROMPT_BYTES) throw new Error(`${label}: system prompt is ${bytes} bytes, over the ${MAX_PROMPT_BYTES} limit`);
-    biggest = Math.max(biggest, bytes);
 
     agents.push({
       name,
@@ -154,6 +169,14 @@ export function buildAgents({ root }) {
     });
   }
   agents.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  const lead = agents.find((a) => a.name === leadAgent);
+  if (!lead) throw new Error(`team lead agent ${leadAgent} not found in .claude/agents`);
+  lead.systemPrompt = lead.systemPrompt.replace(/\s+$/, "") + leadAddendum(root, leadAgent, agents);
+  for (const a of agents) {
+    const bytes = Buffer.byteLength(a.systemPrompt, "utf8");
+    if (bytes > MAX_PROMPT_BYTES) throw new Error(`${a.name}.md: system prompt is ${bytes} bytes, over the ${MAX_PROMPT_BYTES} limit`);
+    biggest = Math.max(biggest, bytes);
+  }
   return { agents, biggest };
 }
 

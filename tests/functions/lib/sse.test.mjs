@@ -58,3 +58,29 @@ describe("sse headers (R2-4)", () => {
     for (const code of Object.keys(ERROR_CODES)) expect(() => assertEvent(errorEvent(code))).not.toThrow();
   });
 });
+
+describe("Ask the team fields (team_plan R-4)", () => {
+  it("consult_expert tool events carry agent; ok only on a consult_expert end; proposals may carry agent", () => {
+    expect(() => assertEvent({ type: "tool", name: "consult_expert", phase: "start", agent: "open-meteo-integrator" })).not.toThrow();
+    expect(() => assertEvent({ type: "tool", name: "consult_expert", phase: "end", agent: "open-meteo-integrator", ok: false })).not.toThrow();
+    expect(() => assertEvent({ type: "tool", name: "read_file", phase: "end", agent: "ux-designer-apple-hig" })).not.toThrow();
+    expect(() => assertEvent({ type: "proposal", proposalId: "p_01JAAAAAAAAAAAAAAAAAAAAAAA", summary: "s", files: [{ path: "docs/a.md", bytes: 1 }], agent: "ux-designer-apple-hig" })).not.toThrow();
+  });
+  it.each([
+    [{ type: "tool", name: "consult_expert", phase: "start", agent: "Bad Agent" }],
+    [{ type: "tool", name: "consult_expert", phase: "start" }],
+    [{ type: "tool", name: "consult_expert", phase: "start", agent: "qa-engineer", summary: "Asking Tess about secret plans" }],
+    [{ type: "tool", name: "consult_expert", phase: "end", agent: "qa-engineer" }],
+    [{ type: "tool", name: "consult_expert", phase: "start", agent: "qa-engineer", ok: true }],
+    [{ type: "tool", name: "consult_expert", phase: "start", agent: "orchestrator" }],
+    [{ type: "text", delta: "nested", agent: "qa-engineer" }],
+    [{ type: "text", delta: "x", extra: 1 }],
+    [{ type: "tool", name: "consult_expert", phase: "start", agent: "x" }],
+    [{ type: "tool", name: "consult_expert", phase: "start", ok: true }],
+    [{ type: "tool", name: "read_file", phase: "end", ok: true }],
+    [{ type: "tool", name: "consult_expert", phase: "end", ok: "yes" }],
+    [{ type: "tool", name: "consult_expert", phase: "end", question: "leak" }],
+    [{ type: "tool", name: "spawn_agent", phase: "start" }],
+    [{ type: "proposal", proposalId: "p_01JAAAAAAAAAAAAAAAAAAAAAAA", summary: "s", files: [{ path: "a", bytes: 1 }], agent: "<b>" }],
+  ])("rejects %j", (ev) => { expect(() => assertEvent(ev)).toThrow(); });
+});

@@ -10,8 +10,12 @@
 .console-bar__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 
 /* Account menu: signed-in line + Security + Sign Out, as plain buttons (no popup). */
-.account-menu { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
-.account-menu__who { font-size: var(--fs-footnote); color: var(--text-2); overflow-wrap: anywhere; }
+.account-menu { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); }
+.account-menu .btn { padding-inline: var(--space-3); }   /* Sign Out + Sign Out Everywhere share one compact row */
+.account-menu [data-signout] { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); }   /* Sign Out + Sign Out Everywhere in one row, hint below */
+.account-menu [data-signout] > div { display: contents; }
+.account-menu [data-signout] .field__hint { flex: 1 1 100%; order: 2; margin: 0; }
+.account-menu__who { flex: 1 1 100%; font-size: var(--fs-footnote); color: var(--text-2); overflow-wrap: anywhere; }
 
 /* ----- Auth screens (centered solid card) ---------------------------------- */
 .auth-card { display: grid; gap: var(--space-4); inline-size: 100%; max-inline-size: 26rem; margin-inline: auto; padding: var(--space-6) var(--space-5); background: var(--surface-solid); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-l); }
@@ -64,6 +68,54 @@
 /* Composer: sticky safe-area-aware, textarea grows, Send stays 44 px. */
 .composer .btn { align-self: end; }
 .composer__hint { grid-column: 1 / -1; font-size: var(--fs-footnote); color: var(--text-2); }
+
+/* ----- Ask the team (team lead card, expert list, progress, Asked footer) ------ */
+/* Solid surfaces only: no new blur surface. Selected = a 3 px accent frame AND the
+   badge word (team.badge, "Default"), so selection never rests on colour alone. */
+.team-card { display: grid; gap: var(--space-2); padding: var(--space-4) var(--space-5); background: var(--surface-solid); color: var(--text); border: 1.5px solid var(--control-border); border-radius: var(--radius-l); min-inline-size: 0; }
+.team-card--selected { border: 3px solid var(--accent); padding: calc(var(--space-4) - 1.5px) calc(var(--space-5) - 1.5px); }
+.team-card__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.team-card__title { font-size: var(--fs-title-2); line-height: 1.2; font-weight: 700; flex: 1 1 10rem; min-inline-size: 0; }
+.team-card__sub { font-size: var(--fs-callout); color: var(--text-2); }
+.team-card__badge { display: inline-flex; align-items: center; gap: var(--space-1); min-block-size: 1.5rem; padding: 0.125rem 0.625rem; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: var(--fs-footnote); font-weight: 700; white-space: nowrap; }
+.team-card__badge .icon { inline-size: 0.875rem; block-size: 0.875rem; }
+.team-card a, .team-card button { min-block-size: var(--target-min); }
+
+/* Experts follow below the team card; Kai is not repeated here. */
+.expert-list { display: grid; gap: var(--space-4); list-style: none; margin: 0; padding: 0; }
+.expert-list > li { min-inline-size: 0; }
+.expert-list__heading { justify-self: start; font-size: var(--fs-headline); font-weight: 600; color: var(--text); margin: var(--space-2) 0 0; inline-size: fit-content; max-inline-size: 100%; padding: var(--space-2) var(--space-4); background: var(--surface-solid); border: 1px solid var(--border); border-radius: 999px; }   /* solid pill: no text sits on the sky */
+
+/* Progress lines from consult_expert events: text carries the state, the icon is a helper. */
+.msg--progress { justify-self: start; max-inline-size: 100%; }
+.msg--progress .msg__author { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }  /* visually hidden, still read */
+.msg--progress .msg__body { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); background: transparent; border: 1px dotted var(--control-border); border-radius: var(--radius-s); font-size: var(--fs-subhead); color: var(--text); }
+.msg--progress .icon { flex: none; color: var(--text-2); }
+.msg--progress[data-state="done"] .icon { color: var(--banner-ok-icon); }
+.msg--progress[data-state="failed"] .msg__body { background: var(--banner-error-bg); border: 1.5px solid var(--banner-error-icon); font-weight: 600; }
+.msg--progress[data-state="failed"] .icon { color: var(--banner-error-icon); }
+.msg--progress[aria-busy="true"] .msg__body::after { content: none; }   /* the copy already ends in an ellipsis */
+
+/* "Asked: Dewey, Wren" under the combined answer. */
+.msg__asked { margin: var(--space-2) 0 0; padding-block-start: var(--space-2); border-block-start: 1px solid var(--border); font-size: var(--fs-footnote); color: var(--text-2); overflow-wrap: anywhere; white-space: normal; }
+.msg__proposal-by { font-size: var(--fs-footnote); font-weight: 600; color: var(--text-2); }
+
+@media (min-width: 40em) {
+  .expert-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-contrast: more) {
+  .msg--progress .msg__body { border-style: solid; }
+  .msg__asked { border-color: var(--control-border); color: var(--text); }
+  .team-card__sub { color: var(--text); }
+}
+@media (forced-colors: active) {
+  .team-card { border: 1px solid CanvasText; }
+  .team-card--selected { border: 3px solid Highlight; }
+  .team-card__badge { background: Canvas; color: CanvasText; border: 1.5px solid CanvasText; forced-color-adjust: none; }
+  .msg--progress .msg__body { border-color: CanvasText; }
+  .msg--progress[data-state="failed"] .msg__body { border: 2px solid CanvasText; }
+  .msg__asked { border-color: CanvasText; }
+}
 
 /* ----- Proposal card (extends components.css) --------------------------------- */
 .proposal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-4); }

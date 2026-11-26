@@ -234,3 +234,35 @@ No new colour tokens in W2. Every new rule pairs existing tokens (`--text`/`--te
 
 ## 9. Render checks (W2)
 Harness on port 4183, Chromium, Pixel 7, iPhone 15 (chromium, labelled), 320 px; light and dark; How it works, Resources, Guide: 0 horizontal scroll, 0 controls under 44 px (inline links in prose excluded), 1 blur surface, 0 console errors. index.html and console.html did not exist when I rendered, so beach.css and console.css are verified only by the class gap-finder, not by pixels.
+
+## 10. Ask the team (console.css)
+Classes (Remy-B codes against these; copy ids are Wren's):
+```html
+<section class="team-card team-card--selected" aria-labelledby="tt">
+  <div class="team-card__head"><h2 class="team-card__title" id="tt">Ask the team</h2><span class="team-card__badge">Default</span></div>
+  <p class="team-card__sub">...</p></section>
+<h2 class="expert-list__heading" id="experts-heading">Or ask one expert</h2>
+<ul class="expert-list" aria-labelledby="experts-heading"><li><article class="agent-card">...</article></li></ul>
+<div class="msg msg--progress" data-state="asking|done|failed" aria-busy="true"><span class="msg__author">Progress</span><p class="msg__body"><svg class="icon" aria-hidden="true">...</svg>Asking Dewey</p></div>
+<div class="msg msg--agent"><span class="msg__author">Kai</span><div class="msg__body">...<p class="msg__asked">Asked: Dewey, Wren</p></div></div>
+```
+- Selected is a 3 px accent frame plus the badge word ("Default"); never colour alone. Unselected uses the 1.5 px `--control-border` frame. All surfaces are solid, so no new blur surface; no new colour tokens.
+- `.msg--progress`: compact dotted line, the state is the words ("Asking", "answered", "couldn't answer"); `failed` adds a banner-error fill and border. The `.msg__author` is visually hidden but read. The "…" comes only from the copy; `aria-busy` adds no ellipsis here (`::after { content: none }`). Announce start and end only (Wren's cadence).
+- `.msg__asked` is a footnote under the answer; `.msg__proposal-by` is the "Drafted by" line above a proposal card.
+- `.expert-list__heading` is a standalone `h2` above the list, styled as a solid `fit-content` pill so no text sits on the sky. `.expert-list` holds only cards, two columns from 40em.
+- Compact account row: `.account-menu` puts the signed-in line on its own row, then Security, then `[data-signout]` as one flex row (Sign Out + Sign Out Everywhere) with the hint beneath (`display: contents` on its inner div). Team card top was y=353 at 390/412 px (was 440) and 441 at 320 px (was 528).
+- Fallbacks: `prefers-contrast: more` (solid dotted lines, full-strength text), `forced-colors` (Highlight frame, outlined badge), nothing animates so reduced-motion needs no rule.
+
+Contrast, not rounded (light / dark; script `tests/helpers/contrast-beachday.mjs` still 122/122; the pairs below were computed with the same formulas):
+| Pair | Light | Dark | Min |
+|---|---|---|---|
+| `--text` / `--text-2` on `--surface-solid` (title, sub, Asked, Drafted by) | 16.20 / 9.72 | 15.87 / 10.89 | 4.5 |
+| `--text` on `--surface-2` (progress inside a bubble) | 14.74 | 13.46 | 4.5 |
+| `--text-2` on `--surface-2` (Asked footer in the Kai bubble) | 8.84 | 9.24 | 4.5 |
+| `--on-accent` on `--accent` (Default badge) | 11.70 | 8.89 | 4.5 |
+| `--accent` frame vs `--surface-solid` | 10.88 | 8.61 | 3 |
+| `--control-border` (team frame, dotted progress) vs `--surface-solid` | 6.28 | 8.16 | 3 |
+| progress icons: `--text-2` / `--banner-ok-icon` vs `--surface-solid` | 9.72 / 6.51 | 10.89 / 10.70 | 3 |
+| failed: `--text` on `--banner-error-bg`; icon and border on it | 14.81; 6.43 | 14.92; 8.77 | 4.5; 3 |
+
+Render check (scratch page on port 4212, Chromium): 320, 390 and 800 px light, 390 dark, forced-colors, contrast-more: 0 horizontal scroll, 0 blur surfaces. Not tested: real iOS Safari, the harness with Remy-B's real markup (it did not exist yet), 200% text zoom. The sprite icons were not loaded in the scratch page, so icon glyphs are unchecked visually.

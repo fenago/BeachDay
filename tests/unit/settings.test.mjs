@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { SETTINGS } from "../../netlify/functions/lib/settings.mts";
+import { LEAD_AGENT } from "../../scripts/build-agents.mjs";
 import { json, error, sseHeaders, SECURITY_HEADERS, ERROR_CODES } from "../../netlify/functions/lib/http.mts";
 
 describe("SETTINGS pins every decision (change deliberately)", () => {
@@ -21,11 +22,24 @@ describe("SETTINGS pins every decision (change deliberately)", () => {
       jobWallClockMs: 840_000,
       stepUpWindowS: 600,
       allowedModels: ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
+      team: {
+        leadAgent: "orchestrator", maxConsultsPerTurn: 6, maxParallelConsults: 4, maxQuestionChars: 8_000,
+        maxReportChars: 24_000, expertMaxRounds: 6, expertEffort: "medium", minConsultMs: 90_000, minConsultTokens: 150_000,
+        maxProposalsPerTurn: 3,
+      },
     });
+  });
+  it("team lead name matches the build script, and the launch switches are unchanged", () => {
+    expect(SETTINGS.team.leadAgent).toBe(LEAD_AGENT);
+    expect(SETTINGS.approveEnabled).toBe(false);
+    expect(SETTINGS.denyConsoleUi).toBe(true);
+    expect(SETTINGS.team.maxParallelConsults).toBeLessThanOrEqual(SETTINGS.team.maxConsultsPerTurn);
+    expect(SETTINGS.team.minConsultMs).toBeLessThan(SETTINGS.jobWallClockMs);
+    expect(SETTINGS.team.minConsultTokens).toBeLessThan(SETTINGS.perTurn.maxTokens);
   });
   it("is deeply frozen", () => {
     expect(Object.isFrozen(SETTINGS)).toBe(true);
-    for (const k of ["approveCap", "perUserDaily", "perTurn", "allowedModels"]) expect(Object.isFrozen(SETTINGS[k])).toBe(true);
+    for (const k of ["approveCap", "perUserDaily", "perTurn", "allowedModels", "team"]) expect(Object.isFrozen(SETTINGS[k])).toBe(true);
   });
   it("keeps timing under the platform limits", () => {
     expect(SETTINGS.chatSdkTimeoutMs).toBeLessThan(SETTINGS.chatDeadlineMs);

@@ -1,21 +1,28 @@
 // Server-sent events for POST /api/chat, exactly the docs/04 §2.1 events: text, tool, proposal, handoff, error, done.
 // Every stream ends with exactly ONE `done` or `error`. A refusal is error{code:"refusal",retryable:false}, never done.
 // Raw Anthropic events, thinking blocks, signatures and upstream error bodies never reach the browser.
+import { SETTINGS } from "./settings.mts";
 import { sseHeaders, ERROR_CODES as HTTP_ERROR_CODES, type ErrorCode as HttpErrorCode } from "./http.mts";
 
-export type ToolName = "read_file" | "list_files" | "propose_change";
+export type ToolName = "read_file" | "list_files" | "propose_change" | "consult_expert";
 export type DoneReason = "end_turn" | "max_tokens" | "handoff" | "tool_rounds_exhausted";
 export type ErrorCode = HttpErrorCode; // one list: lib/http.mts ERROR_CODES (docs/04 §2.1)
 
 export type SseEvent =
   | { type: "text"; delta: string }
-  | { type: "tool"; name: ToolName; phase: "start" | "end"; summary?: string }
-  | { type: "proposal"; proposalId: string; summary: string; files: Array<{ path: string; bytes: number }> }
+  // Ask the team (build-contracts §12.4, T3): `agent` is REQUIRED on consult_expert (the expert asked) and set on a nested
+  // expert's tool/proposal events; never the lead. consult_expert carries NO summary (the question never reaches events),
+  // and its `end` always carries `ok` (false: the expert couldn't answer). `ok` appears nowhere else.
+  | { type: "tool"; name: ToolName; phase: "start" | "end"; summary?: string; agent?: string; ok?: boolean }
+  | { type: "proposal"; proposalId: string; summary: string; files: Array<{ path: string; bytes: number }>; agent?: string }
   | { type: "handoff"; jobId: string }
   | { type: "error"; code: ErrorCode; message: string; retryable: boolean }
   | { type: "done"; stopReason?: DoneReason };
 
-const TOOL_NAMES = new Set(["read_file", "list_files", "propose_change"]);
+const TOOL_NAMES = new Set(["read_file", "list_files", "propose_change", "consult_expert"]);
+export const EVENT_AGENT_RE = /^[a-z][a-z0-9-]{1,63}$/;
+const badAgent = (a: unknown) => a !== undefined && (typeof a !== "string" || !EVENT_AGENT_RE.test(a) || a === SETTINGS.team.leadAgent);
+const onlyKeys = (e: object, keys: readonly string[]) => Object.keys(e).every((k) => keys.includes(k));
 const DONE_REASONS = new Set(["end_turn", "max_tokens", "handoff", "tool_rounds_exhausted"]);
 const ERROR_CODES: ReadonlySet<string> = new Set(Object.keys(HTTP_ERROR_CODES)); // one list (docs/04 §2.1)
 export const MAX_TEXT_DELTA = 8192;
@@ -52,13 +59,21 @@ export function assertEvent(ev: SseEvent): void {
   switch (e?.type) {
     case "text":
       if (typeof e.delta !== "string" || e.delta.length > MAX_TEXT_DELTA) throw new Error("sse: bad text");
+      if (!onlyKeys(e, ["type", "delta"])) throw new Error("sse: bad text field"); // nested text is never tagged
       return;
     case "tool":
       if (!TOOL_NAMES.has(e.name) || (e.phase !== "start" && e.phase !== "end")) throw new Error("sse: bad tool");
       if (e.summary !== undefined && (typeof e.summary !== "string" || e.summary.length > 200)) throw new Error("sse: bad tool summary");
+      if (badAgent(e.agent)) throw new Error("sse: bad tool agent");
+      if (!onlyKeys(e, ["type", "name", "phase", "summary", "agent", "ok"])) throw new Error("sse: bad tool field");
+      if (e.name === "consult_expert") {
+        if (e.agent === undefined || e.summary !== undefined) throw new Error("sse: bad consult event");
+        if (e.phase === "end" ? typeof e.ok !== "boolean" : e.ok !== undefined) throw new Error("sse: bad consult ok");
+      } else if (e.ok !== undefined) throw new Error("sse: bad tool ok");
       return;
     case "proposal":
       if (!/^p_[0-9A-Z]{26}$/.test(e.proposalId) || typeof e.summary !== "string" || !Array.isArray(e.files) || e.files.length < 1 || e.files.length > 20) throw new Error("sse: bad proposal");
+      if (badAgent(e.agent)) throw new Error("sse: bad proposal agent");
       return;
     case "handoff":
       if (!/^j_[0-9A-Z]{26}$/.test(e.jobId)) throw new Error("sse: bad handoff");

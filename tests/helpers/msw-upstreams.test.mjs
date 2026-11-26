@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
-import { createUpstreams, createFakeAnthropic, createFakeGithub, turns, DEFAULT_SEED } from "./msw-upstreams.mjs";
+import { createUpstreams, createFakeAnthropic, createFakeGithub, turns, DEFAULT_SEED, agentOfRequest } from "./msw-upstreams.mjs";
 import { createFakeSupabase } from "./fake-supabase.mjs";
 import { fakeAnthropicKey, fakeGithubToken } from "./secrets.mjs";
 import { parseSse } from "./sse.mjs";
@@ -102,6 +102,87 @@ describe("fake Anthropic", () => {
     const res = await ask({ stream: false });
     const j = await res.json();
     expect(j).toMatchObject({ type: "message", role: "assistant", stop_reason: "end_turn" });
+  });
+});
+
+// ---------------------------------------------------------------- Ask the team: scripting BY AGENT (team_plan W1 Tess)
+const sysFor = (name) => `You are ${name}.\n\n# Skill: x\nbody\n\n# Knowledge: knowledge/${name}/\nREADME text\n`;
+const askAs = (name, body = {}) => ask({ system: name ? [{ type: "text", text: sysFor(name), cache_control: { type: "ephemeral" } }] : undefined, ...body });
+const textOf = async (res) => parseSse(await res.text()).filter((e) => e.event === "content_block_delta" && e.data.delta.type === "text_delta").map((e) => e.data.delta.text).join("");
+
+describe("fake Anthropic: per-agent queues (parallel consults)", () => {
+  it("agentOfRequest reads the build's Knowledge heading (string or block system); the LAST heading wins; no heading = null", () => {
+    expect(agentOfRequest({ system: sysFor("open-meteo-integrator") })).toBe("open-meteo-integrator");
+    expect(agentOfRequest({ system: [{ type: "text", text: sysFor("orchestrator") }] })).toBe("orchestrator");
+    expect(agentOfRequest({ system: `# Knowledge: knowledge/other/\nx\n${sysFor("qa-engineer")}` })).toBe("qa-engineer");
+    expect(agentOfRequest({ system: "You are a test." })).toBeNull();
+    expect(agentOfRequest({})).toBeNull();
+    expect(agentOfRequest({ system: "mentions # Knowledge: knowledge/x/ mid-line only" })).toBeNull(); // anchored to a line
+  });
+  it("a tagged turn is served to that agent only, in FIFO order, whatever the arrival order; untagged turns stay on the default queue", async () => {
+    anthropic.script(turns.for("ux-designer-apple-hig", turns.text("Wren 1")), turns.for("open-meteo-integrator", turns.text("Dewey 1")), turns.for("ux-designer-apple-hig", turns.text("Wren 2")), turns.text("default 1"));
+    expect(anthropic.pending).toBe(4);
+    expect(anthropic.pendingFor("ux-designer-apple-hig")).toBe(2);
+    expect(await textOf(await askAs("open-meteo-integrator"))).toBe("Dewey 1");
+    expect(await textOf(await askAs("ux-designer-apple-hig"))).toBe("Wren 1");
+    expect(await textOf(await askAs("orchestrator"))).toBe("default 1"); // no queue of its own: the default queue
+    expect(await textOf(await askAs("ux-designer-apple-hig"))).toBe("Wren 2");
+    expect(anthropic.pending).toBe(0);
+    expect(anthropic.unscripted).toBe(0);
+    expect(anthropic.requests.map((r) => r.agent)).toEqual(["open-meteo-integrator", "ux-designer-apple-hig", "orchestrator", "ux-designer-apple-hig"]);
+  });
+  it("an agent whose own queue ran out falls back to the default queue; with both empty it is counted unscripted", async () => {
+    anthropic.script(turns.for("qa-engineer", turns.text("mine")), turns.text("shared"));
+    expect(await textOf(await askAs("qa-engineer"))).toBe("mine");
+    expect(await textOf(await askAs("qa-engineer"))).toBe("shared");
+    await (await askAs("qa-engineer")).text();
+    expect(anthropic.unscripted).toBe(1);
+  });
+  it("old behaviour is intact: with no tags and no system prompt the default FIFO answers in order", async () => {
+    anthropic.script(turns.text("one"), turns.text("two"));
+    expect(await textOf(await ask({}))).toBe("one");
+    expect(await textOf(await ask({}))).toBe("two");
+    expect(anthropic.requests.every((r) => r.agent === null)).toBe(true);
+  });
+  it("a tool_use turn can be tagged too (an expert that calls propose_change), and turns.consult builds two consult_expert blocks in one round", async () => {
+    const files = [{ path: "docs/x.md", content: "# x\n" }];
+    anthropic.script(turns.for("ux-designer-apple-hig", turns.proposeChange({ summary: "A summary that is long enough to pass", files }, { id: "toolu_w" })));
+    const ev = parseSse(await (await askAs("ux-designer-apple-hig")).text());
+    expect(ev.filter((e) => e.event === "content_block_start")[1].data.content_block).toMatchObject({ type: "tool_use", id: "toolu_w", name: "propose_change" });
+    const c = turns.consult([{ agent: "open-meteo-integrator", question: "q1", id: "toolu_a" }, { agent: "ux-designer-apple-hig", question: "q2", id: "toolu_b" }], { text: "Asking both." });
+    expect(c.stop).toBe("tool_use");
+    expect(c.blocks.filter((b) => b.type === "tool_use").map((b) => [b.name, b.input.agent])).toEqual([["consult_expert", "open-meteo-integrator"], ["consult_expert", "ux-designer-apple-hig"]]);
+    anthropic.script(turns.for("orchestrator", c));
+    const j = await (await askAs("orchestrator", { stream: false })).json();
+    expect(j.content.filter((b) => b.type === "tool_use")).toHaveLength(2);
+  });
+  it("two held turns requested together overlap in time (maxConcurrent 2); two requested one after the other do not", async () => {
+    anthropic.script(turns.for("open-meteo-integrator", turns.held(turns.text("D"), 300)), turns.for("ux-designer-apple-hig", turns.held(turns.text("W"), 300)));
+    const [a, b] = await Promise.all([askAs("open-meteo-integrator"), askAs("ux-designer-apple-hig")]);
+    expect([await textOf(a), await textOf(b)]).toEqual(["D", "W"]);
+    expect(anthropic.maxConcurrent).toBe(2);
+    const [rd] = anthropic.requestsOf("open-meteo-integrator"), [rw] = anthropic.requestsOf("ux-designer-apple-hig");
+    expect(rd.t1).toBeGreaterThan(0);
+    expect(anthropic.overlapped(rd, rw)).toBe(true);
+    anthropic.reset();
+    anthropic.script(turns.for("open-meteo-integrator", turns.held(turns.text("D"), 200)), turns.for("ux-designer-apple-hig", turns.held(turns.text("W"), 200)));
+    await (await askAs("open-meteo-integrator")).text();
+    await (await askAs("ux-designer-apple-hig")).text();
+    expect(anthropic.maxConcurrent).toBe(1);
+    expect(anthropic.overlapped(anthropic.requests[0], anthropic.requests[1])).toBe(false);
+  });
+  it("reset clears the per-agent queues, the request log and the concurrency high-water mark", async () => {
+    anthropic.script(turns.for("qa-engineer", turns.text("x")));
+    await (await askAs("qa-engineer")).text();
+    anthropic.script(turns.for("qa-engineer", turns.text("left over")));
+    up.reset();
+    expect([anthropic.pending, anthropic.requests.length, anthropic.maxConcurrent, anthropic.unscripted]).toEqual([0, 0, 0, 0]);
+  });
+  it("a request-shape violation is still a 400 and the in-flight count is released", async () => {
+    expect((await askAs("qa-engineer", { temperature: 0.2 })).status).toBe(400);
+    anthropic.script(turns.for("qa-engineer", turns.held(turns.text("ok"), 50)));
+    await (await askAs("qa-engineer")).text();
+    expect(anthropic.maxConcurrent).toBe(1);
   });
 });
 

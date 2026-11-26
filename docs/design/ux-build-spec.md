@@ -127,7 +127,7 @@ The How it works page carries the same steps as plain text, so install help neve
 When a new service worker waits: status [ui.update.ready] "A new version is ready." with [btn.refresh]. It does not auto-reload and does not move focus. Offline, the same toast works because the worker is already local.
 
 ## 3. Agents page (`/console`, page title "Agents")
-Primary question: "Which agent do I want to talk to?" Primary action on each card: [agents.chat.with] ("Chat with Wren"). Sign-in is delayed until here; a signed-out visitor sees S1 (example 04).
+Primary question: "What do I want to ask?" Since 2026-11-26 the answer starts as "the team": "Ask the team" is the default and sits on top (§3.4). Below it, "Which expert do I want to talk to?" Primary action on each expert card: [agents.chat.with] ("Chat with Wren"). Sign-in is delayed until here; a signed-out visitor sees S1 (example 04).
 
 ### 3.1 Screens and states
 | State | What shows | Copy | Region |
@@ -162,6 +162,72 @@ Order: as served (sorted by name). One disclosure per card; opening one does not
 
 ### 3.3 Chat, proposals, approve
 Chat, proposal cards, the confirm sheet, the step-up and every cap and error message are specified in examples 03 and 04. New ids for the build: chat labels and states [agents.chat.*], proposal parts [agents.proposal.*], sheet text [agents.sheet.*], menu [agents.menu.security], back link [agents.back]. Plain-text chat output only (`white-space: pre-wrap`, `textContent`), no Markdown. After sending, focus stays in the composer. A streaming reply sets `aria-busy="true"` on its bubble until done; [agents.chat.thinking] is the status while it works. A stopped stream shows [agents.chat.interrupted]; a failed send keeps the draft and shows [agents.chat.failed].
+
+### 3.4 Ask the team (default view; Wren, 2026-11-26)
+Primary question: "What do you want to ask?" Primary action: [btn.send] in the composer. Copy ids are fixed by the team plan: [agents.team.title] "Ask the team", [agents.team.sub], [agents.team.badge] "Default", [agents.experts.heading] "Or ask one expert", [agents.chat.tool.consult_expert.start|end|error], [agents.team.asked], [agents.team.working], [agents.team.proposalBy]. The UI finds the team card by the server flag `teamLead: true`, never by the name, and shows the lead's `persona` in labels ("Message to Kai").
+
+**Default view** (`#/console`, signed in as `super_admin`, 390 px and 412 px):
+```
+Agents                                  h1, focus lands here (route-change rule)
+Pick an agent to chat with…             [agents.sub]
+┌ Ask the team            [Default] ──┐  h2 + text badge; selected = thick border AND the badge text
+│ Ask in plain words. The team lead…   │  [agents.team.sub]
+│ (conversation, role="log")           │
+│ [ Message to Kai ..........  (Send)] │  composer visible, ready to type; not auto-focused
+└──────────────────────────────────────┘
+Or ask one expert                        h2 [agents.experts.heading]
+ ▸ Dewey … [Chat with Dewey]             expert cards, now h3, same content as §3.2
+```
+- The team card and its chat panel are one block. There is no "Chat with" button on it; it is already selected (`aria-current="true"` on the card, plus the badge text; colour and border are decoration only).
+- Focus goes to the `h1`, as on every route change. The composer is visible and ready but not auto-focused: auto-focus would skip the heading for a screen reader and raise the iOS keyboard over the card before anyone chose to type.
+- The lead is not repeated in the expert list. `#/console/agent/<name>` still opens one expert, with [agents.back] to return to the default view. The expert heading and list are hidden if no other agent exists.
+- No lead in the list (no `teamLead` flag): fall back to §3.2 with nothing selected and no team card.
+- A signed-out, 401, 403 and 503 visitor sees exactly the screens in §3.1. The team card never appears behind them.
+
+**A team turn, step by step**
+| Step | User sees | Announced (`role="status"`) |
+|---|---|---|
+| 1 Send | Message in the log. [agents.team.working] shows under it and stays until the answer arrives | [agents.team.working], once |
+| 2 First poll with a consult | One progress line per expert: "Asking Dewey…" ([consult_expert.start]). Experts asked in parallel show together | Each new line, once |
+| 3 An expert finishes | That line becomes "Dewey answered" ([consult_expert.end]), or "Dewey couldn't answer" ([consult_expert.error]) | Each change, once |
+| 4 Kai answers | Kai's combined text, then the footer "Asked: Dewey, Wren" ([agents.team.asked]) | [agents.chat.reply] "Kai replied.", once |
+| 5 A proposal arrives | The existing proposal card with "Drafted by Wren" ([agents.team.proposalBy]) | [console.status.ready], as today |
+
+**Progress lines and announcements (the cadence).**
+- Progress lines are plain text rows in the log, shown in the order they started. They are not live regions themselves.
+- One persistent, visually hidden `role="status"` region (it exists before the first change) carries the announcements. Each consult is announced twice at most: its start and its end. The key is the consult, so a poll that brings nothing new announces nothing. The 2.5 s poll never re-announces. New lines that arrive in the same poll go out as one update, joined in order ("Asking Dewey… Asking Wren…"), so parallel starts are one announcement, not two.
+- A turn is at most 6 consults, so at most 12 announcements plus the working and reply lines.
+- Progress rows keep their text after the answer, so the reader can scroll back to see who was asked. Never remove a row; never restyle on colour alone (the words differ).
+- No spinner on its own: the working line has words. Reduced motion: no animated dots.
+
+**The "Asked" footer.** A line under Kai's answer: "Asked: Dewey, Wren". The list is built from the consult events, not from the model: persona names (never agent ids), first-asked order, each expert once, joined with ", ". It includes an expert who couldn't answer, because they were asked; the progress row already says so. No consults, no footer. It is plain text in the same message, so a screen reader reads it with the answer. If the footer and Kai's own text both name the experts, that is fine.
+
+**"Drafted by".** The proposal card is unchanged (§3.3, approval spec): same heading, diff, Review and Approve, step-up and cap. One added line directly above the card (a sibling line, not inside it; Dr. Lee's ruling): "Drafted by Wren", where the name is the expert named on the proposal event (never Kai: the lead cannot propose). Approve's accessible name stays "Approve proposal: {title}". The sheet's consequence copy is untouched.
+
+**Errors and limits** (all existing ids; none is new):
+| What happened | Copy | Region |
+|---|---|---|
+| One expert fails, times out or is refused | Row "Sable couldn't answer". Kai says what it could not get, in its answer. The turn goes on | status |
+| An expert's proposal is refused by the allow-list | No card. Kai explains in its answer. The progress row is still "answered" | none extra |
+| Job paused at the time limit | [agents.chat.paused] and a [agents.chat.continue] button (44 px). Rows already shown stay | status; focus stays where it is |
+| Job failed | [agents.chat.jobfailed] only, no button. The job was accepted, so the sent message stays in the log and nothing is left in the composer to resend; the user types again | alert |
+| Too many requests or the usage limit | [agents.chat.ratelimited] or [agents.chat.ratelimited.nodate]; [console.error.budget] | alert |
+| Message too long | [agents.chat.toolong] (the 8,000-character question limit is Kai's, not the user's) | alert |
+| Session ended (401) | The §3.1 session screen; the draft and transcript are kept in memory | h1 focus |
+| `401 step_up_required` | The confirm sheet, never "session ended" | as today |
+| Network lost while polling | Polling retries silently and the working line stays. (Later round: after many failed polls, show [auth.error.network] as a status.) | none |
+
+**Continue.** On a paused job, tap [agents.chat.continue]: the same job resumes, [agents.team.working] returns, and new rows are added under the old ones. Do not clear the log. When Continue is removed, focus moves to the composer, so it never falls back to the page. One Continue per pause; no auto-resume.
+
+**Usability walk-through (desk check, iPhone 390 px and Pixel 412 px).**
+- Landing: the page bar (h1, sub, status line, account menu) is tall, so the card starts low at 390 and 412 px. Fix: hide the page-bar sub when a team lead exists (it repeats [agents.team.sub]) and put the account menu on the h1 row, so the card heading and composer sit near the first screen. The expert list is one scroll away. Unmeasured; Tess to check.
+- Wait: a team turn can run for minutes. The working line, the rows and the "few minutes" text set the expectation; no fake progress bar. The 2.5 s poll is silent.
+- Friction 1: a long transcript pushes "Or ask one expert" far down. Suggest Sable keeps the log in a bounded, scrollable region and adds a "skip to experts" link only if the heading is more than a screen away. Not blocking.
+- Friction 2: choosing an expert mid-turn. The job keeps running; coming back to the team card must show the same log (memory only). Remy-B to confirm.
+- Friction 3: Android back from `#/console/agent/<name>` returns to the default view, the one expected place.
+- 320 px: rows wrap; the badge sits below the title if it does not fit; nothing scrolls sideways. 200% zoom: the composer stays above the on-screen keyboard (`scroll-padding`).
+
+**Open items.** (1) Tess's plan says the team card is "selected and focused" on landing; this spec focuses the `h1` and shows the card as selected (a test for `aria-current` fits better than a test for focus). (2) What a progress row says when a job ends paused or failed with a consult still unanswered: this spec says mark it "couldn't answer", for Remy-B to confirm. (3) Whether Send is disabled while a job runs: this spec says yes, with the draft kept. (4) "Kai" appears in the copy only through the persona field, so a renamed lead needs no copy change.
 
 ## 4. Account flows
 S1 to S12 are exactly as in example 04, with the three wording changes in §0 and §9. One reminder for Remy-B and Cass: after a route change focus goes to the new `h1`; after a wrong password focus returns to the password field with the text selected; `401 step_up_required` reopens the confirm sheet and is never "Session ended".

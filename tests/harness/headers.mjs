@@ -28,6 +28,10 @@ export function headersFor(rules, pathname, { substitutions = {} } = {}) {
     for (const [name, value] of r.headers) {
       let v = value;
       for (const [from, to] of Object.entries(substitutions)) v = v.split(from).join(to);
+      // public/_headers carries the REAL project host once README step 5 is done: swap it for the fixture host too, or the
+      // CSP connect-src blocks the fake Supabase and no Console spec can sign in.
+      const fixtureHost = substitutions["<project-ref>.supabase.co"];
+      if (fixtureHost) v = v.replace(/\b[a-z0-9]{20}\.supabase\.co\b/g, fixtureHost);
       out.set(name.toLowerCase(), v);
     }
   }

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://beachday.example/schemas/sse-event.schema.json",
   "title": "ConsoleSseEvent",
-  "description": "JSON carried in the single `data:` line of each SSE message from POST /api/chat. The SSE `event:` field equals `type`. Types fixed by docs/04 §2.1: text, tool, proposal, handoff, error, done. Every stream ends with exactly one `done` or `error`; a refusal is a terminal `error` with code `refusal`, never `done`.",
+  "description": "JSON carried in the single `data:` line of each SSE message from POST /api/chat. The SSE `event:` field equals `type`. Also the event list of GET /api/jobs/:id (job-view). Types fixed by docs/04 §2.1: text, tool, proposal, handoff, error, done. Every stream ends with exactly one `done` or `error`; a refusal is a terminal `error` with code `refusal`, never `done`. Ask the team (build-contracts §12): tool.name adds consult_expert; tool and proposal events add an optional agent; tool end adds ok.",
   "oneOf": [
     {
       "$ref": "#/$defs/text"
@@ -58,7 +58,8 @@
           "enum": [
             "read_file",
             "list_files",
-            "propose_change"
+            "propose_change",
+            "consult_expert"
           ]
         },
         "phase": {
@@ -71,8 +72,93 @@
           "type": "string",
           "maxLength": 200,
           "description": "Short UI line, e.g. 'Read public/js/score.js'. Never raw tool input."
+        },
+        "agent": {
+          "$ref": "#/$defs/agentName"
+        },
+        "ok": {
+          "type": "boolean",
+          "description": "Only on a consult_expert end event, where it is required: false when the expert couldn't answer (refusal, timeout, upstream error or a cap). Matches lib/sse.mts assertEvent."
         }
-      }
+      },
+      "allOf": [
+        {
+          "description": "ok exists only on a consult_expert end event",
+          "if": {
+            "type": "object",
+            "required": [
+              "name",
+              "phase"
+            ],
+            "properties": {
+              "name": {
+                "const": "consult_expert"
+              },
+              "phase": {
+                "const": "end"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "ok"
+            ],
+            "properties": {
+              "ok": {
+                "type": "boolean"
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "type": "object",
+              "required": [
+                "ok"
+              ],
+              "properties": {
+                "ok": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "consult_expert names its expert and carries no summary (the UI builds the line from the persona; the question is never echoed)",
+          "if": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "const": "consult_expert"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "agent"
+            ],
+            "not": {
+              "type": "object",
+              "required": [
+                "summary"
+              ],
+              "properties": {
+                "summary": {
+                  "type": "string"
+                }
+              }
+            },
+            "properties": {
+              "agent": {
+                "$ref": "#/$defs/agentName"
+              }
+            }
+          }
+        }
+      ]
     },
     "proposal": {
       "type": "object",
@@ -117,6 +203,9 @@
               }
             }
           }
+        },
+        "agent": {
+          "$ref": "#/$defs/agentName"
         }
       }
     },
@@ -206,6 +295,11 @@
     "proposalId": {
       "type": "string",
       "pattern": "^p_[0-9A-Z]{26}$"
+    },
+    "agentName": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,63}$",
+      "description": "Registry name of the expert (team turns only, docs/04 §2.1). consult_expert events: the expert asked. Nested read_file/list_files/propose_change and proposal events: the expert that ran them. Absent on the agent's own events. Never the team lead."
     }
   }
 }

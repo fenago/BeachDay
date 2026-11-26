@@ -13,4 +13,11 @@ export const SETTINGS = Object.freeze({
   chatDeadlineMs: 55_000, chatSdkTimeoutMs: 50_000, jobWallClockMs: 14 * 60_000,
   stepUpWindowS: 600,
   allowedModels: Object.freeze(["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]),
+  // "Ask the team" (team_plan §1 R-2/R-3): the lead consults experts server-side with consult_expert, inside one job-run.
+  // leadAgent must equal LEAD_AGENT in scripts/build-agents.mjs (a unit test pins the pair).
+  team: Object.freeze({
+    leadAgent: "orchestrator", maxConsultsPerTurn: 6, maxParallelConsults: 4, maxQuestionChars: 8_000,
+    maxReportChars: 24_000, expertMaxRounds: 6, expertEffort: "medium", minConsultMs: 90_000, minConsultTokens: 150_000,
+    maxProposalsPerTurn: 3,
+  }),
 });
