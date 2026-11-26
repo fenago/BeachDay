@@ -178,6 +178,16 @@ test("an expert drafts a proposal through Kai: the card says 'Drafted by Wren', 
   await diff.locator("summary").click();
   await expect(diff.locator(".diff__marker").filter({ hasText: "+" }).first()).toBeVisible();
   await expect(leadChat(page).locator(SEL.asked)).toHaveText(t("agents.team.asked", { list: "Wren" }), { timeout: 30_000 });
+  // place(): "Drafted by" and the card sit BEFORE Kai's reply bubble, even though Kai's reply text started first.
+  const reply = leadChat(page).getByTestId("msg-agent").last();
+  await expect(reply).toContainText("Wren drafted the change");
+  const order = await page.evaluate(() => {
+    const by = document.querySelector('[data-testid="proposal-by"]'), cardEl = document.querySelector('[data-testid="proposal-card"]');
+    const msgs = [...document.querySelectorAll('[data-testid="msg-agent"]')], last = msgs[msgs.length - 1];
+    const before = (a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    return { byBeforeCard: before(by, cardEl), byBeforeReply: before(by, last), cardBeforeReply: before(cardEl, last) };
+  });
+  expect(order, "proposal-by, then the card, then Kai's reply").toEqual({ byBeforeCard: true, byBeforeReply: true, cardBeforeReply: true });
   expect(approveRequests(), "showing a proposal approves nothing").toHaveLength(0);
   expect((await h.github.state()).commitCount).toBe(BASE);
 
