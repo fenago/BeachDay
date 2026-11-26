@@ -80,7 +80,7 @@
 /* Experts follow below the team card; Kai is not repeated here. */
 .expert-list { display: grid; gap: var(--space-4); list-style: none; margin: 0; padding: 0; }
 .expert-list > li { min-inline-size: 0; }
-.expert-list__heading { font-size: var(--fs-headline); font-weight: 600; color: var(--text); margin-block: var(--space-2) 0; }
+.expert-list__heading { justify-self: start; font-size: var(--fs-headline); font-weight: 600; color: var(--text); margin-block: var(--space-2) 0; padding: var(--space-2) var(--space-4); background: var(--surface-solid); border: 1px solid var(--border); border-radius: 999px; }   /* solid pill: no text sits on the sky */
 
 /* Progress lines from consult_expert events: text carries the state, the icon is a helper. */
 .msg--progress { justify-self: start; max-inline-size: 100%; }

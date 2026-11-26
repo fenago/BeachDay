@@ -127,7 +127,7 @@ The How it works page carries the same steps as plain text, so install help neve
 When a new service worker waits: status [ui.update.ready] "A new version is ready." with [btn.refresh]. It does not auto-reload and does not move focus. Offline, the same toast works because the worker is already local.
 
 ## 3. Agents page (`/console`, page title "Agents")
-Primary question: "Which agent do I want to talk to?" Primary action on each card: [agents.chat.with] ("Chat with Wren"). Sign-in is delayed until here; a signed-out visitor sees S1 (example 04).
+Primary question: "What do I want to ask?" Since 2026-11-26 the answer starts as "the team": "Ask the team" is the default and sits on top (§3.4). Below it, "Which expert do I want to talk to?" Primary action on each expert card: [agents.chat.with] ("Chat with Wren"). Sign-in is delayed until here; a signed-out visitor sees S1 (example 04).
 
 ### 3.1 Screens and states
 | State | What shows | Copy | Region |

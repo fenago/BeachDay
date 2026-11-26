@@ -107,8 +107,8 @@ test("team lead addendum: appended after the knowledge, only for the lead, with 
   const [ann, zed] = agents;
   const p = ann.systemPrompt;
   const i = (s) => { const n = p.indexOf(s); expect(n, s).toBeGreaterThan(-1); return n; };
-  expect([i("Ann body"), i("# Knowledge: knowledge/ann/"), i("\n\n# Console mode (Agents page)\nYou are the team lead."), i("## Expert roster")]).toEqual(
-    [i("Ann body"), i("# Knowledge: knowledge/ann/"), i("# Console mode"), i("## Expert roster")].sort((a, b) => a - b));
+  const order = [i("Ann body"), i("# Knowledge: knowledge/ann/"), i("# Console mode (Agents page)\nYou are the team lead."), i("## Expert roster")];
+  expect(order).toEqual([...order].sort((x, y) => x - y));
   expect(p).toContain("- zed (Zed, Sonnet): Zed does things: with a colon");
   expect(p).not.toContain("- ann (");
   expect(p.endsWith("\n")).toBe(true);
