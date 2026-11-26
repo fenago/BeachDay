@@ -109,13 +109,13 @@ export interface RunTurnDeps {
   emit: (ev: SseEvent) => void;      // text/tool/proposal events; terminal events are the caller's
   effort: Effort;
   deadline: Deadline;
-  usage?: Usage;                     // carried in when a job resumes
+  usage?: Usage;                     // BY REFERENCE: rounds (and tokens, unless `meter` is given) are added to it in place
   maxRounds?: number;
   maxTokens?: number;
   maxToolCallsPerRound?: number;     // R2-2: default SETTINGS.perTurn.maxToolCallsPerRound, else 10
   log?: (msg: string, data: object) => void;
   tools?: ReadonlyArray<unknown>;    // this agent's tool definitions (default TOOLS; the team lead: lib/team.mts)
-  meter?: TokenMeter;                // shared token meter (team turns); default: this turn's own count
+  meter?: TokenMeter;                // where tokens go; default `usage`. An expert passes the lead's Usage (shared, R-3)
   parallel?: ParallelTools;          // default: every tool runs serially
 }
 
@@ -142,10 +142,11 @@ export async function runTurn(d: RunTurnDeps): Promise<TurnResult> {
   // Known limit (R2-S7): the token cap is checked between rounds, so a turn can overshoot by one round.
   const maxTokens = d.maxTokens ?? SETTINGS.perTurn.maxTokens;
   const maxCalls = d.maxToolCallsPerRound ?? SETTINGS.perTurn.maxToolCallsPerRound ?? DEFAULT_MAX_TOOL_CALLS_PER_ROUND;
-  const rounds = { n: d.usage?.rounds ?? 0 };
-  // Tokens go to the shared meter when one is given (a team turn), else to this turn's own count.
-  const meter: TokenMeter = d.meter ?? { tokens: d.usage?.tokens ?? 0 };
-  const snapshot = (): Usage => ({ tokens: meter.tokens, rounds: rounds.n });
+  // Usage is shared BY REFERENCE (build-contracts §12.3): the caller's object is mutated, never copied. An expert passes
+  // the lead's Usage as `meter` (shared tokens) and no `usage` (its own rounds start at 0).
+  const usage: Usage = d.usage ?? { tokens: 0, rounds: 0 };
+  const meter: TokenMeter = d.meter ?? usage;
+  const snapshot = (): Usage => ({ tokens: meter.tokens, rounds: usage.rounds }); // a copy for the result
   const convo = [...d.messages];
   try {
     assertAllowedModel(d.agent.model);
@@ -155,7 +156,7 @@ export async function runTurn(d: RunTurnDeps): Promise<TurnResult> {
   }
 
   for (;;) {
-    if (rounds.n >= maxRounds) return { outcome: { kind: "done", stopReason: "tool_rounds_exhausted" }, messages: convo, usage: snapshot() };
+    if (usage.rounds >= maxRounds) return { outcome: { kind: "done", stopReason: "tool_rounds_exhausted" }, messages: convo, usage: snapshot() };
     if (meter.tokens >= maxTokens) return { outcome: { kind: "done", stopReason: "max_tokens" }, messages: convo, usage: snapshot() };
     if (!d.deadline.canStartRound()) return { outcome: { kind: "handoff" }, messages: convo, usage: snapshot() };
 
@@ -171,7 +172,7 @@ export async function runTurn(d: RunTurnDeps): Promise<TurnResult> {
       final = await stream.finalMessage();
     } catch (err: any) {
       if (d.deadline.signal.aborted) {
-        log("claude_deadline", { rounds: rounds.n });
+        log("claude_deadline", { rounds: usage.rounds });
         return { outcome: { kind: "error", code: "timeout" }, messages: convo, usage: snapshot() };
       }
       // Log status, type and request id only; never prompts, bodies or keys.
@@ -207,7 +208,7 @@ export async function runTurn(d: RunTurnDeps): Promise<TurnResult> {
       const parallel = mapLimited(parIdx, par?.limit ?? 1, async (i) => { results[i] = await runOne(calls[i], i); });
       await Promise.all([serial, parallel]);
       convo.push({ role: "user", content: results }); // all results in tool_use order, one message, results only
-      rounds.n += 1;
+      usage.rounds += 1;
       continue;
     }
     convo.push({ role: "assistant", content });

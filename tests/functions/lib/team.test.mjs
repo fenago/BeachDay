@@ -16,7 +16,7 @@ import { createAgentRegistry } from "../../../netlify/functions/lib/agents.mts";
 import { assertEvent } from "../../../netlify/functions/lib/sse.mts";
 import { windowKey } from "../../../netlify/functions/lib/limits.mts";
 import {
-  createTeamRunner, consultExpertTool, parseConsultInput, frameReport, frameQuestion, lastAssistantText, REPORT_NOTE, CONSULT_TOOL,
+  createTeamRunner, serialReader, consultExpertTool, parseConsultInput, frameReport, frameQuestion, lastAssistantText, REPORT_NOTE, CONSULT_TOOL,
 } from "../../../netlify/functions/lib/team.mts";
 
 const T = SETTINGS.team;
@@ -102,19 +102,19 @@ beforeEach(() => {
 const client = () => new Anthropic({ baseURL: ANTHROPIC_BASE_URL, apiKey: KEY, timeout: 10_000, maxRetries: 0 });
 
 /** One team turn: the lead's runTurn with the team runner, exactly as job-run wires it. */
-async function teamTurn({ settings = SETTINGS, deadline = createDeadline(14 * 60_000, Date.now()), meter = { tokens: 0 }, store = ratelimit, messages = [{ role: "user", content: "Is Saturday good at Hollywood Beach?" }] } = {}) {
+async function teamTurn({ settings = SETTINGS, deadline = createDeadline(14 * 60_000, Date.now()), usage = { tokens: 0, rounds: 0 }, store = ratelimit, messages = [{ role: "user", content: "Is Saturday good at Hollywood Beach?" }] } = {}) {
   const state = newTurnState();
   const c = client();
   const emit = (e) => { assertEvent(e); events.push(e); };
   const team = createTeamRunner({
     client: c, registry, lead: LEAD, reader: createGitHubRead({ token: GH_TOKEN }), stores: { proposals, ratelimit: store },
-    state, meter, deadline, emit, createdBy: SUB, policy: { denyConsoleUi: true }, settings, now: () => new Date(), log: (m, d) => log.push([m, d]),
+    state, usage, deadline, emit, createdBy: SUB, policy: { denyConsoleUi: true }, settings, now: () => new Date(), log: (m, d) => log.push([m, d]),
   });
   const r = await runTurn({
-    client: c, agent: LEAD, messages, runTool: team.runTool, emit, effort: "high", deadline, meter, tools: team.tools, parallel: team.parallel,
+    client: c, agent: LEAD, messages, runTool: team.runTool, emit, effort: "high", deadline, usage, tools: team.tools, parallel: team.parallel,
     maxRounds: settings.perTurn.maxToolRounds, maxTokens: settings.perTurn.maxTokens, maxToolCallsPerRound: settings.perTurn.maxToolCallsPerRound, log: (m, d) => log.push([m, d]),
   });
-  return { ...r, state, team };
+  return { ...r, state, team, shared: usage };
 }
 const leadReqs = () => claude.requests.filter((r) => r.who === "Kai");
 const reqsOf = (who) => claude.requests.filter((r) => r.who === who);
@@ -220,8 +220,12 @@ describe("consults run in parallel, framed as data", () => {
     expect(d.body.output_config).toEqual({ effort: "medium" });
     expect(leadReqs()[0].body.output_config).toEqual({ effort: "high" });
     // Events: consult start/end with agent; NO nested text, only the lead's.
-    expect(consultEvents().filter((e) => e.phase === "start").map((e) => [e.agent, e.summary])).toEqual([["open-meteo-integrator", "Asking Dewey"], ["ux-designer-apple-hig", "Asking Wren"]]);
-    expect(consultEvents().filter((e) => e.phase === "end").every((e) => e.ok === true && /answered$/.test(e.summary))).toBe(true);
+    expect(consultEvents().filter((e) => e.phase === "start")).toEqual([
+      { type: "tool", name: "consult_expert", phase: "start", agent: "open-meteo-integrator" },
+      { type: "tool", name: "consult_expert", phase: "start", agent: "ux-designer-apple-hig" },
+    ]); // no summary: the question never reaches events (§12.4)
+    expect(consultEvents().filter((e) => e.phase === "end").every((e) => e.ok === true && !("summary" in e))).toBe(true);
+    expect(JSON.stringify(events)).not.toMatch(/Is Saturday good\?|too strict/);
     expect(JSON.stringify(events)).not.toMatch(/NESTED-/);
     expect(events.filter((e) => e.type === "text").map((e) => e.delta).join("")).toBe("Asking the team.Saturday looks good. Asked: Dewey, Wren");
   });
@@ -244,6 +248,30 @@ describe("consults run in parallel, framed as data", () => {
     expect(resultsOf(leadReqs()[1])[0].content).toBe(SEED["docs/README.md"]);
     // nested tool events carry the expert's agent; the lead's own carry none
     expect(events.filter((e) => e.type === "tool" && e.name === "read_file").map((e) => e.agent ?? null).sort()).toEqual([null, null, "open-meteo-integrator", "open-meteo-integrator", "ux-designer-apple-hig", "ux-designer-apple-hig"].sort());
+  });
+});
+
+describe("T1: GitHub reads stay serial per job", () => {
+  it("serialReader allows one call in flight, keeps order, and a failure doesn't block the queue", async () => {
+    let live = 0, peak = 0;
+    const order = [];
+    const slow = (name, ms, fail = false) => async (x) => { live++; peak = Math.max(peak, live); await new Promise((r) => setTimeout(r, ms)); live--; order.push(`${name}${x}`); if (fail) throw new Error("x"); return x; };
+    const r = serialReader({ a: slow("a", 20), b: slow("b", 1), c: slow("c", 5, true), label: "keep" });
+    const out = await Promise.allSettled([r.a(1), r.b(2), r.c(3), r.a(4)]);
+    expect(peak).toBe(1);
+    expect(order).toEqual(["a1", "b2", "c3", "a4"]);
+    expect(out.map((o) => o.status)).toEqual(["fulfilled", "fulfilled", "rejected", "fulfilled"]);
+    expect(r.label).toBe("keep");
+  });
+  it("parallel experts' GitHub requests never overlap (one request in flight per job); Claude calls still overlap", async () => {
+    let live = 0, peak = 0;
+    server.use(http.get("https://api.github.com/*", async () => { live++; peak = Math.max(peak, live); await new Promise((r) => setTimeout(r, 15)); live--; return undefined; }));
+    claude.script("Kai", tools(ask("open-meteo-integrator"), ask("ux-designer-apple-hig"), ask("pwa-mobile-engineer")), text("ok"));
+    for (const p of ["Dewey", "Wren", "Pip"]) claude.script(p, { ...tools(["read_file", { path: "docs/README.md" }], ["list_files", { dir: "public" }]), delayMs: 40 }, text(`${p} done`));
+    await teamTurn();
+    expect(gh.state.calls.filter((c) => c.startsWith("GET")).length).toBeGreaterThanOrEqual(7);
+    expect(peak).toBe(1);
+    expect(claude.maxInflight).toBeGreaterThan(1);
   });
 });
 
@@ -285,20 +313,21 @@ describe("caps (team_plan §1 R-2, R-3), both sides", () => {
     for (const e of pev) expect(stored.find((p) => p.id === e.proposalId).agent).toBe(e.agent);
     expect(r.team.stats.proposals.used).toBe(3);
   });
-  it("one shared token meter: the expert's tokens count against the lead's 1M cap", async () => {
+  it("one shared Usage BY REFERENCE: the expert's tokens land on the lead's object and count against the 1M cap", async () => {
     claude.script("Kai", tools(ask("open-meteo-integrator")), text("never sent"));
     claude.script("Dewey", text("Big answer.", { usage: { input_tokens: 600_000, output_tokens: 1_000, cache_read_input_tokens: 399_000, cache_creation_input_tokens: 0 } }));
     const r = await teamTurn();
     expect(r.outcome).toEqual({ kind: "done", stopReason: "max_tokens" });
     expect(r.usage.tokens).toBe(1_000_000);
+    expect(r.shared).toEqual({ tokens: 1_000_000, rounds: 1 }); // the caller's object was mutated, not copied; expert rounds not added
     expect(leadReqs()).toHaveLength(1);
   });
   it("minConsultTokens: exactly 150,000 left runs; 149,999 left is refused", async () => {
     claude.script("Kai", tools(ask("open-meteo-integrator")), text("ok"));
-    await teamTurn({ meter: { tokens: 850_000 } });
+    await teamTurn({ usage: { tokens: 850_000, rounds: 0 } });
     expect(reqsOf("Dewey")).toHaveLength(1);
     claude.script("Kai", tools(ask("open-meteo-integrator")), text("ok"));
-    await teamTurn({ meter: { tokens: 850_001 } });
+    await teamTurn({ usage: { tokens: 850_001, rounds: 0 } });
     expect(reqsOf("Dewey")).toHaveLength(1);
     expect(resultsOf(leadReqs().at(-1))[0]).toMatchObject({ is_error: true, content: expect.stringMatching(/token budget/) });
   });
@@ -362,7 +391,7 @@ describe("policy through experts and failure isolation", () => {
     const res = resultsOf(leadReqs()[1]);
     expect(res[0]).toMatchObject({ is_error: true, content: expect.stringMatching(/Vera \(security-engineer\) couldn't answer: the expert declined/) });
     expect(res[1].is_error).toBeUndefined();
-    expect(consultEvents().find((e) => e.agent === "security-engineer" && e.phase === "end")).toMatchObject({ ok: false, summary: "Vera couldn't answer" });
+    expect(consultEvents().find((e) => e.agent === "security-engineer" && e.phase === "end")).toEqual({ type: "tool", name: "consult_expert", phase: "end", agent: "security-engineer", ok: false });
     expect(events.some((e) => e.type === "error")).toBe(false);
     expect(JSON.stringify(leadReqs()[1].body)).not.toContain("PARTIAL-REFUSED");
   });

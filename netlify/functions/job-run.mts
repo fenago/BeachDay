@@ -11,7 +11,7 @@ import { checkOrigin } from "./lib/origin.mts";
 import { realStores, type Stores } from "./lib/blobs.mts";
 import { SETTINGS } from "./lib/settings.mts";
 import { loadAgentRegistry, type AgentRegistry } from "./lib/agents.mts";
-import { createAnthropicClient, createDeadline, runTurn, assertAllowedModel, type Usage, type TokenMeter, type ParallelTools } from "./lib/claude.mts";
+import { createAnthropicClient, createDeadline, runTurn, assertAllowedModel, type Usage, type ParallelTools } from "./lib/claude.mts";
 import { githubReadFromEnv, type GitHubRead } from "./lib/github-read.mts";
 import { createToolRunner, TOOLS, type RunTool } from "./lib/tools.mts";
 import { createTeamRunner } from "./lib/team.mts";
@@ -23,6 +23,19 @@ import { updateJob, appendEvents, nonceMatches, type JobRecord, type JobStatus }
 import { isProduction, readJson, isPlainObject, onlyKeys, logLine, MAX_SMALL_BODY, type Ctx, type Settings, safe } from "./lib/handler.mts";
 
 const ROUTE = "POST /api/jobs-run";
+
+/**
+ * T2 (build-contracts §12.6): low-value events go first. read_file/list_files tool events (the lead's or an expert's)
+ * are stored only while the job holds fewer than LOW_VALUE_EVENT_CAP events, so consult, propose_change, proposal,
+ * text, error and done events keep the rest of the 500 (appendEvents still keeps the terminal slot).
+ */
+export const LOW_VALUE_EVENT_CAP = 400;
+const isLowValue = (ev: SseEvent) => ev.type === "tool" && (ev.name === "read_file" || ev.name === "list_files");
+export function appendProgress(events: SseEvent[], add: SseEvent[]): SseEvent[] {
+  const kept: SseEvent[] = [];
+  for (const ev of add) if (!isLowValue(ev) || events.length + kept.length < LOW_VALUE_EVENT_CAP) kept.push(ev);
+  return appendEvents(events, kept);
+}
 const accepted = (): Response => new Response(null, { status: 202, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } });
 
 export interface JobRunDeps {
@@ -85,7 +98,7 @@ export function createJobRunHandler(deps: JobRunDeps) {
       const add = pending;
       pending = [];
       queue = queue.then(async () => {
-        await updateJob(jobs, jobId, (j) => ({ ...j, ...patch, proposalId, events: appendEvents(j.events ?? [], add), updatedAt: iso() }));
+        await updateJob(jobs, jobId, (j) => ({ ...j, ...patch, proposalId, events: appendProgress(j.events ?? [], add), updatedAt: iso() }));
         await recordElapsed(); // compute is recorded at each progress write, new milliseconds only
       }).catch(() => logLine({ msg: "job_progress_write_failed", route: ROUTE, requestId, jobId }));
       return queue;
@@ -136,8 +149,8 @@ export function createJobRunHandler(deps: JobRunDeps) {
         proposalId = p.id; // the last one; the UI uses the proposal events
         await writeAudit(deps.stores.audit, { action: "proposed", actor: g.userId, proposalId: p.id, jobId, requestId }, new Date(deps.now())).catch(() => {});
       };
-      const usage: Usage = claimed.usage ?? { tokens: 0, rounds: 0 };
-      const meter: TokenMeter = { tokens: usage.tokens }; // ONE meter for the lead and every expert it consults (R-3)
+      // ONE Usage, passed BY REFERENCE to the lead's runTurn and to every expert it consults (R-3).
+      const usage: Usage = { tokens: claimed.usage?.tokens ?? 0, rounds: claimed.usage?.rounds ?? 0 };
       const now = () => new Date(deps.now());
       const policy = { denyConsoleUi: S.denyConsoleUi };
       let runTool: RunTool;
@@ -146,7 +159,7 @@ export function createJobRunHandler(deps: JobRunDeps) {
       if (agent.name === S.team.leadAgent) {
         // The team lead: read tools + consult_expert, no propose_change; consults of one round run in parallel (R-2).
         const team = createTeamRunner({
-          client, registry, lead: agent, reader, stores: deps.stores, state, meter, deadline, emit: toolEmit,
+          client, registry, lead: agent, reader, stores: deps.stores, state, usage, deadline, emit: toolEmit,
           createdBy: g.userId, policy, settings: S, now, onProposal,
         });
         ({ runTool, tools, parallel } = team);
@@ -154,7 +167,7 @@ export function createJobRunHandler(deps: JobRunDeps) {
         runTool = createToolRunner({ reader, proposals: deps.stores.proposals, agent: agent.name, state, now, policy, createdBy: g.userId, emit: toolEmit, onProposal });
       }
       const r = await runTurn({
-        client, agent, messages: claimed.messages, runTool, emit, effort: "high", deadline, usage, meter, tools, parallel,
+        client, agent, messages: claimed.messages, runTool, emit, effort: "high", deadline, usage, tools, parallel,
         maxRounds: S.perTurn.maxToolRounds, maxTokens: S.perTurn.maxTokens, maxToolCallsPerRound: S.perTurn.maxToolCallsPerRound,
       });
       const save = { messages: r.messages, usage: r.usage, readShas: state.readShas, baseSha: state.baseSha };

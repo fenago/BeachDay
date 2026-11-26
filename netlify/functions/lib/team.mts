@@ -7,6 +7,8 @@
 // - Expert proposals go through the normal createToolRunner: allow-list, secret scan, size limits and D6 unchanged;
 //   agent = the expert, createdBy = the job owner, at most maxProposalsPerTurn per team turn.
 // - One pinned main SHA for the whole team turn (ADR-0007), pinned before the fan-out; experts share the turn state.
+// - T1: GitHub reads stay serial per job: the lead and every expert share ONE reader whose calls go through one
+//   promise queue (at most one GitHub request in flight). Claude calls stay parallel.
 // - Caps, each refused with an is_error tool_result (never thrown): maxConsultsPerTurn, minConsultMs left,
 //   minConsultTokens left of the SHARED token meter, and one per-user daily `chat` slot per consult (an unreadable
 //   counter refuses: fail closed).
@@ -22,7 +24,7 @@ import type { PolicyOptions } from "./allowlist.mts";
 import type { ProposalRecord } from "./proposals.mts";
 import type { SseEvent, ErrorCode } from "./sse.mts";
 import { READ_TOOLS, TOOLS, createToolRunner, type RunTool, type ToolResultBlock, type ToolUseBlock, type TurnState } from "./tools.mts";
-import { runTurn, assertAllowedModel, type Deadline, type Effort, type ParallelTools, type TokenMeter } from "./claude.mts";
+import { runTurn, assertAllowedModel, type Deadline, type Effort, type ParallelTools, type Usage } from "./claude.mts";
 import { hit, windowKey } from "./limits.mts";
 
 export const CONSULT_TOOL = "consult_expert";
@@ -107,6 +109,22 @@ const OUTCOME_TEXT: Partial<Record<ErrorCode, string>> = {
   upstream: "the expert is unavailable right now",
 };
 
+/** T1: every method call on the reader waits for the previous one (one GitHub request in flight per job). */
+export function serialReader<R extends object>(reader: R): R {
+  let tail: Promise<unknown> = Promise.resolve();
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(reader)) {
+    out[k] = typeof v === "function"
+      ? (...args: unknown[]) => {
+          const run = tail.then(() => (v as (...a: unknown[]) => unknown).apply(reader, args));
+          tail = run.catch(() => {}); // a failed call doesn't block the queue
+          return run;
+        }
+      : v;
+  }
+  return out as R;
+}
+
 export interface TeamRunnerDeps {
   client: Pick<Anthropic, "messages">;
   registry: AgentRegistry;
@@ -114,7 +132,7 @@ export interface TeamRunnerDeps {
   reader: GitHubRead;
   stores: { proposals: BlobStore; ratelimit: BlobStore };
   state: TurnState;               // shared by the lead and every expert (one pinned SHA, readShas merged)
-  meter: TokenMeter;              // shared token meter (perTurn.maxTokens caps the whole team turn)
+  usage: Usage;                   // the lead's Usage, BY REFERENCE: every expert adds its tokens to it (R-3)
   deadline: Deadline;             // the job's one deadline: every nested call gets its signal
   emit: (ev: SseEvent) => void;   // tool + proposal events only reach here from experts
   createdBy: string;              // Supabase sub of the job owner
@@ -137,18 +155,19 @@ export function createTeamRunner(d: TeamRunnerDeps): TeamRunner {
   const log = d.log ?? ((m, x) => console.error(JSON.stringify({ msg: m, ...x })));
   const lead = d.lead.name;
   const names = expertNames(d.registry, lead);
+  const reader = serialReader(d.reader); // T1
   const stats = { consults: 0, proposals: { used: 0, max: T.maxProposalsPerTurn } };
 
   // One SHA for the whole team turn, pinned once even when consults start together (ADR-0007).
   let pinning: Promise<string> | null = null;
   const pinOnce = (): Promise<string> => {
     if (d.state.baseSha) return Promise.resolve(d.state.baseSha);
-    pinning ??= d.reader.getMainSha().then((sha) => (d.state.baseSha ??= sha), (e) => { pinning = null; throw e; });
+    pinning ??= reader.getMainSha().then((sha) => (d.state.baseSha ??= sha), (e) => { pinning = null; throw e; });
     return pinning;
   };
 
   const leadTools = createToolRunner({
-    reader: d.reader, proposals: d.stores.proposals, agent: lead, state: d.state, emit: d.emit, now: d.now,
+    reader, proposals: d.stores.proposals, agent: lead, state: d.state, emit: d.emit, now: d.now,
     policy: d.policy, createdBy: d.createdBy, allowedTools: ["read_file", "list_files"], pin: pinOnce,
   });
 
@@ -158,9 +177,10 @@ export function createTeamRunner(d: TeamRunnerDeps): TeamRunner {
     if (!input.ok) return fail(input.reason); // no event: there is no valid expert to name
     const expert = d.registry.get(input.agent)!;
     const persona = (expert.persona || expert.name).slice(0, 60);
+    // No summary on consult events (§12.4): the UI builds the line from the persona; the question never reaches events.
     const event = (phase: "start" | "end", ok?: boolean): SseEvent => phase === "start"
-      ? { type: "tool", name: CONSULT_TOOL, phase, agent: expert.name, summary: `Asking ${persona}` }
-      : { type: "tool", name: CONSULT_TOOL, phase, agent: expert.name, ok, summary: ok ? `${persona} answered` : `${persona} couldn't answer` };
+      ? { type: "tool", name: CONSULT_TOOL, phase, agent: expert.name }
+      : { type: "tool", name: CONSULT_TOOL, phase, agent: expert.name, ok: ok === true };
     d.emit(event("start"));
     const refuse = (why: string, outcome: string): ToolResultBlock => {
       log("consult_refused", { agent: expert.name, outcome });
@@ -173,7 +193,7 @@ export function createTeamRunner(d: TeamRunnerDeps): TeamRunner {
     let ran = false;
     try {
       if (d.deadline.remainingMs() < T.minConsultMs) return refuse("not enough time left in this turn; the user can press Continue", "time");
-      if (d.settings.perTurn.maxTokens - d.meter.tokens < T.minConsultTokens) return refuse("the turn's token budget is nearly used up", "tokens");
+      if (d.settings.perTurn.maxTokens - d.usage.tokens < T.minConsultTokens) return refuse("the turn's token budget is nearly used up", "tokens");
       try { assertAllowedModel(expert.model); } catch { return refuse("this expert is unavailable", "model"); }
       // Each consult counts one per-user `chat` turn, before it runs. Unreadable or contended counter: refuse.
       let slot;
@@ -184,13 +204,13 @@ export function createTeamRunner(d: TeamRunnerDeps): TeamRunner {
       ran = true;
 
       const runTool = createToolRunner({
-        reader: d.reader, proposals: d.stores.proposals, agent: expert.name, state: d.state, now: d.now,
+        reader, proposals: d.stores.proposals, agent: expert.name, state: d.state, now: d.now,
         policy: d.policy, createdBy: d.createdBy, allowedTools: EXPERT_TOOL_NAMES, pin: pinOnce,
         proposalLimit: stats.proposals, onProposal: d.onProposal,
         emit: (ev) => { if (ev.type === "tool" || ev.type === "proposal") d.emit({ ...ev, agent: expert.name }); },
       });
       const r = await runTurn({
-        client: d.client, agent: expert, runTool, deadline: d.deadline, meter: d.meter, log,
+        client: d.client, agent: expert, runTool, deadline: d.deadline, meter: d.usage, log, // tokens to the shared Usage; own rounds
         messages: [{ role: "user", content: frameQuestion(d.lead.persona, input.question) }],
         emit: () => {}, // nested text and anything else stay server-side; only the final text goes to the lead
         effort: T.expertEffort as Effort, tools: TOOLS,

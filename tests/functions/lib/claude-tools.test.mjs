@@ -5,8 +5,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createFakeAnthropic } from "./support/fake-anthropic.mjs";
 import { createFakeGitHub, blobSha } from "./support/fake-github.mjs";
 import { createFakeStore } from "./support/fake-blobs.mjs";
-import { runTurn, buildParams, createAnthropicClient, createDeadline, parseChatMessages, assertAllowedModel, ANTHROPIC_BASE_URL } from "../../../netlify/functions/lib/claude.mts";
-import { createToolRunner, newTurnState, TOOLS, toolSummary } from "../../../netlify/functions/lib/tools.mts";
+import { runTurn, buildParams, createAnthropicClient, createDeadline, parseChatMessages, assertAllowedModel, mapLimited, ANTHROPIC_BASE_URL } from "../../../netlify/functions/lib/claude.mts";
+import { createToolRunner, newTurnState, TOOLS, READ_TOOLS, toolSummary } from "../../../netlify/functions/lib/tools.mts";
 import { createGitHubRead } from "../../../netlify/functions/lib/github-read.mts";
 import { sseResponse, parseSse, assertEvent } from "../../../netlify/functions/lib/sse.mts";
 
@@ -227,5 +227,48 @@ describe("browser transcript", () => {
       [{ role: "user", content: "x".repeat(32_769) }], [{ role: "user", content: "" }], [{ role: "system", content: "x" }], "x",
     ]) expect(parseChatMessages(bad)).toBeNull();
     expect(toolSummary("read_file", { path: "<img src=x>" })).toBe("Read a path");
+  });
+});
+
+describe("tool sets, shared meter, parallel batch (Ask the team plumbing)", () => {
+  it("runTurn sends the given tool set; default stays TOOLS", async () => {
+    claude.script.push({ content: [{ type: "text", text: "a" }], stop_reason: "end_turn" }, { content: [{ type: "text", text: "b" }], stop_reason: "end_turn" });
+    await turn({ tools: READ_TOOLS });
+    await turn();
+    expect(claude.requests[0].body.tools.map((t) => t.name)).toEqual(["read_file", "list_files"]);
+    expect(claude.requests[1].body.tools.map((t) => t.name)).toEqual(TOOLS.map((t) => t.name));
+  });
+  it("a runner with allowedTools answers unknown tool for anything else (no GitHub, nothing stored)", async () => {
+    const runTool = createToolRunner({ reader: createGitHubRead({ token: GH_TOKEN }), proposals: store, agent: "orchestrator", state: newTurnState(), allowedTools: ["read_file", "list_files"] });
+    const r = await runTool({ type: "tool_use", id: "toolu_x", name: "propose_change", input: { summary: "x".repeat(30), files: [{ path: "docs/a.md", content: "y" }] } });
+    expect(r).toMatchObject({ is_error: true, content: "unknown tool: propose_change" });
+    expect(store.rows.size).toBe(0);
+    expect(gh.state.calls).toEqual([]);
+  });
+  it("tokens go to a shared meter when given, and the cap reads the meter", async () => {
+    const meter = { tokens: 999_000 };
+    claude.script.push({ content: [tu("toolu_m", "list_files", { dir: "" })], stop_reason: "tool_use", usage: { input_tokens: 1000, output_tokens: 0 } });
+    const r = await turn({ meter });
+    expect(meter.tokens).toBe(1_000_000);
+    expect(r.usage.tokens).toBe(1_000_000);
+    expect(r.outcome).toEqual({ kind: "done", stopReason: "max_tokens" });
+  });
+  it("mapLimited keeps input order and never exceeds the limit", async () => {
+    let live = 0, peak = 0;
+    const out = await mapLimited([30, 5, 20, 1, 10], 2, async (ms, i) => { live++; peak = Math.max(peak, live); await new Promise((r) => setTimeout(r, ms)); live--; return i; });
+    expect(out).toEqual([0, 1, 2, 3, 4]);
+    expect(peak).toBe(2);
+  });
+  it("without a parallel set every tool stays serial (existing behaviour)", async () => {
+    let live = 0, peak = 0;
+    const runTool = async (b) => { live++; peak = Math.max(peak, live); await new Promise((r) => setTimeout(r, 10)); live--; return { type: "tool_result", tool_use_id: b.id, content: "x" }; };
+    claude.script.push({ content: [tu("toolu_p1", "read_file", { path: "a" }), tu("toolu_p2", "read_file", { path: "b" })], stop_reason: "tool_use" }, { content: [{ type: "text", text: "ok" }], stop_reason: "end_turn" });
+    await turn({ runTool });
+    expect(peak).toBe(1);
+    claude.script.push({ content: [tu("toolu_p3", "read_file", { path: "a" }), tu("toolu_p4", "read_file", { path: "b" })], stop_reason: "tool_use" }, { content: [{ type: "text", text: "ok" }], stop_reason: "end_turn" });
+    peak = 0;
+    await turn({ runTool, parallel: { names: new Set(["read_file"]), limit: 2 } });
+    expect(peak).toBe(2);
+    expect(claude.requests.at(-1).body.messages.at(-1).content.map((b) => b.tool_use_id)).toEqual(["toolu_p3", "toolu_p4"]);
   });
 });

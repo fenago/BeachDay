@@ -26,3 +26,15 @@ describe("agents registry", () => {
     expect(() => validateAgent(agent({ systemPrompt: "" }))).toThrow();
   });
 });
+
+describe("teamLead flag (team_plan R-4)", () => {
+  it("only SETTINGS.team.leadAgent gets teamLead: true; the flag never brings the prompt", () => {
+    const r = createAgentRegistry([agent({ name: "orchestrator", systemPrompt: "You are Kai." }), agent()]);
+    const list = r.list();
+    expect(list.find((a) => a.name === "orchestrator").teamLead).toBe(true);
+    expect("teamLead" in list.find((a) => a.name === "qa-engineer")).toBe(false);
+    expect(JSON.stringify(list)).not.toContain("You are Kai.");
+    expect(r.get("orchestrator").teamLead).toBeUndefined(); // server-side record unchanged
+    expect(createAgentRegistry([agent({ name: "orchestrator" })], { leadAgent: "nobody" }).list()[0].teamLead).toBeUndefined();
+  });
+});
