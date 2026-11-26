@@ -178,4 +178,50 @@ describe("T2: low-value events go first", () => {
     expect(rec.status).toBe("done");
     expect(rec.events.slice(400)).toEqual([{ type: "text", delta: "The answer." }, { type: "done", stopReason: "end_turn" }]);
   });
+  const seedJob = async (n, id) => {
+    const nonce = "D".repeat(43);
+    const now = new Date().toISOString();
+    h.blobs.seed("jobs", id, { id, owner: sub(), agent: "open-meteo-integrator", status: "queued", nonceHash: sha256hex(nonce), messages: [{ role: "user", content: "x" }], baseSha: null, readShas: {}, usage: { tokens: 0, rounds: 0 }, events: Array(n).fill({ type: "text", delta: "." }), proposalId: null, createdAt: now, updatedAt: now });
+    await t.call("POST /api/jobs-run", t.req("POST", "/api/jobs-run", { token: await t.token(), body: { jobId: id, nonce } }));
+    await t.settled();
+    return h.blobs.peek("jobs", id);
+  };
+  it("(j) inside job-run at 399: a read's end is the 400th event; the next read is dropped; the answer and done are kept", async () => {
+    h.anthropic.script(turns.readFile("docs/README.md"), turns.readFile("docs/README.md"), turns.text("Answer."));
+    const rec = await seedJob(399, "j_01JCCCCCCCCCCCCCCCCCCCCCCC");
+    expect(rec.status).toBe("done");
+    expect(rec.events.slice(399)).toEqual([
+      { type: "tool", name: "read_file", phase: "end", summary: "Read docs/README.md" }, // its start (>= 380) was dropped first
+      { type: "text", delta: "Answer." }, { type: "done", stopReason: "end_turn" },
+    ]);
+  });
+  it("(e) below 380 a read keeps both start and end", async () => {
+    h.anthropic.script(turns.readFile("docs/README.md"), turns.text("Answer."));
+    const rec = await seedJob(379, "j_01JDDDDDDDDDDDDDDDDDDDDDDD");
+    expect(rec.events.slice(379).map((e) => e.phase ?? e.type)).toEqual(["start", "end", "text", "done"]);
+  });
+});
+
+describe("(c) a failed progress write keeps its events for the next write", () => {
+  it("the events of a thrown write are put back and stored by the next one", async () => {
+    const jobs = h.blobs.getStore("jobs");
+    const real = jobs.setJSON;
+    let writes = 0;
+    jobs.setJSON = async function (key, value, opts) {
+      if (key.startsWith("j_") && opts?.onlyIfMatch && value.status === "running" && (value.events ?? []).length > 0 && ++writes === 1) throw new Error("blobs down");
+      return real.call(this, key, value, opts);
+    };
+    try {
+      h.anthropic.script(turns.readFile("docs/README.md"), turns.text("Answer."));
+      const token = await t.token();
+      const { jobId } = await (await startJob(token, { agent: "open-meteo-integrator", messages: [{ role: "user", content: "Read" }] })).json();
+      await t.settled();
+      expect(writes).toBeGreaterThanOrEqual(1);
+      const evs = h.blobs.peek("jobs", jobId).events;
+      expect(evs.filter((e) => e.name === "read_file").map((e) => e.phase)).toEqual(["start", "end"]);
+      expect(evs.at(-1)).toEqual({ type: "done", stopReason: "end_turn" });
+    } finally {
+      jobs.setJSON = real;
+    }
+  });
 });

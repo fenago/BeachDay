@@ -28,12 +28,18 @@ const ROUTE = "POST /api/jobs-run";
  * T2 (build-contracts §12.6): low-value events go first. read_file/list_files tool events (the lead's or an expert's)
  * are stored only while the job holds fewer than LOW_VALUE_EVENT_CAP events, so consult, propose_change, proposal,
  * text, error and done events keep the rest of the 500 (appendEvents still keeps the terminal slot).
+ * A low-value START is dropped earlier (LOW_VALUE_START_CAP), so a read whose start was stored keeps room for its end
+ * and never shows as unfinished.
  */
 export const LOW_VALUE_EVENT_CAP = 400;
-const isLowValue = (ev: SseEvent) => ev.type === "tool" && (ev.name === "read_file" || ev.name === "list_files");
+export const LOW_VALUE_START_CAP = 380;
+export const isLowValue = (ev: SseEvent) => ev.type === "tool" && (ev.name === "read_file" || ev.name === "list_files");
 export function appendProgress(events: SseEvent[], add: SseEvent[]): SseEvent[] {
   const kept: SseEvent[] = [];
-  for (const ev of add) if (!isLowValue(ev) || events.length + kept.length < LOW_VALUE_EVENT_CAP) kept.push(ev);
+  for (const ev of add) {
+    const cap = ev.type === "tool" && ev.phase === "start" ? LOW_VALUE_START_CAP : LOW_VALUE_EVENT_CAP;
+    if (!isLowValue(ev) || events.length + kept.length < cap) kept.push(ev);
+  }
   return appendEvents(events, kept);
 }
 const accepted = (): Response => new Response(null, { status: 202, headers: { "cache-control": "no-store", "x-content-type-options": "nosniff" } });
@@ -85,6 +91,7 @@ export function createJobRunHandler(deps: JobRunDeps) {
     let text = "";
     let proposalId: string | null = claimed.proposalId ?? null;
     let lastComputeAt = startedAt;
+    let storedEvents = claimed.events?.length ?? 0; // from the last successful progress write
     let queue: Promise<unknown> = Promise.resolve();
     const flushText = () => { if (text) { pending.push(...textEvents(text)); text = ""; } };
     const recordElapsed = async () => {
@@ -97,10 +104,15 @@ export function createJobRunHandler(deps: JobRunDeps) {
       flushText();
       const add = pending;
       pending = [];
+      // A failed write (refused, conflict, missing or a throw) is logged, and its events go back to `pending` so the
+      // next write carries them.
+      const putBack = () => { logLine({ msg: "job_progress_write_failed", route: ROUTE, requestId, jobId }); pending = [...add, ...pending]; };
       queue = queue.then(async () => {
-        await updateJob(jobs, jobId, (j) => ({ ...j, ...patch, proposalId, events: appendProgress(j.events ?? [], add), updatedAt: iso() }));
+        const res = await updateJob(jobs, jobId, (j) => ({ ...j, ...patch, proposalId, events: appendProgress(j.events ?? [], add), updatedAt: iso() }));
+        if (!res.ok) return putBack();
+        storedEvents = res.job.events.length;
         await recordElapsed(); // compute is recorded at each progress write, new milliseconds only
-      }).catch(() => logLine({ msg: "job_progress_write_failed", route: ROUTE, requestId, jobId }));
+      }).catch(putBack);
       return queue;
     };
     const finish = async (status: JobStatus, terminal: SseEvent | null, patch: Partial<JobRecord> = {}) => {
@@ -142,7 +154,8 @@ export function createJobRunHandler(deps: JobRunDeps) {
         if (ev.type === "text") { text += ev.delta; return; } // stored per finished block, not per token
         pending.push(ev);
         // Progress after each tool call, and also when a consult STARTS, so "Asking Dewey…" shows within one poll.
-        if (ev.type === "tool" && (ev.phase === "end" || ev.name === "consult_expert")) persist();
+        // A read/list event at or past the T2 cap would be dropped anyway: no write for it.
+        if (ev.type === "tool" && (ev.phase === "end" || ev.name === "consult_expert") && !(isLowValue(ev) && storedEvents >= LOW_VALUE_EVENT_CAP)) persist();
       };
       const toolEmit = (ev: SseEvent) => { flushText(); emit(ev); };
       const onProposal = async (p: { id: string }) => {

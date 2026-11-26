@@ -10,8 +10,9 @@
 .console-bar__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 
 /* Account menu: signed-in line + Security + Sign Out, as plain buttons (no popup). */
-.account-menu { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
-.account-menu__who { font-size: var(--fs-footnote); color: var(--text-2); overflow-wrap: anywhere; }
+.account-menu { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-1); }
+.account-menu .btn { padding-inline: var(--space-3); }   /* Sign Out + Sign Out Everywhere share one compact row */
+.account-menu__who { flex: 1 1 100%; font-size: var(--fs-footnote); color: var(--text-2); overflow-wrap: anywhere; }
 
 /* ----- Auth screens (centered solid card) ---------------------------------- */
 .auth-card { display: grid; gap: var(--space-4); inline-size: 100%; max-inline-size: 26rem; margin-inline: auto; padding: var(--space-6) var(--space-5); background: var(--surface-solid); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-l); }
@@ -80,7 +81,7 @@
 /* Experts follow below the team card; Kai is not repeated here. */
 .expert-list { display: grid; gap: var(--space-4); list-style: none; margin: 0; padding: 0; }
 .expert-list > li { min-inline-size: 0; }
-.expert-list__heading { justify-self: start; font-size: var(--fs-headline); font-weight: 600; color: var(--text); margin-block: var(--space-2) 0; padding: var(--space-2) var(--space-4); background: var(--surface-solid); border: 1px solid var(--border); border-radius: 999px; }   /* solid pill: no text sits on the sky */
+.expert-list__heading { justify-self: start; font-size: var(--fs-headline); font-weight: 600; color: var(--text); margin: var(--space-2) 0 0; inline-size: fit-content; max-inline-size: 100%; padding: var(--space-2) var(--space-4); background: var(--surface-solid); border: 1px solid var(--border); border-radius: 999px; }   /* solid pill: no text sits on the sky */
 
 /* Progress lines from consult_expert events: text carries the state, the icon is a helper. */
 .msg--progress { justify-self: start; max-inline-size: 100%; }
@@ -90,7 +91,7 @@
 .msg--progress[data-state="done"] .icon { color: var(--banner-ok-icon); }
 .msg--progress[data-state="failed"] .msg__body { background: var(--banner-error-bg); border: 1.5px solid var(--banner-error-icon); font-weight: 600; }
 .msg--progress[data-state="failed"] .icon { color: var(--banner-error-icon); }
-.msg--progress[aria-busy="true"] .msg__body::after { content: " \2026"; content: " \2026" / ""; color: var(--text-2); }   /* static, no animation */
+.msg--progress[aria-busy="true"] .msg__body::after { content: none; }   /* the copy already ends in an ellipsis */
 
 /* "Asked: Dewey, Wren" under the combined answer. */
 .msg__asked { margin: var(--space-2) 0 0; padding-block-start: var(--space-2); border-block-start: 1px solid var(--border); font-size: var(--fs-footnote); color: var(--text-2); overflow-wrap: anywhere; white-space: normal; }
@@ -98,7 +99,6 @@
 
 @media (min-width: 40em) {
   .expert-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .expert-list__heading { grid-column: 1 / -1; }
 }
 @media (prefers-contrast: more) {
   .msg--progress .msg__body { border-style: solid; }

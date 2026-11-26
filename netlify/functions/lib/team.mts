@@ -82,9 +82,9 @@ export function parseConsultInput(input: unknown, names: readonly string[], lead
 export const frameQuestion = (leadPersona: string, question: string): string =>
   `The team lead (${leadPersona || "the team lead"}) asks, on behalf of the signed-in Console user:\n\n${question}`;
 
-/** The expert's report as DATA: tagged, the closing tag neutralised inside the text, truncated to maxChars code points. */
+/** The expert's report as DATA: tagged, every expert_report (any case) inside the text renamed, truncated to maxChars code points. */
 export function frameReport(agent: string, text: string, maxChars: number): string {
-  let body = text.replace(/<\/?\s*expert_report/gi, (m) => m.replace(/expert_report/i, "expert-report"));
+  let body = text.replace(/expert_report/gi, "expert-report"); // no tag of ours can appear inside the report
   const cps = [...body];
   if (cps.length > maxChars) body = cps.slice(0, maxChars).join("") + "\n[report truncated]";
   return `<expert_report agent="${agent}">\n${body}\n</expert_report>\n${REPORT_NOTE}`;
