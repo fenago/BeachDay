@@ -91,11 +91,11 @@ test("CSP host check: the build fails unless public/_headers names exactly the S
   rmSync(out, { recursive: true });
 });
 
-test("the REAL public/_headers passes the CSP host check for a matching origin and fails for a wrong one", () => {
+test("the REAL public/_headers passes the CSP host check for its own origin and fails for a different one", () => {
   const real = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "public", "_headers"), "utf8");
-  const filled = real.replace("https://<project-ref>.supabase.co", URL_OK);
-  assert.doesNotThrow(() => checkCspHost(filled, URL_OK));
-  assert.throws(() => checkCspHost(real, URL_OK), /does not list/, "the committed placeholder fails the build until a human fills it in");
+  const host = real.match(/https:\/\/[a-z0-9]{20}\.supabase\.co/)[0]; // filled in by Dr. Lee (README step 5)
+  assert.doesNotThrow(() => checkCspHost(real, host));
+  assert.throws(() => checkCspHost(real, URL_OK), /does not list/, "a SUPABASE_URL that differs from the CSP host fails the build");
 });
 
 test("CSP connect-src is an exact set: wildcards, schemes and extra hosts fail (R2-3 probe rows)", () => {
